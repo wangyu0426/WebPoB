@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, Copy, Download, Upload } from 'lucide-react';
+import { Check, Copy, Download, Link2, Upload } from 'lucide-react';
 import {
   buildToPobXml,
   encodeBuildToPobCode,
@@ -15,10 +15,15 @@ export function ImportExportTab() {
 
   const [importInput, setImportInput] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const shareCode = useMemo(() => encodeBuildToPobCode(build), [build]);
+  const shareUrl = useMemo(() => {
+    if (typeof window === 'undefined') return `#pob=${shareCode}`;
+    return `${window.location.origin}${window.location.pathname}#pob=${shareCode}`;
+  }, [shareCode]);
   const xmlPreview = useMemo(() => buildToPobXml(build), [build]);
 
   const handleCopy = async () => {
@@ -28,6 +33,16 @@ export function ImportExportTab() {
       setTimeout(() => setCopied(false), 1800);
     } catch {
       // ignore clipboard errors in restricted contexts
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 1800);
+    } catch {
+      // ignore clipboard errors
     }
   };
 
@@ -61,19 +76,33 @@ export function ImportExportTab() {
 
       {/* Export Share Code */}
       <div className="pob-panel rounded-lg p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
             <Upload className="w-4 h-4" />
             {t(locale, 'import.shareCode')}
           </h3>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
-          >
-            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? t(locale, 'import.copied') : t(locale, 'import.copy')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-500/40 cursor-pointer"
+            >
+              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Link2 className="w-3.5 h-3.5" />}
+              {copiedLink
+                ? t(locale, 'import.copied')
+                : locale === 'zh-CN'
+                  ? '复制直达链接'
+                  : 'Copy Share URL'}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? t(locale, 'import.copied') : t(locale, 'import.copy')}
+            </button>
+          </div>
         </div>
         <textarea
           readOnly

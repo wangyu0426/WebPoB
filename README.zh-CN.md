@@ -25,11 +25,27 @@ WebPoB/
 │   ├── codec/       # @webpob/codec - 官方 PoB 分享码编解码（Base64URL+zlib XML）与中/英文装备文本解析器
 │   └── calc/        # @webpob/calc  - 纯 TS 计算引擎（ModDB、双语 ModParser、攻防计算、天赋节点收益预测）
 ├── apps/
-│   ├── web/         # @webpob/web   - React + Vite + Tailwind 前端应用与 Canvas 交互式天赋树
+│   ├── web/         # @webpob/web   - React + Vite + Tailwind 前端应用、60fps 天赋树、Web Worker 热力图与 IndexedDB BD 库
 │   └── cors-proxy/  # 可选 Cloudflare Worker 轻量 CORS 代理
+├── fixtures/
+│   └── oracle/      # 官方 LuaJIT PathOfBuilding 黄金基准快照（12 组 PoE 1 3.30 & PoE 2 0.5 差分测试）
 └── scripts/
-    └── sync-data/   # 上游 PathOfBuilding 与 PoEDB/社区汉化词库同步脚本框架
+    ├── sync-data/   # 上游 PathOfBuilding 与 PoeCharm 汉化同步脚本 + LuaJIT 全量技能/基底导出器
+    └── oracle-diff/ # 对照原版 PathOfBuilding LuaJIT 的自动化差分验证框架
 ```
+
+## 原版 Path of Building 自动化差分验证（Oracle）
+
+WebPoB 的纯 TypeScript 计算引擎通过本地 LuaJIT 直接驱动上游原版 [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding)（PoE 1 `3.30`）与 [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)（PoE 2 `0.5`）的 `HeadlessWrapper.lua`，生成 **12 组官方黄金基准快照**并固化在 CI 回归测试（`packages/calc/src/oracle.test.ts`）中：
+
+- 覆盖属性、生命、魔力、能量护盾、护甲、闪避、元素抗性、命中与二次暴击检定、异灵之体（CI）、坚毅之心（RT）、心灵升华（40% MoM）、元素使升华天赋、功能药剂启用、火球点燃、Lv.21 宝石成长曲线以及 PoE 2 魔巫电球/彗星等核心场景。
+- **全部 12 组官方基准 Hit DPS 误差控制在 `0.00% – 0.04%`**。
+
+## 已完成核心功能
+
+- **官方全量数据**：PoE 1 `3.30`（2,750 天赋点）& PoE 2 `0.5`（4,524 天赋点）+ **1,794 颗 Lv.1–30 官方技能宝石数值** + **2,631 种官方装备基底** + PoeCharm 双语汉化。
+- **60fps 交互式天赋树与升华**：支持视口裁剪、弧线轨道、PoE 1 专精弹窗、**升华子天赋树独立点选与聚焦**、PoE 2 武器组独立天赋涂色、**Web Worker 后台节点收益热力图**。
+- **Web 原生工作流**：**IndexedDB 本地多 BD 离线库**、一键生成 **`#pob=` 直达分享链接**、功能药剂开关与中英文 `Ctrl+C` 装备粘贴解析。
 
 ## 快速开始
 
@@ -40,15 +56,17 @@ pnpm install
 # 2. 启动本地开发服务器
 pnpm dev
 
-# 3. 同步官方最新赛季天赋树与中文词库（PoE 1 3.30 & PoE 2 0.5）
-pnpm sync:data
-
-# 4. 运行单元测试与类型检查
+# 3. 运行单元测试、官方 PoB 差分回归测试与类型检查
 pnpm test
 pnpm typecheck
 
-# 5. 生产构建
+# 4. 生产构建
 pnpm build
+
+# 5. （可选）同步上游天赋/技能基底或运行 LuaJIT 差分报告
+pnpm sync:data
+pnpm sync:lua
+pnpm oracle:diff
 ```
 
 ## 开源协议

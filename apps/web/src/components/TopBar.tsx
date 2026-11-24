@@ -1,7 +1,10 @@
-import { Globe, PlusCircle, RotateCcw, Swords } from 'lucide-react';
+import { useState } from 'react';
+import { Check, FolderOpen, Globe, Link2, PlusCircle, RotateCcw, Swords } from 'lucide-react';
 import { getClassesForGame } from '@webpob/data';
+import { encodeBuildToPobCode } from '@webpob/codec';
 import { localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
+import { BuildLibraryModal } from './BuildLibraryModal';
 
 export function TopBar() {
   const {
@@ -13,9 +16,24 @@ export function TopBar() {
     loadSampleBuild,
     createNewBuild,
   } = useWebPobStore();
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const classes = getClassesForGame(build.game);
   const currentClass = classes.find((c) => c.id === build.classId) ?? classes[0]!;
+
+  const handleCopyShareUrl = async () => {
+    try {
+      const code = encodeBuildToPobCode(build);
+      const url = `${window.location.origin}${window.location.pathname}#pob=${code}`;
+      window.history.replaceState(null, '', `#pob=${code}`);
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 1800);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
 
   return (
     <header className="h-14 shrink-0 border-b border-[#252b3d] bg-[#10131c] px-4 flex items-center justify-between gap-3 select-none">
@@ -147,7 +165,33 @@ export function TopBar() {
       </div>
 
       {/* Right: Actions & Bilingual Language Switch */}
-      <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+      <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+        <button
+          type="button"
+          onClick={() => setLibraryOpen(true)}
+          title={locale === 'zh-CN' ? '本地 BD 库' : 'Saved Builds'}
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-200 bg-[#1a1f2e] hover:bg-[#242b3f] border border-[#2c3348] transition cursor-pointer"
+        >
+          <FolderOpen className="w-3.5 h-3.5 text-amber-300" />
+          <span className="hidden lg:inline">{locale === 'zh-CN' ? 'BD库' : 'Builds'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleCopyShareUrl()}
+          title={locale === 'zh-CN' ? '复制直达分享链接 (#pob=...)' : 'Copy Shareable URL (#pob=...)'}
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 transition cursor-pointer"
+        >
+          {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Link2 className="w-3.5 h-3.5" />}
+          <span className="hidden xl:inline">
+            {copiedUrl
+              ? locale === 'zh-CN'
+                ? '已复制'
+                : 'Copied'
+              : locale === 'zh-CN'
+                ? '分享'
+                : 'Share'}
+          </span>
+        </button>
         <button
           type="button"
           onClick={() => loadSampleBuild(build.game)}
@@ -155,7 +199,7 @@ export function TopBar() {
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 bg-[#1a1f2e] hover:bg-[#242b3f] border border-[#2c3348] transition cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline">{t(locale, 'topbar.resetSample')}</span>
+          <span className="hidden 2xl:inline">{t(locale, 'topbar.resetSample')}</span>
         </button>
         <button
           type="button"
@@ -164,7 +208,7 @@ export function TopBar() {
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 bg-[#1a1f2e] hover:bg-[#242b3f] border border-[#2c3348] transition cursor-pointer"
         >
           <PlusCircle className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline">{t(locale, 'topbar.newBuild')}</span>
+          <span className="hidden 2xl:inline">{t(locale, 'topbar.newBuild')}</span>
         </button>
 
         <button
@@ -176,6 +220,7 @@ export function TopBar() {
           {locale === 'zh-CN' ? '中文 / EN' : 'EN / 中文'}
         </button>
       </div>
+      <BuildLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </header>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Calculator,
   FileText,
@@ -8,6 +8,7 @@ import {
   Sliders,
   Sparkles,
 } from 'lucide-react';
+import { decodePobCodeToXml, importBuildFromCode } from '@webpob/codec';
 import { t, type MessageKey } from '@webpob/i18n';
 import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
 import { TopBar } from './components/TopBar';
@@ -31,11 +32,41 @@ const NAV_TABS: Array<{ id: ActiveTab; labelKey: MessageKey; icon: typeof GitBra
 ];
 
 export function App() {
-  const { locale, activeTab, setActiveTab, build, ensureOfficialDataLoaded } = useWebPobStore();
+  const { locale, activeTab, setActiveTab, build, ensureOfficialDataLoaded, replaceBuild } =
+    useWebPobStore();
+  const [hashToast, setHashToast] = useState<string | null>(null);
 
   useEffect(() => {
     void ensureOfficialDataLoaded(build.game);
   }, [build.game, ensureOfficialDataLoaded]);
+
+  // Auto-load shared build from URL hash (#pob=<base64url-code>)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#pob=')) return;
+    const code = hash.slice(5).trim();
+    if (!code) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const xml = decodePobCodeToXml(code);
+        const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';
+        await ensureOfficialDataLoaded(game);
+        if (cancelled) return;
+        const { build: imported } = importBuildFromCode(code);
+        replaceBuild(imported);
+        setHashToast(imported.name);
+        setTimeout(() => setHashToast(null), 4000);
+      } catch (err) {
+        console.warn('[WebPoB] Failed to load #pob URL hash build:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Run once on initial mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0b0d12] text-zinc-100 overflow-hidden">
@@ -69,6 +100,11 @@ export function App() {
 
           {/* Active Workspace View */}
           <div className="flex-1 min-h-0 overflow-hidden relative bg-[#0b0d12]">
+            {hashToast && (
+              <div className="absolute top-3 right-3 z-50 rounded-md bg-emerald-950/90 border border-emerald-500/50 px-3 py-1.5 text-xs text-emerald-200 shadow-lg">
+                {locale === 'zh-CN' ? `已从分享链接加载：${hashToast}` : `Loaded shared build: ${hashToast}`}
+              </div>
+            )}
             {activeTab === 'tree' && <PassiveTreeCanvas />}
             {activeTab === 'skills' && <SkillsTab />}
             {activeTab === 'items' && <ItemsTab />}

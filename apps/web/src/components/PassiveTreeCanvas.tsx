@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight,
   Crosshair,
+  Flame,
   Loader2,
   Maximize2,
   RotateCcw,
@@ -16,6 +17,8 @@ import { findShortestPathToNode, getAscendancyStartNodeId, getTreeForGame } from
 import { localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { computeNodePower } from '@webpob/calc';
 import { useWebPobStore } from '../store/useWebPobStore';
+import { computeHeatmapInWorker } from '../workers/calcWorkerClient';
+import type { NodePowerHeatItem } from '../workers/calc.worker';
 
 const SPATIAL_CELL_SIZE = 320;
 
@@ -76,6 +79,9 @@ export function PassiveTreeCanvas() {
   const [hoveredNodeId, setHoveredNodeId] = useState<number | null>(null);
   const [masteryModalNodeId, setMasteryModalNodeId] = useState<number | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapMap, setHeatmapMap] = useState<Map<number, NodePowerHeatItem>>(new Map());
   const dragRef = useRef<{
     active: boolean;
     moved: boolean;
@@ -292,6 +298,53 @@ export function PassiveTreeCanvas() {
     centerOnBuild();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [build.game, treeRevision]);
+
+  // Background Web Worker batch Node Power Heatmap when enabled
+  useEffect(() => {
+    if (!heatmapEnabled) {
+      setHeatmapMap(new Map());
+      setHeatmapLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setHeatmapLoading(true);
+
+    // Pick unallocated Notable & Keystone nodes closest to currently allocated nodes (cap 300)
+    const allocCoords: Array<{ x: number; y: number }> = [];
+    for (const id of build.tree.allocatedNodeIds) {
+      const n = tree.nodes[id];
+      if (n) allocCoords.push({ x: n.x, y: n.y });
+    }
+    const candidates = visibleNodes
+      .filter((n) => (n.kind === 'notable' || n.kind === 'keystone') && !sharedSet.has(n.id))
+      .map((n) => {
+        let minDist = Infinity;
+        for (const c of allocCoords) {
+          const d = Math.hypot(n.x - c.x, n.y - c.y);
+          if (d < minDist) minDist = d;
+        }
+        return { id: n.id, dist: minDist };
+      })
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 300)
+      .map((c) => c.id);
+
+    computeHeatmapInWorker(build, candidates)
+      .then(({ items }) => {
+        if (cancelled) return;
+        const next = new Map<number, NodePowerHeatItem>();
+        for (const it of items) next.set(it.nodeId, it);
+        setHeatmapMap(next);
+        setHeatmapLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setHeatmapLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [heatmapEnabled, build, tree, visibleNodes, sharedSet]);
 
   const matchedSearchList = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -551,6 +604,25 @@ export function PassiveTreeCanvas() {
         ctx.strokeStyle = '#facc15';
         ctx.lineWidth = Math.max(4, 2.2 * invZoom);
         ctx.stroke();
+      } else if (heatmapEnabled) {
+        const heat = heatmapMap.get(node.id);
+        if (heat) {
+          const dpsIntensity = Math.min(1, heat.dpsDeltaPct / 12);
+          const ehpIntensity = Math.min(1, heat.ehpDeltaPct / 12);
+          const isDpsDominant = heat.dpsDeltaPct >= heat.ehpDeltaPct;
+          const alpha = Math.max(0.22, Math.max(dpsIntensity, ehpIntensity) * 0.72);
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r + 18 * (isOfficialFull ? 2.2 : 0.8), 0, Math.PI * 2);
+          ctx.fillStyle = isDpsDominant
+            ? `rgba(249, 115, 22, ${alpha * 0.45})`
+            : `rgba(56, 189, 248, ${alpha * 0.45})`;
+          ctx.fill();
+          ctx.strokeStyle = isDpsDominant
+            ? `rgba(251, 146, 60, ${alpha})`
+            : `rgba(56, 189, 248, ${alpha})`;
+          ctx.lineWidth = Math.max(5, 2.5 * invZoom);
+          ctx.stroke();
+        }
       }
 
       // Node shape
@@ -681,6 +753,8 @@ export function PassiveTreeCanvas() {
     locale,
     isOfficialFull,
     ascendancyCenter,
+    heatmapEnabled,
+    heatmapMap,
   ]);
 
   // Resize observer
@@ -947,6 +1021,27 @@ export function PassiveTreeCanvas() {
               {locale === 'zh-CN' ? `升华 (${calc.ascendancyPoints ?? 0}/8)` : `Asc (${calc.ascendancyPoints ?? 0}/8)`}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setHeatmapEnabled((v) => !v)}
+            title={
+              locale === 'zh-CN'
+                ? '后台 Web Worker 计算高收益大点热力图（橙=DPS / 蓝=EHP）'
+                : 'Background Web Worker Node Power Heatmap (Orange=DPS / Blue=EHP)'
+            }
+            className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition ${
+              heatmapEnabled
+                ? 'bg-orange-500/25 border-orange-400/60 text-orange-200'
+                : 'bg-[#141824]/90 border-[#2a3147] text-zinc-300 hover:text-orange-200'
+            }`}
+          >
+            {heatmapLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Flame className="w-3.5 h-3.5" />
+            )}
+            {locale === 'zh-CN' ? '热力图' : 'Power'}
+          </button>
           <button
             type="button"
             onClick={fitWholeTree}
