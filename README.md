@@ -58,8 +58,8 @@ pnpm oracle:diff
 
 WebPoB's pure TypeScript calculation engine is continuously regression-tested against **official upstream [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding) (PoE 1 `3.30`)** and **[PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2) (PoE 2 `0.5`)** running headlessly in LuaJIT (`HeadlessWrapper.lua`):
 
-- **12 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, Armour, Evasion, Elemental Resistances, Crit Confirmation, Accuracy/Hit Chance, Chaos Inoculation, Resolute Technique, Mind Over Matter, Elementalist Ascendancy, Active Utility Flasks, Fireball Ignite, Lv.21 gem scaling, and PoE 2 Sorceress Spark & Comet.
-- **0.00% – 0.04% Hit DPS error** across all 12 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
+- **19 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, Armour, Evasion, Resistances, Crit Confirmation, Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **Curses & Marks** (`Conductivity`, `Assassin's Mark`), **Socketed Passive Tree Jewels**, **Unique Items** (`Astramentis`, `Shavronne's Wrappings`), **Endgame Keystones** (`Chaos Inoculation`, `Resolute Technique`, `Mind Over Matter`, `Iron Reflexes`, `Avatar of Fire`), **Spell Totem Support**, **Elementalist Ascendancy**, **Active Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **PoE 2 Sorceress Spark & Comet**.
+- **0.00% – 0.04% Hit DPS error** across all 19 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
 
 ## Roadmap
 
@@ -85,9 +85,14 @@ WebPoB's pure TypeScript calculation engine is continuously regression-tested ag
   - Dedicated **ES Module Web Worker** powering live **Node Power Heatmap** (`Power / 热力图`) across hundreds of unallocated Notables/Keystones at 60fps
   - **Offline IndexedDB Multi-Build Library** (`Save / Save Copy / Load / Delete / Filter by PoE 1 & PoE 2`)
   - One-click **URL-Hash Shareable Builds** (`#pob=<Base64URL-code>`) with auto-load on open
-- [ ] **Phase 5 — Deep Endgame Mechanics**
-  - Timeless jewels, cluster jewels, minions/totems/traps/mines/triggers
-  - Trade search link generator & character import from GGG / Tencent CN servers
+- [x] **Phase 5 — Endgame Mechanics, Official Unique Catalog & Deployment**
+  - **1,731 official bilingual Unique items** (`1,304` PoE 1 + `427` PoE 2, ~99% ZH names) searchable & equippable right inside the Items tab
+  - **PoB-authentic Local Weapon & Local Armour computation** (multiplicative quality, local flat/inc phys, local AS/Crit, local ES/Armour/Evasion)
+  - **Curses & Marks** (`Conductivity`, `Flammability`, `Frostbite`, `Elemental Weakness`, `Despair`, `Vulnerability`, `Assassin's Mark`, `Sniper's Mark`), **Mana Reservation Efficiency**, **Totem/Trap supports**, and **Endgame Keystones** (`Iron Reflexes`, `Avatar of Fire`, `Elemental Overload`)
+  - **Interactive Passive Tree Jewel Sockets** (`<Sockets><Socket/>` PoB XML import/export + in-canvas Jewel picker modal)
+  - **Trade Search Link Helper** (International PoE 1/2 & Tencent CN) + GitHub Pages & Cloudflare Pages static deployment workflows
+- [ ] **Phase 6 — Next Horizons**
+  - Timeless jewels, cluster jewel sub-graph generation, full minion/trigger/ward calculations, and live GGG / Tencent CN character profile import
 
 ## License
 

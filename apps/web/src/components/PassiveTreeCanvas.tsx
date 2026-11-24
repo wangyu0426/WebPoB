@@ -13,7 +13,13 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import type { NodePowerDelta, PassiveNode } from '@webpob/core';
-import { findShortestPathToNode, getAscendancyStartNodeId, getTreeForGame } from '@webpob/data';
+import {
+  findShortestPathToNode,
+  getAscendancyStartNodeId,
+  getTreeForGame,
+  getUniquesForGame,
+  instantiateUniqueItem,
+} from '@webpob/data';
 import { localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { computeNodePower } from '@webpob/calc';
 import { useWebPobStore } from '../store/useWebPobStore';
@@ -67,6 +73,7 @@ export function PassiveTreeCanvas() {
     setTreePaintMode,
     togglePassiveNode,
     setMasteryEffect,
+    socketJewel,
     resetPassiveTree,
   } = useWebPobStore();
 
@@ -78,6 +85,8 @@ export function PassiveTreeCanvas() {
   const [searchIdx, setSearchIdx] = useState(0);
   const [hoveredNodeId, setHoveredNodeId] = useState<number | null>(null);
   const [masteryModalNodeId, setMasteryModalNodeId] = useState<number | null>(null);
+  const [jewelModalNodeId, setJewelModalNodeId] = useState<number | null>(null);
+  const [jewelSearch, setJewelSearch] = useState('');
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
@@ -708,6 +717,16 @@ export function PassiveTreeCanvas() {
         ctx.arc(node.x, node.y, r * 0.35, 0, Math.PI * 2);
         ctx.fillStyle = isMasteryChosen ? '#38bdf8' : '#3a5d8a';
         ctx.fill();
+      } else if (node.kind === 'jewel' && build.tree.socketedJewels?.[node.id]) {
+        const d = r * 0.55;
+        ctx.beginPath();
+        ctx.moveTo(node.x, node.y - d);
+        ctx.lineTo(node.x + d, node.y);
+        ctx.lineTo(node.x, node.y + d);
+        ctx.lineTo(node.x - d, node.y);
+        ctx.closePath();
+        ctx.fillStyle = '#34d399';
+        ctx.fill();
       } else if (node.kind === 'notable' || node.kind === 'start') {
         ctx.beginPath();
         ctx.arc(node.x, node.y, r * 0.38, 0, Math.PI * 2);
@@ -750,6 +769,7 @@ export function PassiveTreeCanvas() {
     matchedSearchIds,
     build.game,
     build.tree.masteryEffects,
+    build.tree.socketedJewels,
     locale,
     isOfficialFull,
     ascendancyCenter,
@@ -837,6 +857,9 @@ export function PassiveTreeCanvas() {
         const clickedNode = tree.nodes[clickedId];
         if (clickedNode?.kind === 'mastery' && clickedNode.masteryEffects?.length) {
           setMasteryModalNodeId(clickedId);
+        } else if (clickedNode?.kind === 'jewel' && sharedSet.has(clickedId)) {
+          setJewelModalNodeId(clickedId);
+          setJewelSearch('');
         } else {
           togglePassiveNode(clickedId);
         }
@@ -1067,6 +1090,162 @@ export function PassiveTreeCanvas() {
         {t(locale, 'tree.hint')}
       </div>
 
+      {/* Jewel Socket Picker Modal */}
+      {jewelModalNodeId !== null && (
+        <div className="absolute inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
+          <div className="pob-panel rounded-lg w-full max-w-lg p-4 space-y-3 shadow-2xl border-emerald-500/40">
+            <div className="flex items-center justify-between border-b border-[#252b3d] pb-2">
+              <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                <Sparkles className="w-4 h-4" />
+                {locale === 'zh-CN'
+                  ? `珠宝插槽 #${jewelModalNodeId}`
+                  : `Jewel Socket #${jewelModalNodeId}`}
+              </div>
+              <button
+                type="button"
+                onClick={() => setJewelModalNodeId(null)}
+                className="text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {build.tree.socketedJewels?.[jewelModalNodeId] &&
+              build.items[build.tree.socketedJewels[jewelModalNodeId]!] && (
+                <div className="rounded bg-emerald-950/25 border border-emerald-500/40 p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-200">
+                      {build.items[build.tree.socketedJewels[jewelModalNodeId]!]!.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => socketJewel(jewelModalNodeId, null)}
+                      className="text-[11px] text-rose-300 hover:text-rose-200 cursor-pointer"
+                    >
+                      {locale === 'zh-CN' ? '取下珠宝' : 'Unsocket'}
+                    </button>
+                  </div>
+                  {build.items[build.tree.socketedJewels[jewelModalNodeId]!]!.explicits.map(
+                    (l, i) => (
+                      <div key={i} className="text-indigo-200/90">
+                        • {localizeStatLine(l, locale)}
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
+
+            {/* Quick Rare Jewel Presets */}
+            <div className="space-y-1">
+              <div className="text-[11px] text-zinc-400 font-semibold">
+                {locale === 'zh-CN' ? '快捷镶嵌稀有珠宝' : 'Quick Rare Jewels'}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
+                {[
+                  {
+                    name: 'Cobalt Spell Jewel',
+                    nameZh: '钴蓝法术珠宝',
+                    baseName: 'Cobalt Jewel',
+                    explicits: ['7% increased maximum Life', '14% increased Spell Damage', '+15% to Global Critical Strike Multiplier'],
+                  },
+                  {
+                    name: 'Crimson Melee Jewel',
+                    nameZh: '赤红近战珠宝',
+                    baseName: 'Crimson Jewel',
+                    explicits: ['7% increased maximum Life', '14% increased Melee Physical Damage', '6% increased Attack Speed'],
+                  },
+                  {
+                    name: 'Viridian Crit ES Jewel',
+                    nameZh: '翠绿护盾暴击珠宝',
+                    baseName: 'Viridian Jewel',
+                    explicits: ['8% increased maximum Energy Shield', '14% increased Elemental Damage', '+15% to Global Critical Strike Multiplier'],
+                  },
+                ].map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => {
+                      socketJewel(jewelModalNodeId, {
+                        id: `jewel_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                        name: preset.name,
+                        nameZh: preset.nameZh,
+                        baseName: preset.baseName,
+                        rarity: 'RARE',
+                        slotType: 'Any',
+                        quality: 0,
+                        implicits: [],
+                        explicits: preset.explicits,
+                      });
+                      setJewelModalNodeId(null);
+                    }}
+                    className="rounded p-2 text-left bg-[#121623] hover:bg-[#1a2033] border border-yellow-500/30 text-yellow-200 cursor-pointer"
+                  >
+                    <div className="font-semibold text-[11px]">
+                      {locale === 'zh-CN' ? preset.nameZh : preset.name}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Official Unique Jewels Search */}
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                value={jewelSearch}
+                onChange={(e) => setJewelSearch(e.target.value)}
+                placeholder={locale === 'zh-CN' ? '搜索官方传奇珠宝 (如 守望之眼 / Watcher)...' : 'Search official Unique Jewels...'}
+                className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
+              />
+              <div className="max-h-44 overflow-y-auto space-y-1">
+                {getUniquesForGame(build.game)
+                  .filter((u) => {
+                    if (u.s !== 'Jewel') return false;
+                    const q = jewelSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return `${u.en} ${u.zh ?? ''} ${u.e.join(' ')}`.toLowerCase().includes(q);
+                  })
+                  .slice(0, 25)
+                  .map((u) => (
+                    <button
+                      key={u.en}
+                      type="button"
+                      onClick={() => {
+                        socketJewel(jewelModalNodeId, instantiateUniqueItem(build.game, u, 0));
+                        setJewelModalNodeId(null);
+                      }}
+                      className="w-full text-left rounded px-2.5 py-1.5 bg-[#0e111b] hover:bg-[#171c2b] border border-orange-500/25 text-xs cursor-pointer"
+                    >
+                      <div className="font-semibold text-orange-300">
+                        {locale === 'zh-CN' && u.zh ? `${u.zh} (${u.en})` : u.en}
+                      </div>
+                      {u.e.length > 0 && (
+                        <div className="text-[10px] text-indigo-200/80 truncate">
+                          {u.e.slice(0, 2).map((l) => localizeStatLine(l, locale)).join(' · ')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1 border-t border-[#252b3d]">
+              <button
+                type="button"
+                onClick={() => {
+                  const nid = jewelModalNodeId;
+                  setJewelModalNodeId(null);
+                  togglePassiveNode(nid);
+                }}
+                className="px-2.5 py-1 rounded text-xs text-rose-300 hover:bg-rose-950/40 border border-rose-500/35 cursor-pointer"
+              >
+                {locale === 'zh-CN' ? '取消点亮此插槽' : 'Unallocate Socket Node'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mastery Picker Modal (PoE 1) */}
       {masteryModalNode && masteryModalNode.masteryEffects && (
         <div className="absolute inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
@@ -1149,6 +1328,23 @@ export function PassiveTreeCanvas() {
                     ? '点击选择专精词缀效果'
                     : 'Click to choose a Mastery effect'}
               </div>
+            ) : hoveredNode.kind === 'jewel' && build.tree.socketedJewels?.[hoveredNode.id] ? (
+              (() => {
+                const j = build.items[build.tree.socketedJewels![hoveredNode.id]!];
+                if (!j) return <div className="text-zinc-400 italic">Jewel Socket</div>;
+                return (
+                  <div className="space-y-0.5">
+                    <div className="text-emerald-300 font-semibold">
+                      {locale === 'zh-CN' && j.nameZh ? j.nameZh : j.name}
+                    </div>
+                    {j.explicits.map((line, idx) => (
+                      <div key={idx} className="text-indigo-200">
+                        • {localizeStatLine(line, locale)}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : hoveredNode.stats.length === 0 ? (
               <div className="text-zinc-400 italic">{t(locale, 'tree.start')}</div>
             ) : (

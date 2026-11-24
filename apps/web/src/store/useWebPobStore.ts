@@ -21,6 +21,7 @@ import {
   loadOfficialBaseItems,
   loadOfficialGems,
   loadOfficialTree,
+  loadOfficialUniques,
   removeNodeAndPruneDisconnected,
 } from '@webpob/data';
 import { calculateBuild } from '@webpob/calc';
@@ -53,6 +54,7 @@ interface WebPobState {
   setBuildMeta: (patch: Partial<Pick<Build, 'name' | 'level' | 'classId' | 'ascendancyId' | 'activeWeaponSet' | 'bandit' | 'notes'>>) => void;
   togglePassiveNode: (nodeId: number) => void;
   setMasteryEffect: (nodeId: number, effectText: string | null) => void;
+  socketJewel: (nodeId: number, item: Item | null) => void;
   resetPassiveTree: () => void;
 
   // Skills
@@ -131,6 +133,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
           loadOfficialTree(game),
           loadOfficialGems(game),
           loadOfficialBaseItems(game),
+          loadOfficialUniques(game),
         ]);
         const cur = get().build;
         if (cur.game === game) {
@@ -327,6 +330,26 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
         tree: {
           ...cur.tree,
           masteryEffects: nextMasteries,
+        },
+      });
+    },
+
+    socketJewel: (nodeId, item) => {
+      const cur = get().build;
+      const nextSockets = { ...(cur.tree.socketedJewels ?? {}) };
+      const nextItems = { ...cur.items };
+      if (!item) {
+        delete nextSockets[nodeId];
+      } else {
+        nextItems[item.id] = item;
+        nextSockets[nodeId] = item.id;
+      }
+      commitBuild({
+        ...cur,
+        items: nextItems,
+        tree: {
+          ...cur.tree,
+          socketedJewels: nextSockets,
         },
       });
     },
