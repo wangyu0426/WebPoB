@@ -1,0 +1,356 @@
+import { KeywordFlag, ModFlag, type Mod, type ModType } from '@webpob/core';
+import { normalizeStatLineToEn } from '@webpob/i18n';
+
+function mkMod(
+  name: string,
+  type: ModType,
+  value: number | boolean | string,
+  source: string,
+  flags = 0,
+  keywordFlags = 0,
+): Mod {
+  return { name, type, value, flags, keywordFlags, source };
+}
+
+interface ParserRule {
+  pattern: RegExp;
+  build: (match: RegExpMatchArray, source: string) => Mod[];
+}
+
+const PARSER_RULES: ParserRule[] = [
+  // Flat Resources
+  {
+    pattern: /^\+(\d+) to maximum Life$/i,
+    build: (m, src) => [mkMod('Life', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to maximum Mana$/i,
+    build: (m, src) => [mkMod('Mana', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to maximum Energy Shield$/i,
+    build: (m, src) => [mkMod('EnergyShield', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Spirit$/i,
+    build: (m, src) => [mkMod('Spirit', 'BASE', Number(m[1]), src)],
+  },
+  // % Resources & Defences
+  {
+    pattern: /^(\d+)% increased maximum Life$/i,
+    build: (m, src) => [mkMod('Life', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% more maximum Life$/i,
+    build: (m, src) => [mkMod('Life', 'MORE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased (?:maximum )?Energy Shield$/i,
+    build: (m, src) => [mkMod('EnergyShield', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% more (?:maximum )?Energy Shield$/i,
+    build: (m, src) => [mkMod('EnergyShield', 'MORE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased maximum Mana$/i,
+    build: (m, src) => [mkMod('Mana', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Armour$/i,
+    build: (m, src) => [mkMod('Armour', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Armour$/i,
+    build: (m, src) => [mkMod('Armour', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% more Armour$/i,
+    build: (m, src) => [mkMod('Armour', 'MORE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Evasion Rating$/i,
+    build: (m, src) => [mkMod('Evasion', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Evasion Rating$/i,
+    build: (m, src) => [mkMod('Evasion', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% more Evasion Rating$/i,
+    build: (m, src) => [mkMod('Evasion', 'MORE', Number(m[1]), src)],
+  },
+  // Attributes
+  {
+    pattern: /^\+(\d+) to Strength$/i,
+    build: (m, src) => [mkMod('Str', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Dexterity$/i,
+    build: (m, src) => [mkMod('Dex', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Intelligence$/i,
+    build: (m, src) => [mkMod('Int', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to all Attributes$/i,
+    build: (m, src) => {
+      const v = Number(m[1]);
+      return [
+        mkMod('Str', 'BASE', v, src),
+        mkMod('Dex', 'BASE', v, src),
+        mkMod('Int', 'BASE', v, src),
+      ];
+    },
+  },
+  // Resistances
+  {
+    pattern: /^([+-]?\d+)% to all Elemental Resistances$/i,
+    build: (m, src) => {
+      const v = Number(m[1]);
+      return [
+        mkMod('FireResist', 'BASE', v, src),
+        mkMod('ColdResist', 'BASE', v, src),
+        mkMod('LightningResist', 'BASE', v, src),
+      ];
+    },
+  },
+  {
+    pattern: /^\+(\d+)% to maximum (Fire|Cold|Lightning|Chaos) Resistance$/i,
+    build: (m, src) => [mkMod(`${m[2]}ResistMax`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^([+-]?\d+)% to (Fire|Cold|Lightning|Chaos) Resistance$/i,
+    build: (m, src) => [mkMod(`${m[2]}Resist`, 'BASE', Number(m[1]), src)],
+  },
+  // Block, Suppression, Regen, Move Speed, Accuracy
+  {
+    pattern: /^\+(\d+)% Chance to Block Attack Damage$/i,
+    build: (m, src) => [mkMod('BlockChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+)% Chance to Block Spell Damage$/i,
+    build: (m, src) => [mkMod('SpellBlockChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+)% chance to Suppress Spell Damage$/i,
+    build: (m, src) => [mkMod('SpellSuppressionChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Regenerate (\d+(?:\.\d+)?) Life per second$/i,
+    build: (m, src) => [mkMod('LifeRegen', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Regenerate (\d+(?:\.\d+)?)% of Life per second$/i,
+    build: (m, src) => [mkMod('LifeRegenPercent', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Movement Speed$/i,
+    build: (m, src) => [mkMod('MovementSpeed', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Accuracy Rating$/i,
+    build: (m, src) => [mkMod('Accuracy', 'BASE', Number(m[1]), src)],
+  },
+  // Added Damage (Global, Spell, Attack)
+  {
+    pattern: /^Adds (\d+) to (\d+) (Physical|Fire|Cold|Lightning|Chaos) Damage to Spells$/i,
+    build: (m, src) => [
+      mkMod(`${m[3]}Min`, 'BASE', Number(m[1]), src, ModFlag.Spell),
+      mkMod(`${m[3]}Max`, 'BASE', Number(m[2]), src, ModFlag.Spell),
+    ],
+  },
+  {
+    pattern: /^Adds (\d+) to (\d+) (Physical|Fire|Cold|Lightning|Chaos) Damage to Attacks$/i,
+    build: (m, src) => [
+      mkMod(`${m[3]}Min`, 'BASE', Number(m[1]), src, ModFlag.Attack),
+      mkMod(`${m[3]}Max`, 'BASE', Number(m[2]), src, ModFlag.Attack),
+    ],
+  },
+  {
+    pattern: /^Adds (\d+) to (\d+) (Physical|Fire|Cold|Lightning|Chaos) Damage$/i,
+    build: (m, src) => [
+      mkMod(`${m[3]}Min`, 'BASE', Number(m[1]), src),
+      mkMod(`${m[3]}Max`, 'BASE', Number(m[2]), src),
+    ],
+  },
+  // Damage Conversion & Gained as Extra
+  {
+    pattern: /^(\d+)% of Physical Damage Converted to (Fire|Cold|Lightning|Chaos) Damage$/i,
+    build: (m, src) => [mkMod(`PhysicalDamageConvertTo${m[2]}`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Gain (\d+)% of Physical Damage as Extra (Fire|Cold|Lightning|Chaos) Damage$/i,
+    build: (m, src) => [mkMod(`PhysicalDamageGainAs${m[2]}`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Gain (\d+)% of Elemental Damage as Extra Chaos Damage$/i,
+    build: (m, src) => [mkMod('ElementalDamageGainAsChaos', 'BASE', Number(m[1]), src)],
+  },
+  // Damage Increased / More / Less
+  {
+    pattern: /^(\d+)% (increased|more|less) (Physical|Fire|Cold|Lightning|Chaos|Elemental) Damage with Attack Skills$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod(`${m[3]}Damage`, type, val, src, ModFlag.Attack)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) (Physical|Fire|Cold|Lightning|Chaos|Elemental) Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod(`${m[3]}Damage`, type, val, src)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Spell Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src, ModFlag.Spell)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Attack Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src, ModFlag.Attack)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Projectile Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src, ModFlag.Projectile)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Melee Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src, ModFlag.Melee)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Area Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src, ModFlag.Area)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src)];
+    },
+  },
+  // Speed
+  {
+    pattern: /^(\d+)% (increased|more|less) Attack and Cast Speed$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [
+        mkMod('Speed', type, val, src, ModFlag.Attack),
+        mkMod('Speed', type, val, src, ModFlag.Spell),
+      ];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Attack Speed$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Speed', type, val, src, ModFlag.Attack)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Cast Speed$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Speed', type, val, src, ModFlag.Spell)];
+    },
+  },
+  // Critical Strikes
+  {
+    pattern: /^(\d+)% increased Critical Strike Chance for Spells$/i,
+    build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src, ModFlag.Spell)],
+  },
+  {
+    pattern: /^(\d+)% increased Critical Strike Chance$/i,
+    build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+)% to (?:Global )?Critical Strike Multiplier$/i,
+    build: (m, src) => [mkMod('CritMultiplier', 'BASE', Number(m[1]), src)],
+  },
+  // Penetration
+  {
+    pattern: /^Damage Penetrates (\d+)% (Fire|Cold|Lightning|Elemental) Resistance$/i,
+    build: (m, src) => {
+      const v = Number(m[1]);
+      if (m[2] === 'Elemental') {
+        return [
+          mkMod('FirePenetration', 'BASE', v, src),
+          mkMod('ColdPenetration', 'BASE', v, src),
+          mkMod('LightningPenetration', 'BASE', v, src),
+        ];
+      }
+      return [mkMod(`${m[2]}Penetration`, 'BASE', v, src)];
+    },
+  },
+  // Iconic Keystones
+  {
+    pattern: /^Your Hits can't be Evaded$/i,
+    build: (_, src) => [mkMod('HitsCantBeEvaded', 'FLAG', true, src, ModFlag.None, KeywordFlag.Hit)],
+  },
+  {
+    pattern: /^Never deal Critical Strikes$/i,
+    build: (_, src) => [mkMod('NeverCrit', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Maximum Life becomes 1, Immune to Chaos Damage$/i,
+    build: (_, src) => [
+      mkMod('Life', 'OVERRIDE', 1, src),
+      mkMod('ChaosImmune', 'FLAG', true, src),
+    ],
+  },
+  {
+    pattern: /^30% of Damage is taken from Mana before Life$/i,
+    build: (_, src) => [mkMod('DamageTakenFromManaBeforeLife', 'BASE', 30, src)],
+  },
+];
+
+/**
+ * Parses a single stat line (English OR Chinese) into typed `Mod` entries.
+ */
+export function parseModLine(rawLine: string, source: string): Mod[] {
+  const canonical = normalizeStatLineToEn(rawLine);
+  if (!canonical) return [];
+
+  for (const rule of PARSER_RULES) {
+    const match = canonical.match(rule.pattern);
+    if (match) {
+      return rule.build(match, source);
+    }
+  }
+  return [];
+}
+
+export function parseModLines(lines: readonly string[], source: string): Mod[] {
+  const result: Mod[] = [];
+  for (const line of lines) {
+    result.push(...parseModLine(line, source));
+  }
+  return result;
+}

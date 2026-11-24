@@ -1,0 +1,22 @@
+{
+  "name": "webpob",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Open-source bilingual (EN/ZH) pure-TypeScript Web port of Path of Building for Path of Exile 1 & 2",
+  "license": "MIT",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev": "pnpm --filter @webpob/web dev",
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r typecheck",
+    "sync:data": "tsx scripts/sync-data/src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@webpob/cors-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Cloudflare Worker ready for wrangler deploy'",
+    "typecheck": "echo 'No build step needed'"
+  }
+}

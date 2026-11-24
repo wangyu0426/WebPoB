@@ -1,0 +1,448 @@
+export type GameId = 'poe1' | 'poe2';
+
+export type Locale = 'zh-CN' | 'en';
+
+export interface LocalizedText {
+  en: string;
+  zh: string;
+}
+
+export type DamageType = 'Physical' | 'Lightning' | 'Cold' | 'Fire' | 'Chaos';
+
+export const DAMAGE_TYPES: readonly DamageType[] = [
+  'Physical',
+  'Lightning',
+  'Cold',
+  'Fire',
+  'Chaos',
+] as const;
+
+export type AttributeType = 'Str' | 'Dex' | 'Int';
+
+export type ItemRarity = 'NORMAL' | 'MAGIC' | 'RARE' | 'UNIQUE';
+
+export type WeaponSetId = 1 | 2;
+
+/**
+ * Equipment slot identifiers covering both PoE 1 and PoE 2.
+ * GameRuleset.slots determines which slots are active for a given game.
+ */
+export type EquipmentSlotId =
+  | 'Weapon 1'
+  | 'Weapon 2'
+  | 'Weapon 1 Swap'
+  | 'Weapon 2 Swap'
+  | 'Helmet'
+  | 'Body Armour'
+  | 'Gloves'
+  | 'Boots'
+  | 'Amulet'
+  | 'Ring 1'
+  | 'Ring 2'
+  | 'Belt'
+  | 'Flask 1'
+  | 'Flask 2'
+  | 'Flask 3'
+  | 'Flask 4'
+  | 'Flask 5'
+  | 'Charm 1'
+  | 'Charm 2'
+  | 'Charm 3';
+
+export type ModType = 'BASE' | 'INC' | 'MORE' | 'OVERRIDE' | 'FLAG' | 'LIST';
+
+/**
+ * Bitmask flags matching Path of Building's ModFlag taxonomy.
+ */
+export const ModFlag = {
+  None: 0,
+  Attack: 1 << 0,
+  Spell: 1 << 1,
+  Hit: 1 << 2,
+  Dot: 1 << 3,
+  Cast: 1 << 4,
+  Melee: 1 << 5,
+  Area: 1 << 6,
+  Projectile: 1 << 7,
+  Ailment: 1 << 8,
+  Weapon1H: 1 << 9,
+  Weapon2H: 1 << 10,
+  WeaponRanged: 1 << 11,
+  Bow: 1 << 12,
+  Wand: 1 << 13,
+  Sword: 1 << 14,
+  Axe: 1 << 15,
+  Mace: 1 << 16,
+  Staff: 1 << 17,
+  Dagger: 1 << 18,
+  Claw: 1 << 19,
+  Crossbow: 1 << 20,
+  Quarterstaff: 1 << 21,
+} as const;
+
+export const KeywordFlag = {
+  None: 0,
+  Aura: 1 << 0,
+  Curse: 1 << 1,
+  Warcry: 1 << 2,
+  Movement: 1 << 3,
+  Fire: 1 << 4,
+  Cold: 1 << 5,
+  Lightning: 1 << 6,
+  Chaos: 1 << 7,
+  Physical: 1 << 8,
+  Minion: 1 << 9,
+  Totem: 1 << 10,
+  Trap: 1 << 11,
+  Mine: 1 << 12,
+  Attack: 1 << 13,
+  Spell: 1 << 14,
+  Hit: 1 << 15,
+  Ailment: 1 << 16,
+  Ignite: 1 << 17,
+  Bleed: 1 << 18,
+  Poison: 1 << 19,
+  Spirit: 1 << 20,
+} as const;
+
+export interface ModCondition {
+  type: 'Condition' | 'Multiplier' | 'StatThreshold';
+  var: string;
+  neg?: boolean;
+  threshold?: number;
+}
+
+export interface Mod {
+  name: string;
+  type: ModType;
+  value: number | boolean | string;
+  flags: number;
+  keywordFlags: number;
+  source: string;
+  condition?: ModCondition;
+}
+
+export type PassiveNodeKind = 'start' | 'small' | 'notable' | 'keystone' | 'mastery' | 'jewel';
+
+export interface PassiveNode {
+  id: number;
+  name: LocalizedText;
+  kind: PassiveNodeKind;
+  x: number;
+  y: number;
+  /** Canonical English stat lines (fed to ModParser). */
+  stats: string[];
+  /** Optional localized display stat lines for Chinese UI. */
+  statsZh?: string[];
+  /** Adjacent node IDs in the undirected passive graph. */
+  adjacent: number[];
+  /** If this is a class start node, the class ID it belongs to. */
+  classStartId?: string;
+  /** Optional ascendancy ID if this node belongs to an ascendancy sub-tree. */
+  ascendancyId?: string;
+  /** Optional icon tag for canvas badge rendering. */
+  iconTag?: string;
+}
+
+export interface PassiveTreeData {
+  game: GameId;
+  version: string;
+  nodes: Record<number, PassiveNode>;
+  classStartNodeIds: Record<string, number>;
+}
+
+export interface CharacterClassDef {
+  id: string;
+  name: LocalizedText;
+  baseStr: number;
+  baseDex: number;
+  baseInt: number;
+  ascendancies: Array<{
+    id: string;
+    name: LocalizedText;
+    summary: LocalizedText;
+  }>;
+}
+
+export type SkillCategory = 'active' | 'support';
+
+export interface GemDefinition {
+  id: string;
+  name: LocalizedText;
+  category: SkillCategory;
+  game: GameId;
+  color: 'red' | 'green' | 'blue' | 'white';
+  tags: string[];
+  modFlags: number;
+  keywordFlags: number;
+  /** For active skills: base damage by type at level 20 (scales with gem level). */
+  baseDamage?: Partial<Record<DamageType, [number, number]>>;
+  /** For attack skills: weapon damage multiplier as percentage (e.g., 165 = 165% of base). */
+  attackDamageMultiplierPct?: number;
+  /** Added damage effectiveness as percentage (e.g., 120 = 120%). */
+  damageEffectivenessPct?: number;
+  /** Base cast time in seconds (for spells) or attack speed multiplier (for attacks). */
+  castTime?: number;
+  attackSpeedMultiplier?: number;
+  /** Base critical strike chance percentage (e.g., 6 for spells, 0 for weapon-based attacks). */
+  baseCritChance?: number;
+  /** Mana cost at level 20. */
+  manaCost?: number;
+  /** Spirit reservation (PoE 2 persistent skills / auras). */
+  spiritReservation?: number;
+  /** Mana reservation percentage (PoE 1 auras). */
+  manaReservationPct?: number;
+  /** Canonical stat lines granted by this gem (or support gem) to supported skill / player. */
+  stats: string[];
+  statsZh?: string[];
+  /** Whether stats apply globally (auras/buffs) vs only to the skill group. */
+  isAuraOrBuff?: boolean;
+}
+
+export interface GemInstance {
+  instanceId: string;
+  gemId: string;
+  level: number;
+  quality: number;
+  enabled: boolean;
+}
+
+export interface SkillGroup {
+  id: string;
+  label: string;
+  enabled: boolean;
+  /** PoE 1: item slot holding this linked group (e.g. 'Body Armour'). PoE 2: optional/empty. */
+  slot?: EquipmentSlotId;
+  /** PoE 2: which weapon set(s) this skill is enabled for. */
+  weaponSets?: WeaponSetId[];
+  gems: GemInstance[];
+}
+
+export interface WeaponBaseStats {
+  physicalMin: number;
+  physicalMax: number;
+  elementalDamage?: Partial<Record<'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>>;
+  attacksPerSecond: number;
+  critChance: number;
+  weaponType: 'Sword' | 'Axe' | 'Mace' | 'Bow' | 'Wand' | 'Staff' | 'Dagger' | 'Claw' | 'Crossbow' | 'Quarterstaff';
+  twoHanded: boolean;
+}
+
+export interface ArmourBaseStats {
+  armour?: number;
+  evasion?: number;
+  energyShield?: number;
+  blockChance?: number;
+}
+
+export interface Item {
+  id: string;
+  name: string;
+  nameZh?: string;
+  baseName: string;
+  baseNameZh?: string;
+  rarity: ItemRarity;
+  slotType: EquipmentSlotId | 'Any';
+  quality: number;
+  sockets?: string;
+  levelReq?: number;
+  weaponStats?: WeaponBaseStats;
+  armourStats?: ArmourBaseStats;
+  /** Canonical English implicit mod lines. */
+  implicits: string[];
+  /** Canonical English explicit mod lines. */
+  explicits: string[];
+  /** Optional raw source text (EN or ZH) preserved for tooltip/export. */
+  rawText?: string;
+}
+
+export interface BuildConfig {
+  enemyLevel: number;
+  enemyIsBoss: 'None' | 'Guardian' | 'Pinnacle';
+  enemyFireResist: number;
+  enemyColdResist: number;
+  enemyLightningResist: number;
+  enemyChaosResist: number;
+  enemyArmour: number;
+  enemyEvasion: number;
+  usePowerCharges: boolean;
+  powerCharges: number;
+  useFrenzyCharges: boolean;
+  frenzyCharges: number;
+  useEnduranceCharges: boolean;
+  enduranceCharges: number;
+  onslaught: boolean;
+  enemyShocked: boolean;
+  shockValue: number;
+  enemyChilled: boolean;
+  /** Free-form custom modifiers (supports both English and Chinese lines!). */
+  customMods: string;
+}
+
+export interface TreeSpec {
+  title: string;
+  treeVersion: string;
+  /** Allocated shared passive node IDs. */
+  allocatedNodeIds: number[];
+  /** PoE 2: Weapon Set 1 exclusive passive node IDs. */
+  weaponSet1NodeIds: number[];
+  /** PoE 2: Weapon Set 2 exclusive passive node IDs. */
+  weaponSet2NodeIds: number[];
+  /** Selected mastery effects: nodeId -> effectId/stat line. */
+  masteryEffects: Record<number, string>;
+}
+
+export interface Build {
+  id: string;
+  name: string;
+  game: GameId;
+  level: number;
+  classId: string;
+  ascendancyId: string;
+  /** Active weapon set for calculation (especially meaningful in PoE 2). */
+  activeWeaponSet: WeaponSetId;
+  tree: TreeSpec;
+  skills: SkillGroup[];
+  mainSkillGroupId: string;
+  items: Record<string, Item>;
+  equipped: Partial<Record<EquipmentSlotId, string>>;
+  config: BuildConfig;
+  notes: string;
+  /** Bandits (PoE 1) or Campaign Buffs. */
+  bandit?: 'None' | 'Alira' | 'Kraityn' | 'Oak';
+}
+
+export interface GameRuleset {
+  game: GameId;
+  displayName: LocalizedText;
+  maxLevel: number;
+  baseLife: number;
+  lifePerLevel: number;
+  baseMana: number;
+  manaPerLevel: number;
+  /** PoE 2 has Spirit; PoE 1 = 0. */
+  baseSpirit: number;
+  supportsSpirit: boolean;
+  supportsWeaponSetPassives: boolean;
+  supportsSpellSuppression: boolean;
+  /** Life gained per point of Strength. */
+  lifePerStrength: number;
+  /** Melee physical damage % inc per point of Strength (0.2 in PoE 1, 0 in PoE 2). */
+  meleePhysPctPerStrength: number;
+  /** Accuracy gained per point of Dexterity. */
+  accuracyPerDexterity: number;
+  /** Evasion % inc per point of Dexterity (0.2 in PoE 1, 0 in PoE 2). */
+  evasionPctPerDexterity: number;
+  /** Mana gained per point of Intelligence. */
+  manaPerIntelligence: number;
+  /** ES % inc per point of Intelligence (0.2 in PoE 1, 0 in PoE 2). */
+  esPctPerIntelligence: number;
+  /** Default resistance cap (75). */
+  defaultMaxResist: number;
+  /** Endgame campaign resistance penalty (-60 in PoE 1, -40 in PoE 2). */
+  endgameResistPenalty: number;
+  /** Chaos resistance penalty (-60 in PoE 1, 0 in PoE 2). */
+  endgameChaosResistPenalty: number;
+  /** Armour mitigation denominator multiplier (5 in PoE 1, 12 in PoE 2). */
+  armourFormulaFactor: number;
+  /** Default critical strike multiplier percentage (150 in PoE 1, 200 in PoE 2). */
+  baseCritMultiplier: number;
+  /** Active equipment slots for this game. */
+  equipmentSlots: EquipmentSlotId[];
+}
+
+export interface StatBreakdownRow {
+  label: string;
+  labelZh: string;
+  base: number;
+  incPct: number;
+  moreMultiplier: number;
+  total: number;
+  sources: Array<{ source: string; type: ModType; value: number | string }>;
+}
+
+export interface DamageRange {
+  min: number;
+  max: number;
+  average: number;
+}
+
+export interface CalcOffenceOutput {
+  mainSkillName: LocalizedText;
+  skillType: 'Attack' | 'Spell' | 'None';
+  damageByType: Record<DamageType, DamageRange>;
+  averageHit: number;
+  speed: number;
+  critChance: number;
+  critMultiplier: number;
+  hitChance: number;
+  effectiveCritMultiplier: number;
+  hitDps: number;
+  igniteDps: number;
+  bleedDps: number;
+  poisonDps: number;
+  totalDps: number;
+  manaCost: number;
+  manaPerSecond: number;
+}
+
+export interface CalcDefenceOutput {
+  str: number;
+  dex: number;
+  int: number;
+  life: number;
+  lifeUnreserved: number;
+  lifeRegen: number;
+  energyShield: number;
+  esRegen: number;
+  mana: number;
+  manaUnreserved: number;
+  manaRegen: number;
+  spirit: number;
+  spiritReserved: number;
+  spiritUnreserved: number;
+  armour: number;
+  physDamageReduction: number;
+  evasion: number;
+  evadeChance: number;
+  blockChance: number;
+  spellBlockChance: number;
+  spellSuppressionChance: number;
+  fireResist: number;
+  fireResistOvercap: number;
+  fireMaxResist: number;
+  coldResist: number;
+  coldResistOvercap: number;
+  coldMaxResist: number;
+  lightningResist: number;
+  lightningResistOvercap: number;
+  lightningMaxResist: number;
+  chaosResist: number;
+  chaosResistOvercap: number;
+  chaosMaxResist: number;
+  movementSpeedPct: number;
+  effectiveHitPool: number;
+  maxPhysHitTaken: number;
+  maxEleHitTaken: number;
+}
+
+export interface CalcOutput {
+  game: GameId;
+  offence: CalcOffenceOutput;
+  defence: CalcDefenceOutput;
+  breakdowns: StatBreakdownRow[];
+  allocatedPoints: number;
+  weaponSet1Points: number;
+  weaponSet2Points: number;
+  warnings: Array<{ code: string; message: LocalizedText }>;
+}
+
+export interface NodePowerDelta {
+  nodeId: number;
+  isAllocated: boolean;
+  dpsDelta: number;
+  dpsDeltaPct: number;
+  lifeDelta: number;
+  esDelta: number;
+  ehpDelta: number;
+}

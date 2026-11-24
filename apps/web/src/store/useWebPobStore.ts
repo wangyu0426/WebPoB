@@ -1,0 +1,376 @@
+import { create } from 'zustand';
+import type {
+  Build,
+  BuildConfig,
+  CalcOutput,
+  EquipmentSlotId,
+  GameId,
+  Item,
+  Locale,
+  WeaponSetId,
+} from '@webpob/core';
+import {
+  createEmptyBuild,
+  findShortestPathToNode,
+  getClassesForGame,
+  getGemsForGame,
+  getSampleBuild,
+  getTreeForGame,
+  removeNodeAndPruneDisconnected,
+} from '@webpob/data';
+import { calculateBuild } from '@webpob/calc';
+
+export type ActiveTab = 'tree' | 'skills' | 'items' | 'calcs' | 'config' | 'import' | 'notes';
+export type TreePaintMode = 'shared' | 'set1' | 'set2';
+
+interface WebPobState {
+  locale: Locale;
+  activeTab: ActiveTab;
+  treePaintMode: TreePaintMode;
+  corsProxyUrl: string;
+  build: Build;
+  calc: CalcOutput;
+
+  // Actions
+  setLocale: (locale: Locale) => void;
+  setActiveTab: (tab: ActiveTab) => void;
+  setTreePaintMode: (mode: TreePaintMode) => void;
+  setCorsProxyUrl: (url: string) => void;
+  switchGame: (game: GameId) => void;
+  loadSampleBuild: (game?: GameId) => void;
+  createNewBuild: (game?: GameId) => void;
+  replaceBuild: (nextBuild: Build) => void;
+
+  // Character & Tree
+  setBuildMeta: (patch: Partial<Pick<Build, 'name' | 'level' | 'classId' | 'ascendancyId' | 'activeWeaponSet' | 'bandit' | 'notes'>>) => void;
+  togglePassiveNode: (nodeId: number) => void;
+  resetPassiveTree: () => void;
+
+  // Skills
+  setMainSkillGroup: (groupId: string) => void;
+  addSkillGroup: () => void;
+  removeSkillGroup: (groupId: string) => void;
+  toggleSkillGroup: (groupId: string) => void;
+  updateSkillGroup: (groupId: string, patch: { label?: string; slot?: EquipmentSlotId; weaponSets?: WeaponSetId[] }) => void;
+  addGemToGroup: (groupId: string, gemId: string) => void;
+  removeGemFromGroup: (groupId: string, instanceId: string) => void;
+  updateGem: (groupId: string, instanceId: string, patch: { level?: number; quality?: number; enabled?: boolean }) => void;
+
+  // Items
+  addItem: (item: Item, autoEquipSlot?: EquipmentSlotId) => void;
+  equipItem: (slot: EquipmentSlotId, itemId: string) => void;
+  unequipSlot: (slot: EquipmentSlotId) => void;
+
+  // Config
+  updateConfig: (patch: Partial<BuildConfig>) => void;
+}
+
+const STORAGE_KEY = 'webpob_state_v1';
+
+function loadInitialBuild(): { build: Build; locale: Locale } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { build?: Build; locale?: Locale };
+      if (parsed.build && (parsed.build.game === 'poe1' || parsed.build.game === 'poe2')) {
+        return {
+          build: parsed.build,
+          locale: parsed.locale === 'en' ? 'en' : 'zh-CN',
+        };
+      }
+    }
+  } catch {
+    // ignore storage failures
+  }
+  return { build: getSampleBuild('poe1'), locale: 'zh-CN' };
+}
+
+function persistState(build: Build, locale: Locale): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ build, locale }));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+const initial = loadInitialBuild();
+
+export const useWebPobStore = create<WebPobState>((set, get) => {
+  const commitBuild = (nextBuild: Build) => {
+    const calc = calculateBuild(nextBuild);
+    persistState(nextBuild, get().locale);
+    set({ build: nextBuild, calc });
+  };
+
+  return {
+    locale: initial.locale,
+    activeTab: 'tree',
+    treePaintMode: 'shared',
+    corsProxyUrl: '',
+    build: initial.build,
+    calc: calculateBuild(initial.build),
+
+    setLocale: (locale) => {
+      persistState(get().build, locale);
+      set({ locale });
+    },
+
+    setActiveTab: (activeTab) => set({ activeTab }),
+    setTreePaintMode: (treePaintMode) => set({ treePaintMode }),
+    setCorsProxyUrl: (corsProxyUrl) => set({ corsProxyUrl }),
+
+    switchGame: (game) => {
+      if (get().build.game === game) return;
+      const sample = getSampleBuild(game);
+      set({ treePaintMode: 'shared' });
+      commitBuild(sample);
+    },
+
+    loadSampleBuild: (game) => {
+      const targetGame = game ?? get().build.game;
+      set({ treePaintMode: 'shared' });
+      commitBuild(getSampleBuild(targetGame));
+    },
+
+    createNewBuild: (game) => {
+      const targetGame = game ?? get().build.game;
+      set({ treePaintMode: 'shared' });
+      commitBuild(createEmptyBuild(targetGame));
+    },
+
+    replaceBuild: (nextBuild) => {
+      set({ treePaintMode: 'shared' });
+      commitBuild(nextBuild);
+    },
+
+    setBuildMeta: (patch) => {
+      const cur = get().build;
+      let next: Build = { ...cur, ...patch };
+      if (patch.classId && patch.classId !== cur.classId) {
+        const classes = getClassesForGame(cur.game);
+        const classDef = classes.find((c) => c.id === patch.classId) ?? classes[0]!;
+        const tree = getTreeForGame(cur.game);
+        const startId = tree.classStartNodeIds[classDef.id] ?? Object.values(tree.classStartNodeIds)[0]!;
+        next = {
+          ...next,
+          ascendancyId: classDef.ascendancies[0]?.id ?? '',
+          tree: {
+            ...next.tree,
+            allocatedNodeIds: [startId],
+            weaponSet1NodeIds: [],
+            weaponSet2NodeIds: [],
+          },
+        };
+      }
+      commitBuild(next);
+    },
+
+    togglePassiveNode: (nodeId) => {
+      const cur = get().build;
+      const mode = get().treePaintMode;
+      const tree = getTreeForGame(cur.game);
+      const startId = tree.classStartNodeIds[cur.classId] ?? cur.tree.allocatedNodeIds[0] ?? 0;
+
+      const sharedSet = new Set(cur.tree.allocatedNodeIds);
+      const set1Set = new Set(cur.tree.weaponSet1NodeIds);
+      const set2Set = new Set(cur.tree.weaponSet2NodeIds);
+
+      if (cur.game === 'poe2' && (mode === 'set1' || mode === 'set2')) {
+        const targetSet = mode === 'set1' ? set1Set : set2Set;
+        const otherSet = mode === 'set1' ? set2Set : set1Set;
+        if (targetSet.has(nodeId)) {
+          targetSet.delete(nodeId);
+        } else if (!sharedSet.has(nodeId)) {
+          const combined = new Set([...sharedSet, ...targetSet]);
+          const path = findShortestPathToNode(tree, combined, nodeId);
+          for (const id of path) {
+            otherSet.delete(id);
+            targetSet.add(id);
+          }
+        }
+        commitBuild({
+          ...cur,
+          tree: {
+            ...cur.tree,
+            weaponSet1NodeIds: [...set1Set],
+            weaponSet2NodeIds: [...set2Set],
+          },
+        });
+        return;
+      }
+
+      // Standard shared allocation / deallocation with shortest path
+      if (sharedSet.has(nodeId)) {
+        const pruned = removeNodeAndPruneDisconnected(tree, cur.tree.allocatedNodeIds, startId, nodeId);
+        const prunedSet = new Set(pruned);
+        commitBuild({
+          ...cur,
+          tree: {
+            ...cur.tree,
+            allocatedNodeIds: pruned,
+            weaponSet1NodeIds: cur.tree.weaponSet1NodeIds.filter((id) => !prunedSet.has(id)),
+            weaponSet2NodeIds: cur.tree.weaponSet2NodeIds.filter((id) => !prunedSet.has(id)),
+          },
+        });
+      } else {
+        const path = findShortestPathToNode(tree, sharedSet, nodeId);
+        if (path.length === 0) return;
+        const nextAllocated = [...cur.tree.allocatedNodeIds, ...path];
+        const nextSet = new Set(nextAllocated);
+        commitBuild({
+          ...cur,
+          tree: {
+            ...cur.tree,
+            allocatedNodeIds: nextAllocated,
+            weaponSet1NodeIds: cur.tree.weaponSet1NodeIds.filter((id) => !nextSet.has(id)),
+            weaponSet2NodeIds: cur.tree.weaponSet2NodeIds.filter((id) => !nextSet.has(id)),
+          },
+        });
+      }
+    },
+
+    resetPassiveTree: () => {
+      const cur = get().build;
+      const tree = getTreeForGame(cur.game);
+      const startId = tree.classStartNodeIds[cur.classId] ?? Object.values(tree.classStartNodeIds)[0]!;
+      commitBuild({
+        ...cur,
+        tree: {
+          ...cur.tree,
+          allocatedNodeIds: [startId],
+          weaponSet1NodeIds: [],
+          weaponSet2NodeIds: [],
+        },
+      });
+    },
+
+    setMainSkillGroup: (groupId) => {
+      commitBuild({ ...get().build, mainSkillGroupId: groupId });
+    },
+
+    addSkillGroup: () => {
+      const cur = get().build;
+      const defaultGem = getGemsForGame(cur.game)[0]!;
+      const newId = `sg_${Date.now()}`;
+      commitBuild({
+        ...cur,
+        skills: [
+          ...cur.skills,
+          {
+            id: newId,
+            label: `Skill Group ${cur.skills.length + 1}`,
+            enabled: true,
+            slot: cur.game === 'poe1' ? 'Gloves' : undefined,
+            weaponSets: cur.game === 'poe2' ? [1, 2] : undefined,
+            gems: [
+              {
+                instanceId: `g_${Date.now()}`,
+                gemId: defaultGem.id,
+                level: 20,
+                quality: 0,
+                enabled: true,
+              },
+            ],
+          },
+        ],
+      });
+    },
+
+    removeSkillGroup: (groupId) => {
+      const cur = get().build;
+      const remaining = cur.skills.filter((g) => g.id !== groupId);
+      const nextMain = cur.mainSkillGroupId === groupId ? (remaining[0]?.id ?? '') : cur.mainSkillGroupId;
+      commitBuild({ ...cur, skills: remaining, mainSkillGroupId: nextMain });
+    },
+
+    toggleSkillGroup: (groupId) => {
+      const cur = get().build;
+      commitBuild({
+        ...cur,
+        skills: cur.skills.map((g) => (g.id === groupId ? { ...g, enabled: !g.enabled } : g)),
+      });
+    },
+
+    updateSkillGroup: (groupId, patch) => {
+      const cur = get().build;
+      commitBuild({
+        ...cur,
+        skills: cur.skills.map((g) => (g.id === groupId ? { ...g, ...patch } : g)),
+      });
+    },
+
+    addGemToGroup: (groupId, gemId) => {
+      const cur = get().build;
+      commitBuild({
+        ...cur,
+        skills: cur.skills.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                gems: [
+                  ...g.gems,
+                  {
+                    instanceId: `g_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                    gemId,
+                    level: 20,
+                    quality: 0,
+                    enabled: true,
+                  },
+                ],
+              }
+            : g,
+        ),
+      });
+    },
+
+    removeGemFromGroup: (groupId, instanceId) => {
+      const cur = get().build;
+      commitBuild({
+        ...cur,
+        skills: cur.skills.map((g) =>
+          g.id === groupId ? { ...g, gems: g.gems.filter((gem) => gem.instanceId !== instanceId) } : g,
+        ),
+      });
+    },
+
+    updateGem: (groupId, instanceId, patch) => {
+      const cur = get().build;
+      commitBuild({
+        ...cur,
+        skills: cur.skills.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                gems: g.gems.map((gem) => (gem.instanceId === instanceId ? { ...gem, ...patch } : gem)),
+              }
+            : g,
+        ),
+      });
+    },
+
+    addItem: (item, autoEquipSlot) => {
+      const cur = get().build;
+      const nextItems = { ...cur.items, [item.id]: item };
+      const targetSlot = autoEquipSlot ?? (item.slotType !== 'Any' ? item.slotType : undefined);
+      const nextEquipped = targetSlot ? { ...cur.equipped, [targetSlot]: item.id } : cur.equipped;
+      commitBuild({ ...cur, items: nextItems, equipped: nextEquipped });
+    },
+
+    equipItem: (slot, itemId) => {
+      const cur = get().build;
+      commitBuild({ ...cur, equipped: { ...cur.equipped, [slot]: itemId } });
+    },
+
+    unequipSlot: (slot) => {
+      const cur = get().build;
+      const nextEquipped = { ...cur.equipped };
+      delete nextEquipped[slot];
+      commitBuild({ ...cur, equipped: nextEquipped });
+    },
+
+    updateConfig: (patch) => {
+      const cur = get().build;
+      commitBuild({ ...cur, config: { ...cur.config, ...patch } });
+    },
+  };
+});

@@ -1,0 +1,270 @@
+import { Plus, Star, Trash2 } from 'lucide-react';
+import type { EquipmentSlotId, WeaponSetId } from '@webpob/core';
+import { getGemsForGame, getRuleset } from '@webpob/data';
+import { getSlotLabel, localizeStatLine, localizeText, t } from '@webpob/i18n';
+import { useWebPobStore } from '../store/useWebPobStore';
+
+const GEM_COLOR_BADGE: Record<string, string> = {
+  red: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  green: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+  blue: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+  white: 'bg-zinc-200/20 text-zinc-100 border-zinc-400/40',
+};
+
+export function SkillsTab() {
+  const {
+    locale,
+    build,
+    setMainSkillGroup,
+    addSkillGroup,
+    removeSkillGroup,
+    toggleSkillGroup,
+    updateSkillGroup,
+    addGemToGroup,
+    removeGemFromGroup,
+    updateGem,
+  } = useWebPobStore();
+
+  const gemsCatalog = getGemsForGame(build.game);
+  const activeGems = gemsCatalog.filter((g) => g.category === 'active');
+  const supportGems = gemsCatalog.filter((g) => g.category === 'support');
+  const ruleset = getRuleset(build.game);
+  const socketableSlots: EquipmentSlotId[] = ruleset.equipmentSlots.filter(
+    (s) => !s.startsWith('Flask') && !s.startsWith('Charm') && !s.startsWith('Ring') && s !== 'Amulet' && s !== 'Belt',
+  );
+
+  const toggleWeaponSet = (groupId: string, current: WeaponSetId[] | undefined, ws: WeaponSetId) => {
+    const list = current ?? [1, 2];
+    const next = list.includes(ws) ? list.filter((x) => x !== ws) : [...list, ws];
+    updateSkillGroup(groupId, { weaponSets: next.length > 0 ? next : [ws] });
+  };
+
+  return (
+    <div className="h-full overflow-y-auto p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-bold text-amber-200">{t(locale, 'skills.title')}</h2>
+        <button
+          type="button"
+          onClick={addSkillGroup}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          {t(locale, 'skills.addGroup')}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {build.skills.map((group) => {
+          const isMain = group.id === build.mainSkillGroupId;
+          return (
+            <div
+              key={group.id}
+              className={`pob-panel rounded-lg p-4 space-y-3 ${
+                isMain ? 'ring-1 ring-amber-500/60' : ''
+              }`}
+            >
+              {/* Group Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242a3c] pb-2.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={group.enabled}
+                    onChange={() => toggleSkillGroup(group.id)}
+                    className="accent-amber-500 w-4 h-4 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={group.label}
+                    onChange={(e) => updateSkillGroup(group.id, { label: e.target.value })}
+                    className="pob-input rounded px-2 py-1 text-xs font-semibold w-44"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {build.game === 'poe1' ? (
+                    <select
+                      value={group.slot ?? 'Body Armour'}
+                      onChange={(e) =>
+                        updateSkillGroup(group.id, { slot: e.target.value as EquipmentSlotId })
+                      }
+                      className="pob-input rounded px-2 py-1 text-xs"
+                    >
+                      {socketableSlots.map((s) => (
+                        <option key={s} value={s}>
+                          {getSlotLabel(locale, s)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-zinc-400">{t(locale, 'skills.weaponSets')}:</span>
+                      {([1, 2] as const).map((ws) => {
+                        const active = (group.weaponSets ?? [1, 2]).includes(ws);
+                        return (
+                          <button
+                            key={ws}
+                            type="button"
+                            onClick={() => toggleWeaponSet(group.id, group.weaponSets, ws)}
+                            className={`px-2 py-0.5 rounded font-semibold cursor-pointer ${
+                              active
+                                ? ws === 1
+                                  ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/40'
+                                  : 'bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/40'
+                                : 'bg-[#0b0d14] text-zinc-500 border border-[#252b3d]'
+                            }`}
+                          >
+                            {ws === 1 ? 'I' : 'II'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setMainSkillGroup(group.id)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer ${
+                      isMain
+                        ? 'bg-amber-500/25 text-amber-200 border border-amber-500/50 font-semibold'
+                        : 'bg-[#1a1f2e] text-zinc-300 hover:text-amber-200 border border-[#2a3147]'
+                    }`}
+                  >
+                    <Star className="w-3 h-3" />
+                    {isMain ? t(locale, 'skills.mainSkill') : t(locale, 'skills.setAsMain')}
+                  </button>
+
+                  {build.skills.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSkillGroup(group.id)}
+                      className="p-1.5 rounded text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                      title={t(locale, 'skills.removeGroup')}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Gems List */}
+              <div className="space-y-1.5">
+                {group.gems.map((gemInst) => {
+                  const def = gemsCatalog.find((g) => g.id === gemInst.gemId);
+                  if (!def) return null;
+                  return (
+                    <div
+                      key={gemInst.instanceId}
+                      className="flex items-center justify-between gap-2 rounded bg-[#0c0e15] border border-[#212738] px-2.5 py-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={gemInst.enabled}
+                          onChange={(e) =>
+                            updateGem(group.id, gemInst.instanceId, { enabled: e.target.checked })
+                          }
+                          className="accent-amber-500 cursor-pointer"
+                        />
+                        <span
+                          className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold uppercase shrink-0 ${
+                            GEM_COLOR_BADGE[def.color]
+                          }`}
+                        >
+                          {def.category === 'active' ? (def.isAuraOrBuff ? 'BUFF' : 'ACT') : 'SUP'}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-zinc-100 truncate">
+                            {localizeText(def.name, locale)}
+                            {def.spiritReservation && (
+                              <span className="ml-2 text-[10px] text-amber-300 font-mono">
+                                {def.spiritReservation} Spirit
+                              </span>
+                            )}
+                            {def.manaReservationPct && (
+                              <span className="ml-2 text-[10px] text-blue-300 font-mono">
+                                {def.manaReservationPct}% Mana
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-zinc-400 truncate">
+                            {def.stats.map((s) => localizeStatLine(s, locale)).join(' · ')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label className="text-[10px] text-zinc-400">{t(locale, 'skills.level')}</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          value={gemInst.level}
+                          onChange={(e) =>
+                            updateGem(group.id, gemInst.instanceId, {
+                              level: Math.max(1, Math.min(30, Number(e.target.value) || 1)),
+                            })
+                          }
+                          className="pob-input rounded w-12 px-1.5 py-0.5 text-center font-mono text-xs"
+                        />
+                        <label className="text-[10px] text-zinc-400">{t(locale, 'skills.quality')}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={30}
+                          value={gemInst.quality}
+                          onChange={(e) =>
+                            updateGem(group.id, gemInst.instanceId, {
+                              quality: Math.max(0, Math.min(30, Number(e.target.value) || 0)),
+                            })
+                          }
+                          className="pob-input rounded w-12 px-1.5 py-0.5 text-center font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeGemFromGroup(group.id, gemInst.instanceId)}
+                          className="p-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add Gem Dropdown */}
+              <div className="pt-1">
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addGemToGroup(group.id, e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
+                >
+                  <option value="">+ {t(locale, 'skills.addGem')}...</option>
+                  <optgroup label={t(locale, 'skills.activeGems')}>
+                    {activeGems.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={t(locale, 'skills.supportGems')}>
+                    {supportGems.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

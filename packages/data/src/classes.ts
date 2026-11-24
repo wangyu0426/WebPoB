@@ -1,0 +1,175 @@
+import type { CharacterClassDef, GameId } from '@webpob/core';
+
+export const POE1_CLASSES: CharacterClassDef[] = [
+  {
+    id: 'Witch',
+    name: { en: 'Witch', zh: '女巫' },
+    baseStr: 14,
+    baseDex: 14,
+    baseInt: 32,
+    ascendancies: [
+      { id: 'Elementalist', name: { en: 'Elementalist', zh: '元素使' }, summary: { en: 'Elemental ailments, golems & exposure', zh: '元素异常、魔像与曝光' } },
+      { id: 'Occultist', name: { en: 'Occultist', zh: '秘术家' }, summary: { en: 'Energy shield, curses, cold & chaos', zh: '能量护盾、诅咒、冰霜与混沌' } },
+      { id: 'Necromancer', name: { en: 'Necromancer', zh: '死灵师' }, summary: { en: 'Minions, offerings & bone armour', zh: '召唤物、奉献与骨甲' } },
+    ],
+  },
+  {
+    id: 'Ranger',
+    name: { en: 'Ranger', zh: '游侠' },
+    baseStr: 14,
+    baseDex: 32,
+    baseInt: 14,
+    ascendancies: [
+      { id: 'Deadeye', name: { en: 'Deadeye', zh: '锐眼' }, summary: { en: 'Projectiles, tailwind & marks', zh: '投射物、顺风与印记' } },
+      { id: 'Pathfinder', name: { en: 'Pathfinder', zh: '追猎者' }, summary: { en: 'Flask sustain & poison proliferation', zh: '药剂续航与中毒扩散' } },
+      { id: 'Warden', name: { en: 'Warden', zh: '守望者' }, summary: { en: 'Elemental tinctures, scorch & barkskin', zh: '元素酊剂、焦灼与树皮护甲' } },
+    ],
+  },
+  {
+    id: 'Duelist',
+    name: { en: 'Duelist', zh: '决斗者' },
+    baseStr: 23,
+    baseDex: 23,
+    baseInt: 14,
+    ascendancies: [
+      { id: 'Slayer', name: { en: 'Slayer', zh: '处刑者' }, summary: { en: 'Overleech, culling strike & base crit', zh: '过量偷取、终结与基础暴击' } },
+      { id: 'Gladiator', name: { en: 'Gladiator', zh: '卫士' }, summary: { en: 'Lucky block & bleed explosions', zh: '幸运格挡与流血爆炸' } },
+      { id: 'Champion', name: { en: 'Champion', zh: '冠军' }, summary: { en: 'Permanent fortify, taunt & impale', zh: '常驻护体、嘲讽与穿刺' } },
+    ],
+  },
+  {
+    id: 'Marauder',
+    name: { en: 'Marauder', zh: '野蛮人' },
+    baseStr: 32,
+    baseDex: 14,
+    baseInt: 14,
+    ascendancies: [
+      { id: 'Juggernaut', name: { en: 'Juggernaut', zh: '勇士' }, summary: { en: 'Unstoppable, armour & endurance charges', zh: '势不可挡、护甲与耐力球' } },
+      { id: 'Berserker', name: { en: 'Berserker', zh: '暴徒' }, summary: { en: 'Rage, massive attack speed & blitz', zh: '盛怒、极限攻速与闪电战' } },
+      { id: 'Chieftain', name: { en: 'Chieftain', zh: '酋长' }, summary: { en: 'Fire resistance stacking & warcries', zh: '火抗堆叠与战吼' } },
+    ],
+  },
+  {
+    id: 'Templar',
+    name: { en: 'Templar', zh: '圣堂武僧' },
+    baseStr: 23,
+    baseDex: 14,
+    baseInt: 23,
+    ascendancies: [
+      { id: 'Inquisitor', name: { en: 'Inquisitor', zh: '判官' }, summary: { en: 'Crit ignores resists & consecrated ground', zh: '暴击无视抗性与奉献地面' } },
+      { id: 'Hierophant', name: { en: 'Hierophant', zh: '圣宗' }, summary: { en: 'Mana stacking, totems & arcane surge', zh: '堆魔力、图腾与秘术增强' } },
+      { id: 'Guardian', name: { en: 'Guardian', zh: '守护者' }, summary: { en: 'Auras, block & sentinel relics', zh: '光环、格挡与圣物' } },
+    ],
+  },
+  {
+    id: 'Shadow',
+    name: { en: 'Shadow', zh: '暗影刺客' },
+    baseStr: 14,
+    baseDex: 23,
+    baseInt: 23,
+    ascendancies: [
+      { id: 'Trickster', name: { en: 'Trickster', zh: '欺诈师' }, summary: { en: 'ES/Evasion hybrid, action speed & overleech', zh: '盾闪双修、行动速度与护盾偷取' } },
+      { id: 'Assassin', name: { en: 'Assassin', zh: '刺客' }, summary: { en: 'Power charges, elusive & poison crits', zh: '暴击球、灵巧与暴击中毒' } },
+      { id: 'Saboteur', name: { en: 'Saboteur', zh: '破坏者' }, summary: { en: 'Traps, mines & triggerbots', zh: '陷阱、地雷与触发机器人' } },
+    ],
+  },
+  {
+    id: 'Scion',
+    name: { en: 'Scion', zh: '贵族' },
+    baseStr: 20,
+    baseDex: 20,
+    baseInt: 20,
+    ascendancies: [
+      { id: 'Ascendant', name: { en: 'Ascendant', zh: '升华使徒' }, summary: { en: 'Combines two ascendancy paths', zh: '融合双升华之力' } },
+    ],
+  },
+];
+
+export const POE2_CLASSES: CharacterClassDef[] = [
+  {
+    id: 'Sorceress',
+    name: { en: 'Sorceress', zh: '魔巫' },
+    baseStr: 7,
+    baseDex: 7,
+    baseInt: 15,
+    ascendancies: [
+      { id: 'Stormweaver', name: { en: 'Stormweaver', zh: '风暴编织者' }, summary: { en: 'Double shock, elemental storms & arcane surge', zh: '双层感电、元素风暴与秘术涌动' } },
+      { id: 'Chronomancer', name: { en: 'Chronomancer', zh: '时空法师' }, summary: { en: 'Time freeze, cooldown resets & temporal rift', zh: '时间冻结、冷却重置与时空裂隙' } },
+    ],
+  },
+  {
+    id: 'Monk',
+    name: { en: 'Monk', zh: '武僧' },
+    baseStr: 7,
+    baseDex: 11,
+    baseInt: 11,
+    ascendancies: [
+      { id: 'Invoker', name: { en: 'Invoker', zh: '祈求者' }, summary: { en: 'Spirit scaling, unbound avatar & elemental crits', zh: '精魂加成、无拘化身与元素暴击' } },
+      { id: 'Acolyte of Chayula', name: { en: 'Acolyte of Chayula', zh: '夏乌拉侍僧' }, summary: { en: 'Darkness, chaos damage & mana leech', zh: '黑暗护盾、混沌增伤与魔力偷取' } },
+    ],
+  },
+  {
+    id: 'Ranger',
+    name: { en: 'Ranger', zh: '游侠' },
+    baseStr: 7,
+    baseDex: 15,
+    baseInt: 7,
+    ascendancies: [
+      { id: 'Deadeye', name: { en: 'Deadeye', zh: '锐眼' }, summary: { en: 'Tailwind, extra projectiles & frenzy synergy', zh: '顺风、额外投射物与狂怒协同' } },
+      { id: 'Pathfinder', name: { en: 'Pathfinder', zh: '追猎者' }, summary: { en: 'Double poison stacks & concoctions', zh: '双倍中毒层数与药剂调合' } },
+    ],
+  },
+  {
+    id: 'Warrior',
+    name: { en: 'Warrior', zh: '战士' },
+    baseStr: 15,
+    baseDex: 7,
+    baseInt: 7,
+    ascendancies: [
+      { id: 'Titan', name: { en: 'Titan', zh: '泰坦' }, summary: { en: 'Heavy stun, slam aftershocks & hulking form', zh: '重度眩晕、猛击余震与巨像形态' } },
+      { id: 'Warbringer', name: { en: 'Warbringer', zh: '战争使者' }, summary: { en: 'Armour break, warcry totems & block', zh: '破甲、战吼图腾与格挡' } },
+    ],
+  },
+  {
+    id: 'Mercenary',
+    name: { en: 'Mercenary', zh: '佣兵' },
+    baseStr: 11,
+    baseDex: 11,
+    baseInt: 7,
+    ascendancies: [
+      { id: 'Witchhunter', name: { en: 'Witchhunter', zh: '猎巫人' }, summary: { en: 'Weapon set passives, sorcery ward & culling', zh: '武器组天赋专精、巫术结界与终结' } },
+      { id: 'Gemling Legionnaire', name: { en: 'Gemling Legionnaire', zh: '宝石军团' }, summary: { en: 'Extra skill slots, gem quality & attribute stacking', zh: '额外技能槽、宝石品质与全属性堆叠' } },
+    ],
+  },
+  {
+    id: 'Witch',
+    name: { en: 'Witch', zh: '女巫' },
+    baseStr: 7,
+    baseDex: 7,
+    baseInt: 15,
+    ascendancies: [
+      { id: 'Infernalist', name: { en: 'Infernalist', zh: '炼狱师' }, summary: { en: 'Demon form, hellhound & spirit from life', zh: '恶魔形态、地狱犬与生命转精魂' } },
+      { id: 'Blood Mage', name: { en: 'Blood Mage', zh: '血法师' }, summary: { en: 'Life remnants, spell crit & life overflow', zh: '生命残片、法术暴击与生命溢出' } },
+    ],
+  },
+  {
+    id: 'Huntress',
+    name: { en: 'Huntress', zh: '女猎手' },
+    baseStr: 7,
+    baseDex: 15,
+    baseInt: 7,
+    ascendancies: [
+      { id: 'Amazon', name: { en: 'Amazon', zh: '亚马逊' }, summary: { en: 'Accuracy to crit & elemental infusion', zh: '命中转暴击与元素灌注' } },
+      { id: 'Ritualist', name: { en: 'Ritualist', zh: '仪式师' }, summary: { en: 'Extra ring slot & blood boil', zh: '额外戒指槽与沸血仪式' } },
+    ],
+  },
+];
+
+export function getClassesForGame(game: GameId): CharacterClassDef[] {
+  return game === 'poe2' ? POE2_CLASSES : POE1_CLASSES;
+}
+
+export function getClassDef(game: GameId, classId: string): CharacterClassDef {
+  const list = getClassesForGame(game);
+  return list.find((c) => c.id === classId) ?? list[0]!;
+}

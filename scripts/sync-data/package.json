@@ -1,0 +1,10 @@
+{
+  "name": "@webpob/sync-data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Sync script runs via tsx'",
+    "typecheck": "echo 'Sync script ready'"
+  }
+}

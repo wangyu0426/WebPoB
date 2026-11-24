@@ -1,0 +1,432 @@
+import { deflate, inflate } from 'pako';
+import type { Build, EquipmentSlotId, GameId, GemInstance, Item, SkillGroup, WeaponSetId } from '@webpob/core';
+import { createDefaultConfig, getClassesForGame, getGemsForGame, getTreeForGame } from '@webpob/data';
+import { formatItemToPobText, parseItemText } from './itemParser.js';
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  const base64 =
+    typeof btoa === 'function'
+      ? btoa(binary)
+      : Buffer.from(bytes).toString('base64');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64UrlToBytes(input: string): Uint8Array {
+  const normalized = input
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const padLen = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + '='.repeat(padLen);
+
+  if (typeof atob === 'function') {
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  return new Uint8Array(Buffer.from(padded, 'base64'));
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function unescapeXml(str: string): string {
+  return str
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
+function parseAttributes(tagHeader: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const attrRegex = /([a-zA-Z0-9_:-]+)\s*=\s*"([^"]*)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = attrRegex.exec(tagHeader)) !== null) {
+    attrs[match[1]!] = unescapeXml(match[2]!);
+  }
+  return attrs;
+}
+
+/**
+ * Serializes a WebPoB `Build` into official Path of Building XML format
+ * (`<PathOfBuilding>` for PoE 1, `<PathOfBuilding2>` for PoE 2).
+ */
+export function buildToPobXml(build: Build): string {
+  const rootTag = build.game === 'poe2' ? 'PathOfBuilding2' : 'PathOfBuilding';
+  const mainIdx = Math.max(
+    1,
+    build.skills.findIndex((s) => s.id === build.mainSkillGroupId) + 1,
+  );
+
+  const lines: string[] = [];
+  lines.push(`<?xml version="1.0" encoding="UTF-8"?>`);
+  lines.push(`<${rootTag}>`);
+
+  // <Build>
+  lines.push(
+    `  <Build level="${build.level}" className="${escapeXml(build.classId)}" ascendancyName="${escapeXml(build.ascendancyId)}" mainSocketGroup="${mainIdx}" activeWeaponSet="${build.activeWeaponSet}" bandit="${escapeXml(build.bandit ?? 'None')}" buildName="${escapeXml(build.name)}" />`,
+  );
+
+  // <Tree>
+  const nodesStr = build.tree.allocatedNodeIds.join(',');
+  const ws1Str = build.tree.weaponSet1NodeIds.join(',');
+  const ws2Str = build.tree.weaponSet2NodeIds.join(',');
+  const wsAttrs =
+    build.game === 'poe2'
+      ? ` weaponSet1Nodes="${ws1Str}" weaponSet2Nodes="${ws2Str}"`
+      : '';
+  lines.push(`  <Tree activeSpec="1">`);
+  lines.push(
+    `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" nodes="${nodesStr}"${wsAttrs} />`,
+  );
+  lines.push(`  </Tree>`);
+
+  // <Skills>
+  lines.push(`  <Skills activeSkillSet="1">`);
+  lines.push(`    <SkillSet id="1">`);
+  for (const group of build.skills) {
+    const slotAttr = group.slot ? ` slot="${escapeXml(group.slot)}"` : '';
+    const wsAttr =
+      group.weaponSets && group.weaponSets.length > 0
+        ? ` weaponSets="${group.weaponSets.join(',')}"`
+        : '';
+    lines.push(
+      `      <Skill enabled="${group.enabled}" label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
+    );
+    for (const gem of group.gems) {
+      lines.push(
+        `        <Gem gemId="${escapeXml(gem.gemId)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}" />`,
+      );
+    }
+    lines.push(`      </Skill>`);
+  }
+  lines.push(`    </SkillSet>`);
+  lines.push(`  </Skills>`);
+
+  // <Items>
+  const itemEntries = Object.values(build.items);
+  const idToNum = new Map<string, number>();
+  lines.push(`  <Items activeItemSet="1">`);
+  itemEntries.forEach((item, index) => {
+    const numId = index + 1;
+    idToNum.set(item.id, numId);
+    const body = escapeXml(formatItemToPobText(item));
+    lines.push(`    <Item id="${numId}">\n${body}\n    </Item>`);
+  });
+  lines.push(`    <ItemSet id="1">`);
+  for (const [slot, itemId] of Object.entries(build.equipped)) {
+    if (!itemId) continue;
+    const numId = idToNum.get(itemId);
+    if (numId) {
+      lines.push(`      <Slot name="${escapeXml(slot)}" itemId="${numId}" />`);
+    }
+  }
+  lines.push(`    </ItemSet>`);
+  lines.push(`  </Items>`);
+
+  // <Config>
+  const cfg = build.config;
+  lines.push(`  <Config activeConfigSet="1">`);
+  lines.push(`    <ConfigSet id="1">`);
+  lines.push(`      <Input name="enemyLevel" number="${cfg.enemyLevel}" />`);
+  lines.push(`      <Input name="enemyIsBoss" string="${escapeXml(cfg.enemyIsBoss)}" />`);
+  lines.push(`      <Input name="usePowerCharges" boolean="${cfg.usePowerCharges}" />`);
+  lines.push(`      <Input name="powerCharges" number="${cfg.powerCharges}" />`);
+  lines.push(`      <Input name="useFrenzyCharges" boolean="${cfg.useFrenzyCharges}" />`);
+  lines.push(`      <Input name="frenzyCharges" number="${cfg.frenzyCharges}" />`);
+  lines.push(`      <Input name="useEnduranceCharges" boolean="${cfg.useEnduranceCharges}" />`);
+  lines.push(`      <Input name="enduranceCharges" number="${cfg.enduranceCharges}" />`);
+  lines.push(`      <Input name="onslaught" boolean="${cfg.onslaught}" />`);
+  lines.push(`      <Input name="enemyShocked" boolean="${cfg.enemyShocked}" />`);
+  lines.push(`      <Input name="shockValue" number="${cfg.shockValue}" />`);
+  if (cfg.customMods.trim()) {
+    lines.push(`      <Placeholder name="customMods" string="${escapeXml(cfg.customMods)}" />`);
+  }
+  lines.push(`    </ConfigSet>`);
+  lines.push(`  </Config>`);
+
+  // <Notes>
+  lines.push(`  <Notes>${escapeXml(build.notes)}</Notes>`);
+  lines.push(`</${rootTag}>`);
+  return lines.join('\n');
+}
+
+/**
+ * Compresses and Base64URL-encodes a `Build` into a standard Path of Building share code.
+ */
+export function encodeBuildToPobCode(build: Build): string {
+  const xml = buildToPobXml(build);
+  const compressed = deflate(new TextEncoder().encode(xml));
+  return bytesToBase64Url(compressed);
+}
+
+/**
+ * Decodes a Path of Building share code (Base64URL + zlib) back into raw XML string.
+ */
+export function decodePobCodeToXml(code: string): string {
+  const bytes = base64UrlToBytes(code);
+  const inflated = inflate(bytes);
+  return new TextDecoder('utf-8').decode(inflated);
+}
+
+function parseNodeList(raw: string | undefined): number[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+function matchGemId(game: GameId, rawGemId?: string, rawNameSpec?: string): string | null {
+  const gems = getGemsForGame(game);
+  if (rawGemId) {
+    const exact = gems.find((g) => g.id === rawGemId);
+    if (exact) return exact.id;
+  }
+  const needle = (rawNameSpec ?? rawGemId ?? '').toLowerCase();
+  if (!needle) return null;
+  const fuzzy = gems.find(
+    (g) =>
+      g.name.en.toLowerCase() === needle ||
+      g.name.zh.toLowerCase() === needle ||
+      needle.includes(g.name.en.toLowerCase()),
+  );
+  return fuzzy?.id ?? null;
+}
+
+/**
+ * Parses official Path of Building XML (PoE 1 or PoE 2) into a WebPoB `Build` object.
+ */
+export function xmlToBuild(xml: string): Build {
+  const isPoe2 =
+    /<PathOfBuilding2\b/i.test(xml) ||
+    /className="(?:Sorceress|Monk|Warrior|Mercenary|Huntress)"/i.test(xml) ||
+    /weaponSet1Nodes="/i.test(xml);
+  const game: GameId = isPoe2 ? 'poe2' : 'poe1';
+
+  const buildTag = xml.match(/<Build\b([^>]*)\/?>/i);
+  const buildAttrs = buildTag ? parseAttributes(buildTag[1]!) : {};
+
+  const classes = getClassesForGame(game);
+  const classDef =
+    classes.find((c) => c.id.toLowerCase() === (buildAttrs.className ?? '').toLowerCase()) ??
+    classes[0]!;
+  const level = Math.max(1, Math.min(100, Number(buildAttrs.level ?? 90) || 90));
+  const ascendancyId = buildAttrs.ascendancyName ?? '';
+  const activeWeaponSet: WeaponSetId = buildAttrs.activeWeaponSet === '2' ? 2 : 1;
+  const mainSocketGroupIdx = Math.max(1, Number(buildAttrs.mainSocketGroup ?? 1) || 1);
+
+  // Parse <Spec>
+  const tree = getTreeForGame(game);
+  const specTag = xml.match(/<Spec\b([^>]*)\/?>/i);
+  const specAttrs = specTag ? parseAttributes(specTag[1]!) : {};
+  let allocatedNodeIds = parseNodeList(specAttrs.nodes).filter((id) => Boolean(tree.nodes[id]));
+  const startNodeId = tree.classStartNodeIds[classDef.id];
+  if (startNodeId && !allocatedNodeIds.includes(startNodeId)) {
+    allocatedNodeIds = [startNodeId, ...allocatedNodeIds];
+  }
+  const weaponSet1NodeIds = parseNodeList(specAttrs.weaponSet1Nodes).filter((id) => Boolean(tree.nodes[id]));
+  const weaponSet2NodeIds = parseNodeList(specAttrs.weaponSet2Nodes).filter((id) => Boolean(tree.nodes[id]));
+
+  // Parse <Skill> groups
+  const skills: SkillGroup[] = [];
+  const skillRegex = /<Skill\b([^>]*)>([\s\S]*?)<\/Skill>/gi;
+  let skillMatch: RegExpExecArray | null;
+  let groupCounter = 1;
+  while ((skillMatch = skillRegex.exec(xml)) !== null) {
+    const attrs = parseAttributes(skillMatch[1]!);
+    const inner = skillMatch[2]!;
+    const gems: GemInstance[] = [];
+    const gemRegex = /<Gem\b([^>]*)\/?>/gi;
+    let gemMatch: RegExpExecArray | null;
+    let gemCounter = 1;
+    while ((gemMatch = gemRegex.exec(inner)) !== null) {
+      const gAttrs = parseAttributes(gemMatch[1]!);
+      const matchedId = matchGemId(game, gAttrs.gemId, gAttrs.nameSpec);
+      if (matchedId) {
+        gems.push({
+          instanceId: `imp_g_${groupCounter}_${gemCounter++}`,
+          gemId: matchedId,
+          level: Number(gAttrs.level ?? 20) || 20,
+          quality: Number(gAttrs.quality ?? 0) || 0,
+          enabled: gAttrs.enabled !== 'false',
+        });
+      }
+    }
+    if (gems.length > 0) {
+      const weaponSets = attrs.weaponSets
+        ? (attrs.weaponSets
+            .split(',')
+            .map((v) => Number(v.trim()))
+            .filter((v): v is WeaponSetId => v === 1 || v === 2))
+        : undefined;
+      skills.push({
+        id: `imp_sg_${groupCounter}`,
+        label: attrs.label || `Skill Group ${groupCounter}`,
+        enabled: attrs.enabled !== 'false',
+        slot: attrs.slot as EquipmentSlotId | undefined,
+        weaponSets: weaponSets && weaponSets.length > 0 ? weaponSets : game === 'poe2' ? [1, 2] : undefined,
+        gems,
+      });
+      groupCounter++;
+    }
+  }
+
+  // Fallback skill group if XML had custom gems not yet in MVP catalog
+  if (skills.length === 0) {
+    const fallbackGem = getGemsForGame(game)[0]!;
+    skills.push({
+      id: 'imp_sg_1',
+      label: 'Main Skill',
+      enabled: true,
+      slot: game === 'poe1' ? 'Body Armour' : undefined,
+      weaponSets: game === 'poe2' ? [1, 2] : undefined,
+      gems: [{ instanceId: 'imp_g_1', gemId: fallbackGem.id, level: 20, quality: 20, enabled: true }],
+    });
+  }
+
+  const mainSkillGroupId = skills[mainSocketGroupIdx - 1]?.id ?? skills[0]!.id;
+
+  // Parse <Item> elements and <Slot> mappings
+  const items: Record<string, Item> = {};
+  const numIdToItemId = new Map<string, string>();
+  const itemRegex = /<Item\b([^>]*)>([\s\S]*?)<\/Item>/gi;
+  let itemMatch: RegExpExecArray | null;
+  while ((itemMatch = itemRegex.exec(xml)) !== null) {
+    const attrs = parseAttributes(itemMatch[1]!);
+    const numId = attrs.id ?? String(numIdToItemId.size + 1);
+    const body = unescapeXml(itemMatch[2] ?? '').trim();
+    const itemId = `imp_item_${numId}`;
+    const parsed = parseItemText(body, itemId);
+    if (parsed) {
+      items[itemId] = parsed;
+      numIdToItemId.set(numId, itemId);
+    }
+  }
+
+  const equipped: Partial<Record<EquipmentSlotId, string>> = {};
+  const slotRegex = /<Slot\b([^>]*)\/?>/gi;
+  let slotMatch: RegExpExecArray | null;
+  while ((slotMatch = slotRegex.exec(xml)) !== null) {
+    const attrs = parseAttributes(slotMatch[1]!);
+    const slotName = attrs.name as EquipmentSlotId | undefined;
+    const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
+    if (slotName && itemId) {
+      equipped[slotName] = itemId;
+    }
+  }
+
+  // Parse <Config> inputs
+  const config = createDefaultConfig();
+  const inputRegex = /<(?:Input|Placeholder)\b([^>]*)\/?>/gi;
+  let inputMatch: RegExpExecArray | null;
+  while ((inputMatch = inputRegex.exec(xml)) !== null) {
+    const attrs = parseAttributes(inputMatch[1]!);
+    const key = attrs.name;
+    if (key === 'enemyLevel' && attrs.number) config.enemyLevel = Number(attrs.number);
+    if (key === 'enemyIsBoss' && attrs.string) {
+      if (attrs.string === 'None' || attrs.string === 'Guardian' || attrs.string === 'Pinnacle') {
+        config.enemyIsBoss = attrs.string;
+      }
+    }
+    if (key === 'usePowerCharges' && attrs.boolean) config.usePowerCharges = attrs.boolean === 'true';
+    if (key === 'powerCharges' && attrs.number) config.powerCharges = Number(attrs.number);
+    if (key === 'useFrenzyCharges' && attrs.boolean) config.useFrenzyCharges = attrs.boolean === 'true';
+    if (key === 'frenzyCharges' && attrs.number) config.frenzyCharges = Number(attrs.number);
+    if (key === 'useEnduranceCharges' && attrs.boolean) config.useEnduranceCharges = attrs.boolean === 'true';
+    if (key === 'enduranceCharges' && attrs.number) config.enduranceCharges = Number(attrs.number);
+    if (key === 'onslaught' && attrs.boolean) config.onslaught = attrs.boolean === 'true';
+    if (key === 'enemyShocked' && attrs.boolean) config.enemyShocked = attrs.boolean === 'true';
+    if (key === 'shockValue' && attrs.number) config.shockValue = Number(attrs.number);
+    if (key === 'customMods' && attrs.string) config.customMods = attrs.string;
+  }
+
+  // Parse <Notes>
+  const notesMatch = xml.match(/<Notes>([\s\S]*?)<\/Notes>/i);
+  const notes = notesMatch ? unescapeXml(notesMatch[1]!).trim() : '';
+
+  return {
+    id: `imported_${Date.now()}`,
+    name: buildAttrs.buildName || `${classDef.name.en} (Lv.${level})`,
+    game,
+    level,
+    classId: classDef.id,
+    ascendancyId,
+    activeWeaponSet,
+    bandit: (buildAttrs.bandit as Build['bandit']) ?? 'None',
+    tree: {
+      title: specAttrs.title || 'Imported Tree',
+      treeVersion: specAttrs.treeVersion || tree.version,
+      allocatedNodeIds,
+      weaponSet1NodeIds,
+      weaponSet2NodeIds,
+      masteryEffects: {},
+    },
+    skills,
+    mainSkillGroupId,
+    items,
+    equipped,
+    config,
+    notes,
+  };
+}
+
+/**
+ * Convenience function: decodes a PoB share code (or raw XML) directly into a `Build`.
+ */
+export function importBuildFromCode(input: string): { build: Build; xml: string } {
+  const trimmed = input.trim();
+  const xml = trimmed.startsWith('<') ? trimmed : decodePobCodeToXml(trimmed);
+  const build = xmlToBuild(xml);
+  return { build, xml };
+}
+
+/**
+ * Resolves `pobb.in` and `pastebin.com` share URLs to their raw PoB code endpoints.
+ */
+export function resolveShareUrl(inputUrl: string): string | null {
+  const trimmed = inputUrl.trim();
+  const pobbin = trimmed.match(/^https?:\/\/(?:www\.)?pobb\.in\/([A-Za-z0-9_-]+)/i);
+  if (pobbin) {
+    return `https://pobb.in/${pobbin[1]}/raw`;
+  }
+  const pastebin = trimmed.match(/^https?:\/\/(?:www\.)?pastebin\.com\/(?:raw\/)?([A-Za-z0-9]+)/i);
+  if (pastebin) {
+    return `https://pastebin.com/raw/${pastebin[1]}`;
+  }
+  return null;
+}
+
+/**
+ * Fetches a PoB code from a `pobb.in` or `pastebin.com` URL, optionally routing through
+ * a lightweight CORS proxy (e.g. `https://proxy.example.workers.dev/?url=...`).
+ */
+export async function fetchRemoteBuildCode(url: string, corsProxyBase?: string): Promise<string> {
+  const rawEndpoint = resolveShareUrl(url) ?? url.trim();
+  const target = corsProxyBase?.trim()
+    ? `${corsProxyBase.replace(/\/+$/, '')}/?url=${encodeURIComponent(rawEndpoint)}`
+    : rawEndpoint;
+  const response = await fetch(target);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} fetching ${rawEndpoint}`);
+  }
+  return (await response.text()).trim();
+}

@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2b3040 #0f1219;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+    overflow: hidden;
+  }
+}
+
+.pob-panel {
+  background: #12151e;
+  border: 1px solid #232838;
+}
+
+.pob-input {
+  background: #0c0e14;
+  border: 1px solid #2b3145;
+  color: #e4e6ed;
+}
+
+.pob-input:focus {
+  outline: none;
+  border-color: #c8a265;
+}
