@@ -494,6 +494,76 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^(\d+)% increased Movement Speed during effect$/i,
     build: (m, src) => [mkMod('MovementSpeed', 'INC', Number(m[1]), src)],
   },
+  // Curses & Marks (Enemy debuffs)
+  {
+    pattern: /^Cursed enemies have ([+-]?\d+)% to (Fire|Cold|Lightning|Chaos) Resistance$/i,
+    build: (m, src) => [mkMod(`Enemy${m[2]}Resist`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Cursed enemies have ([+-]?\d+)% to Elemental Resistances$/i,
+    build: (m, src) => {
+      const v = Number(m[1]);
+      return [
+        mkMod('EnemyFireResist', 'BASE', v, src),
+        mkMod('EnemyColdResist', 'BASE', v, src),
+        mkMod('EnemyLightningResist', 'BASE', v, src),
+      ];
+    },
+  },
+  {
+    pattern: /^Cursed enemies take (\d+)% increased Physical Damage$/i,
+    build: (m, src) => [mkMod('EnemyPhysicalDamageTaken', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Cursed enemies take (\d+)% increased Projectile Damage$/i,
+    build: (m, src) => [mkMod('EnemyDamageTaken', 'INC', Number(m[1]), src, ModFlag.Projectile)],
+  },
+  {
+    pattern: /^Hits against Cursed Enemies have \+(\d+(?:\.\d+)?)% to Critical Strike Chance$/i,
+    build: (m, src) => [mkMod('EnemyCritChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Hits against Cursed Enemies have \+(\d+)% to Critical Strike Multiplier$/i,
+    build: (m, src) => [mkMod('EnemyCritMultiplier', 'BASE', Number(m[1]), src)],
+  },
+  // Mana Reservation Efficiency
+  {
+    pattern: /^(\d+)% increased Mana Reservation Efficiency(?: of Skills)?$/i,
+    build: (m, src) => [mkMod('ManaReservationEfficiency', 'INC', Number(m[1]), src)],
+  },
+  // Endgame Keystones & Unique Conversions
+  {
+    pattern: /^Converts all Evasion Rating to Armour/i,
+    build: (_, src) => [mkMod('IronReflexes', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^50% of Physical, Cold and Lightning Damage Converted to Fire Damage$/i,
+    build: (_, src) => [
+      mkMod('PhysicalDamageConvertToFire', 'BASE', 50, src),
+      mkMod('ColdDamageConvertToFire', 'BASE', 50, src),
+      mkMod('LightningDamageConvertToFire', 'BASE', 50, src),
+    ],
+  },
+  {
+    pattern: /^Deal no Non-Fire Damage$/i,
+    build: (_, src) => [mkMod('DealNoNonFire', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Your Critical Strikes do not deal extra Damage$/i,
+    build: (_, src) => [mkMod('NoCritExtraDamage', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Skills that have dealt a Critical Strike in the past 8 seconds deal (\d+)% more Elemental Damage/i,
+    build: (m, src) => [mkMod('ElementalDamage', 'MORE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% of Maximum Life Converted to Energy Shield$/i,
+    build: (m, src) => [mkMod('LifeConvertToES', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Damage with (Bow|Wand|Sword|Axe|Mace|Claw|Dagger|Staff)s?$/i,
+    build: (m, src) => [mkMod('Damage', 'INC', Number(m[1]), src, ModFlag.Attack)],
+  },
 ];
 
 /**

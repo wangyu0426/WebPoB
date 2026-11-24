@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { parseTranslationCsv } from './csvParser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '../../..');
@@ -50,6 +51,38 @@ interface ExistingGemsFile {
   }>;
 }
 
+async function fetchUniqueZhDict(game: 'poe1' | 'poe2'): Promise<Map<string, string>> {
+  const repo = game === 'poe1' ? 'PoeCharm' : 'PoeCharm2';
+  const files = [
+    'Uniques.txt.csv',
+    'Items_Armour.txt.csv',
+    'Items_Weapons.txt.csv',
+    'Items_Accessories.txt.csv',
+    'Items_Flasks.txt.csv',
+    'Items_Jewels.txt.csv',
+  ];
+  const merged = new Map<string, string>();
+  await Promise.all(
+    files.map(async (f) => {
+      try {
+        const res = await fetch(
+          `https://raw.githubusercontent.com/Chuanhsing/${repo}/master/Data/Translate/zh-rCN/${f}`,
+          { headers: { 'User-Agent': 'WebPoB-Sync/0.3' } },
+        );
+        if (!res.ok) return;
+        const text = await res.text();
+        const dict = parseTranslationCsv(text);
+        for (const [k, v] of dict) {
+          if (!merged.has(k)) merged.set(k, v);
+        }
+      } catch {
+        // tolerate optional network hiccups
+      }
+    }),
+  );
+  return merged;
+}
+
 async function runGameExport(game: 'poe1' | 'poe2') {
   const upstreamSrc = path.join(
     ROOT_DIR,
@@ -57,9 +90,11 @@ async function runGameExport(game: 'poe1' | 'poe2') {
   );
   const outBases = path.join(PUBLIC_DATA_DIR, `${game}-bases.json`);
   const tmpGems = path.join(ROOT_DIR, `.cache/${game}-gems-lua.json`);
+  const outUniques = path.join(PUBLIC_DATA_DIR, `${game}-uniques.json`);
 
-  console.log(`\n=== Exporting ${game.toUpperCase()} Base Items & Official Skill Tables via LuaJIT ===`);
-  const stdout = execFileSync(LUAJIT_BIN, [EXPORT_LUA, game, outBases, tmpGems], {
+  console.log(`\n=== Exporting ${game.toUpperCase()} Bases, Uniques & Official Skill Tables via LuaJIT ===`);
+  const [zhDict] = await Promise.all([fetchUniqueZhDict(game)]);
+  const stdout = execFileSync(LUAJIT_BIN, [EXPORT_LUA, game, outBases, tmpGems, outUniques], {
     cwd: upstreamSrc,
     env: {
       ...process.env,
@@ -72,6 +107,37 @@ async function runGameExport(game: 'poe1' | 'poe2') {
   for (const line of stdout.split('\n')) {
     if (line.startsWith('Exported ')) console.log('  ' + line);
   }
+
+  // Enrich exported Uniques with Chinese names & base names from PoeCharm
+  const rawUniques = JSON.parse(await fs.readFile(outUniques, 'utf-8')) as {
+    game: 'poe1' | 'poe2';
+    count: number;
+    uniques: Array<{ en: string; b: string; s: string; i?: string[]; e: string[] }>;
+  };
+  let zhUniqueHits = 0;
+  const enrichedUniques = rawUniques.uniques.map((u) => {
+    const zh = zhDict.get(u.en);
+    const bzh = zhDict.get(u.b);
+    if (zh) zhUniqueHits++;
+    return {
+      en: u.en,
+      ...(zh ? { zh } : {}),
+      b: u.b,
+      ...(bzh ? { bz: bzh } : {}),
+      s: u.s,
+      ...(Array.isArray(u.i) && u.i.length > 0 ? { i: u.i } : {}),
+      e: Array.isArray(u.e) ? u.e : [],
+    };
+  });
+  await fs.writeFile(
+    outUniques,
+    JSON.stringify({ game, count: enrichedUniques.length, uniques: enrichedUniques }),
+    'utf-8',
+  );
+  const uniqKb = Math.round(((await fs.stat(outUniques)).size / 1024) * 10) / 10;
+  console.log(
+    `  ✓ Enriched ${zhUniqueHits}/${enrichedUniques.length} ${game.toUpperCase()} Uniques with ZH names (${uniqKb} KB)`,
+  );
 
   // Merge Lua-evaluated official skill numbers into existing bilingual poeX-gems.json (preserving all ZH names!)
   const existingPath = path.join(PUBLIC_DATA_DIR, `${game}-gems.json`);

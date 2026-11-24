@@ -88,13 +88,25 @@ export class ModDB {
     flags = 0,
     keywordFlags = 0,
   ): number {
-    let multiplier = 1;
-    for (const mod of this.collect(names, flags, keywordFlags)) {
-      if (mod.type === 'MORE' && typeof mod.value === 'number') {
-        multiplier *= 1 + mod.value / 100;
+    // Matches official PoB ModList:MoreInternal — each stat bucket's product is rounded to the nearest percent
+    const nameList = typeof names === 'string' ? [names] : names;
+    let result = 1;
+    for (const name of nameList) {
+      const bucket = this.store.get(name);
+      if (!bucket) continue;
+      let modResult = 1;
+      for (const mod of bucket) {
+        if (
+          mod.type === 'MORE' &&
+          typeof mod.value === 'number' &&
+          this.matches(mod, flags, keywordFlags)
+        ) {
+          modResult *= 1 + mod.value / 100;
+        }
       }
+      result *= Math.floor(modResult * 100 + 0.5) / 100;
     }
-    return Math.max(0, multiplier);
+    return Math.max(0, result);
   }
 
   flag(name: string, flags = 0, keywordFlags = 0): boolean {

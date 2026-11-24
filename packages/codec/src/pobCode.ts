@@ -111,6 +111,13 @@ export function buildToPobXml(build: Build): string {
     `  <Build level="${build.level}" targetVersion="3_0" className="${escapeXml(build.classId)}" ascendClassName="${escapeXml(build.ascendancyId)}" ascendancyName="${escapeXml(build.ascendancyId)}" mainSocketGroup="${mainIdx}" activeWeaponSet="${build.activeWeaponSet}" bandit="${escapeXml(build.bandit ?? 'None')}" buildName="${escapeXml(build.name)}" />`,
   );
 
+  // Pre-assign numeric item IDs so both <Tree><Spec><Sockets> and <Items> share exact IDs
+  const itemEntries = Object.values(build.items);
+  const idToNum = new Map<string, number>();
+  itemEntries.forEach((item, index) => {
+    idToNum.set(item.id, index + 1);
+  });
+
   // <Tree>
   const nodesStr = build.tree.allocatedNodeIds.join(',');
   const ws1Str = build.tree.weaponSet1NodeIds.join(',');
@@ -119,10 +126,26 @@ export function buildToPobXml(build: Build): string {
     build.game === 'poe2'
       ? ` weaponSet1Nodes="${ws1Str}" weaponSet2Nodes="${ws2Str}"`
       : '';
+  const jewelSockets = Object.entries(build.tree.socketedJewels ?? {})
+    .map(([nodeId, itemId]) => ({ nodeId, numId: idToNum.get(itemId) }))
+    .filter((s): s is { nodeId: string; numId: number } => Boolean(s.numId));
+
   lines.push(`  <Tree activeSpec="1">`);
-  lines.push(
-    `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs} />`,
-  );
+  if (jewelSockets.length > 0) {
+    lines.push(
+      `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs}>`,
+    );
+    lines.push(`      <Sockets>`);
+    for (const s of jewelSockets) {
+      lines.push(`        <Socket nodeId="${s.nodeId}" itemId="${s.numId}" />`);
+    }
+    lines.push(`      </Sockets>`);
+    lines.push(`    </Spec>`);
+  } else {
+    lines.push(
+      `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs} />`,
+    );
+  }
   lines.push(`  </Tree>`);
 
   // <Skills>
@@ -150,12 +173,9 @@ export function buildToPobXml(build: Build): string {
   lines.push(`  </Skills>`);
 
   // <Items>
-  const itemEntries = Object.values(build.items);
-  const idToNum = new Map<string, number>();
   lines.push(`  <Items activeItemSet="1">`);
   itemEntries.forEach((item, index) => {
     const numId = index + 1;
-    idToNum.set(item.id, numId);
     const body = escapeXml(formatItemToPobText(item));
     lines.push(`    <Item id="${numId}">\n${body}\n    </Item>`);
   });
@@ -383,6 +403,19 @@ export function xmlToBuild(xml: string): Build {
     }
   }
 
+  // Parse passive tree <Socket nodeId="..." itemId="..."/> jewel assignments
+  const socketedJewels: Record<number, string> = {};
+  const jewelSocketRegex = /<Socket\b([^>]*)\/?>/gi;
+  let jsMatch: RegExpExecArray | null;
+  while ((jsMatch = jewelSocketRegex.exec(xml)) !== null) {
+    const attrs = parseAttributes(jsMatch[1]!);
+    const nodeId = Number(attrs.nodeId);
+    const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
+    if (Number.isFinite(nodeId) && nodeId > 0 && itemId) {
+      socketedJewels[nodeId] = itemId;
+    }
+  }
+
   // Parse <Config> inputs using clean official PoB defaults (all optional buffs OFF unless specified in XML)
   const ruleset = getRuleset(game);
   const config: Build['config'] = {
@@ -452,6 +485,7 @@ export function xmlToBuild(xml: string): Build {
       weaponSet1NodeIds,
       weaponSet2NodeIds,
       masteryEffects: {},
+      ...(Object.keys(socketedJewels).length > 0 ? { socketedJewels } : {}),
     },
     skills,
     mainSkillGroupId,

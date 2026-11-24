@@ -418,4 +418,239 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding2>`,
   },
+  {
+    id: 'poe1_local_weapon_armour_rare',
+    title: 'PoE 1 — Local-Mod Rare Vaal Axe (Phys/AS) + Local-Mod Rare Vaal Regalia (ES)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Local Weapon & Armour"/>
+  <Tree activeSpec="1">
+    <Spec title="RT" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175,31628,9511,23881,26523,6446,10221,50422,50570,29353,63282,31961"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Cyclone">
+        <Gem gemId="Metadata/Items/Gems/SkillGemCyclone" skillId="Cyclone" nameSpec="Cyclone" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Doom Reaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+150% increased Physical Damage
+Adds 25 to 45 Physical Damage
+20% increased Attack Speed
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Aether Vestment
+Vaal Regalia
+Quality: 20
+Implicits: 0
++120 to maximum Energy Shield
+110% increased Energy Shield
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Body Armour" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_curses_conductivity_assmark',
+    title: "PoE 1 — Arc + Conductivity (-36% Light Res) + Assassin's Mark (+1.5% Crit / +49% Multi)",
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Curses & Marks"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Curse">
+        <Gem gemId="Metadata/Items/Gems/SkillGemConductivity" skillId="Conductivity" nameSpec="Conductivity" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_assassins_mark_spell',
+    title: "PoE 1 — Arc + Assassin's Mark (+1.5% Base Crit & +49% Crit Multi)",
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Assassins Mark"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Mark">
+        <Gem gemId="Metadata/Items/Gems/SkillGemAssassinsMark" skillId="AssassinsMark" nameSpec="Assassin's Mark" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_socketed_jewel_uniques',
+    title: "PoE 1 — Socketed Cobalt Jewel + Astramentis + Shavronne's Wrappings",
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Jewel & Uniques"/>
+  <Tree activeSpec="1">
+    <Spec title="Jewel" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57264,37569,36542,4397,31875,60398,7388,36634">
+      <Sockets>
+        <Socket nodeId="36634" itemId="1"/>
+      </Sockets>
+    </Spec>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Mind Eye
+Cobalt Jewel
+Implicits: 0
+7% increased maximum Life
+14% increased Spell Damage
++15% to Global Critical Strike Multiplier
+    </Item>
+    <Item id="2">
+Rarity: UNIQUE
+Astramentis
+Onyx Amulet
+Implicits: 1
++13 to all Attributes
++90 to all Attributes
+    </Item>
+    <Item id="3">
+Rarity: UNIQUE
+Shavronne's Wrappings
+Occultist's Vestment
+Quality: 20
+Implicits: 1
+6% increased Spell Damage
+175% increased Energy Shield
++35% to Lightning Resistance
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Amulet" itemId="2"/>
+      <Slot name="Body Armour" itemId="3"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_iron_reflexes_grace',
+    title: 'PoE 1 — Iron Reflexes Keystone + Grace + Determination + Active Jade Flask',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Ranger" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Iron Reflexes"/>
+  <Tree activeSpec="1">
+    <Spec title="IR" treeVersion="3_30" classId="2" ascendClassId="0" nodes="50459,39821,52904,444,61306,60942,32555,22266,30679,5237,6363,29937,8544,10661"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Auras">
+        <Gem gemId="Metadata/Items/Gems/SkillGemGrace" skillId="Grace" nameSpec="Grace" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemDetermination" skillId="Determination" nameSpec="Determination" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: MAGIC
+Jade Flask
+Quality: 0
+Implicits: 0
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Flask 1" itemId="1" active="true"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_spell_totem_arc',
+    title: 'PoE 1 — Spell Totem Support + Arc Lv.20',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Spell Totem Arc"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc Totem">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemSpellTotem" skillId="SupportSpellTotem" nameSpec="Spell Totem" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_avatar_of_fire_frostbolt',
+    title: 'PoE 1 — Avatar of Fire Keystone (50% Cold->Fire, Deal no Non-Fire) + Frostbolt',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Avatar of Fire"/>
+  <Tree activeSpec="1">
+    <Spec title="AoF" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57264,37569,36542,4397,31875,60398,13009,17735,58402,10575,29199,15064,31931,15631,44967,50422,10221,44941"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Frostbolt">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFrostbolt" skillId="Frostbolt" nameSpec="Frostbolt" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
 ];

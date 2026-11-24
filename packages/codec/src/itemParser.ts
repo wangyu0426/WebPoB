@@ -323,10 +323,13 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
   }
 
   const inferred = inferSlotAndWeapon(`${itemClassHint} ${baseName} ${name}`);
-  const officialBase = getBaseItemStats(baseName, quality, game);
+  const explicitWeaponInHeader = Boolean(physDamage || aps !== null || critChance !== null);
+  const explicitArmourInHeader = hasArmourStats;
+  const localStatsPrecomputed = explicitWeaponInHeader || explicitArmourInHeader;
+  const officialBase = getBaseItemStats(baseName, localStatsPrecomputed ? quality : 0, game);
 
   let weaponStats: WeaponBaseStats | undefined;
-  if (physDamage || aps !== null || critChance !== null) {
+  if (explicitWeaponInHeader) {
     weaponStats = {
       physicalMin: physDamage?.[0] ?? officialBase?.weapon?.physicalMin ?? 10,
       physicalMax: physDamage?.[1] ?? officialBase?.weapon?.physicalMax ?? 20,
@@ -364,6 +367,7 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     implicits,
     explicits,
     rawText: trimmed,
+    localStatsPrecomputed,
   };
 }
 

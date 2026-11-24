@@ -8,6 +8,7 @@
 local game = arg[1] or "poe1"
 local outBasesPath = arg[2]
 local outGemsPath = arg[3]
+local outUniquesPath = arg[4]
 local isPoe2 = (game == "poe2")
 
 -- Strip PoB's #@ preprocessor header when loading Lua files
@@ -447,3 +448,136 @@ local fh2 = assert(io.open(outGemsPath, "w"))
 fh2:write(toJson({ game = game, count = gemCount, gems = gemsOut }))
 fh2:close()
 print(string.format("Exported %d %s official skill definitions -> %s", gemCount, game, outGemsPath))
+
+-- 4. Export Official Unique Items (resolving latest variant & midpoint ranges)
+if outUniquesPath then
+  local CAT_TO_SLOT = {
+    body = "Body Armour",
+    helmet = "Helmet",
+    gloves = "Gloves",
+    boots = "Boots",
+    amulet = "Amulet",
+    ring = "Ring 1",
+    belt = "Belt",
+    shield = "Weapon 2",
+    focus = "Weapon 2",
+    quiver = "Weapon 2",
+    flask = "Flask 1",
+    jewel = "Jewel",
+    axe = "Weapon 1",
+    bow = "Weapon 1",
+    claw = "Weapon 1",
+    crossbow = "Weapon 1",
+    dagger = "Weapon 1",
+    flail = "Weapon 1",
+    mace = "Weapon 1",
+    sceptre = "Weapon 1",
+    spear = "Weapon 1",
+    staff = "Weapon 1",
+    sword = "Weapon 1",
+    wand = "Weapon 1",
+  }
+
+  local function resolveRollMidpoint(line)
+    -- Replace numeric ranges like (80-120) or (1.5-2.5) with PoB-style midpoint
+    local s = line:gsub("%((%-?%d+%.?%d*)%-(%-?%d+%.?%d*)%)", function(a, b)
+      local na, nb = tonumber(a), tonumber(b)
+      if not na or not nb then return a end
+      local isFloat = a:find("%.") or b:find("%.")
+      local mid = (na + nb) / 2
+      if not isFloat then return tostring(math.floor(mid)) end
+      return tostring(math.floor(mid * 10 + 0.5) / 10)
+    end)
+    return s
+  end
+
+  local function variantMatches(line, targetVar)
+    local varSpec = line:match("{variant:([^}]+)}")
+    if not varSpec then return true end
+    for num in varSpec:gmatch("%d+") do
+      if tonumber(num) == targetVar then return true end
+    end
+    return false
+  end
+
+  local function stripTags(line)
+    local s = line:gsub("{[^}]+}", "")
+    return s:match("^%s*(.-)%s*$")
+  end
+
+  local uniquesOut = {}
+  local seenUnique = {}
+  local catKeys = {}
+  for cat, list in pairs(data.uniques or {}) do
+    if type(list) == "table" and CAT_TO_SLOT[cat] then
+      table.insert(catKeys, cat)
+    end
+  end
+  table.sort(catKeys)
+
+  for _, cat in ipairs(catKeys) do
+    local slot = CAT_TO_SLOT[cat]
+    for _, raw in ipairs(data.uniques[cat]) do
+      if type(raw) == "string" then
+        local lines = {}
+        for l in raw:gmatch("[^\r\n]+") do
+          local t = l:match("^%s*(.-)%s*$")
+          if #t > 0 then table.insert(lines, t) end
+        end
+        if #lines >= 2 then
+          -- Count variants; pick last variant ("Current")
+          local variantCount = 0
+          for _, l in ipairs(lines) do
+            if l:match("^Variant:") then variantCount = variantCount + 1 end
+          end
+          local pickVar = variantCount > 0 and variantCount or 1
+          local name = stripTags(lines[1])
+          local baseName = nil
+          local impCount = 0
+          local modLines = {}
+          local inMods = false
+          for i = 2, #lines do
+            local l = lines[i]
+            local isMeta = l:match("^Variant:") or l:match("^League:") or l:match("^Source:") or l:match("^Requires") or l:match("^Selected") or l:match("^Has Alt") or l:match("^Upgrade") or l:match("^LevelReq:") or l:match("^Sockets:") or l:match("^Limited") or l:match("^Radius:") or l:match("^Item Level:") or l:match("^Quality:")
+            if l:match("^Implicits:%s*(%d+)") then
+              impCount = tonumber(l:match("^Implicits:%s*(%d+)")) or 0
+              inMods = true
+            elseif not baseName and not isMeta then
+              if variantMatches(l, pickVar) then
+                baseName = stripTags(l)
+              end
+            elseif baseName and not isMeta then
+              inMods = true
+              if variantMatches(l, pickVar) then
+                local clean = resolveRollMidpoint(stripTags(l))
+                if #clean > 0 then table.insert(modLines, clean) end
+              end
+            end
+          end
+
+          if name and #name > 0 and baseName and #baseName > 0 and not seenUnique[name] then
+            seenUnique[name] = true
+            local imps = {}
+            local exps = {}
+            for idx, ml in ipairs(modLines) do
+              if idx <= impCount then table.insert(imps, ml) else table.insert(exps, ml) end
+            end
+            local entry = {
+              en = name,
+              b = baseName,
+              s = slot,
+              e = exps,
+            }
+            if #imps > 0 then entry.i = imps end
+            table.insert(uniquesOut, entry)
+          end
+        end
+      end
+    end
+  end
+
+  local fh3 = assert(io.open(outUniquesPath, "w"))
+  fh3:write(toJson({ game = game, count = #uniquesOut, uniques = uniquesOut }))
+  fh3:close()
+  print(string.format("Exported %d %s official unique items -> %s", #uniquesOut, game, outUniquesPath))
+end

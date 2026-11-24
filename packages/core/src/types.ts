@@ -283,6 +283,11 @@ export interface Item {
   explicits: string[];
   /** Optional raw source text (EN or ZH) preserved for tooltip/export. */
   rawText?: string;
+  /**
+   * Whether `armourStats` / `weaponStats` already include local modifiers & quality
+   * (true for in-game Ctrl+C clipboard text; false for PoB XML `<Item>` & Unique catalog).
+   */
+  localStatsPrecomputed?: boolean;
 }
 
 export interface BuildConfig {
@@ -319,6 +324,8 @@ export interface TreeSpec {
   weaponSet2NodeIds: number[];
   /** Selected mastery effects: nodeId -> effectId/stat line. */
   masteryEffects: Record<number, string>;
+  /** Passive tree jewel sockets: jewelNodeId -> itemId in `build.items`. */
+  socketedJewels?: Record<number, string>;
 }
 
 export interface Build {

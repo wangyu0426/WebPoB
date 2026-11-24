@@ -26,6 +26,7 @@ import {
 } from '@webpob/data';
 import { ModDB } from './modDb.js';
 import { parseModLines } from './modParser.js';
+import { resolveItemEffectiveStats } from './localItem.js';
 
 function getActiveEquippedItems(build: Build): Array<{ slot: EquipmentSlotId; item: Item }> {
   const result: Array<{ slot: EquipmentSlotId; item: Item }> = [];
@@ -200,7 +201,18 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parseModLines(statText.split('\n'), `Mastery: ${label}`));
   }
 
-  // 3. Equipped Items & Active Utility Flasks
+  // Socketed Passive Tree Jewels
+  for (const [nodeIdStr, itemId] of Object.entries(build.tree.socketedJewels ?? {})) {
+    const nodeId = Number(nodeIdStr);
+    if (!activeTreeNodes.has(nodeId)) continue;
+    const jewel = build.items[itemId];
+    if (!jewel) continue;
+    const src = `Jewel (${nodeId}): ${jewel.name}`;
+    db.addMods(parseModLines(jewel.implicits, `${src} [Implicit]`));
+    db.addMods(parseModLines(jewel.explicits, src));
+  }
+
+  // 3. Equipped Items & Active Utility Flasks (with PoB-authentic Local Armour/Weapon resolution)
   const equippedItems = getActiveEquippedItems(build);
   for (const { slot, item } of equippedItems) {
     if (slot.startsWith('Flask ')) {
@@ -215,24 +227,25 @@ export function calculateBuild(build: Build): CalcOutput {
       continue;
     }
     const src = `Item (${slot}): ${item.name}`;
-    if (item.armourStats?.armour) {
-      db.addMod({ name: 'Armour', type: 'BASE', value: item.armourStats.armour, flags: 0, keywordFlags: 0, source: src });
+    const resolved = resolveItemEffectiveStats(item, build.game);
+    if (resolved.armourStats?.armour) {
+      db.addMod({ name: 'Armour', type: 'BASE', value: resolved.armourStats.armour, flags: 0, keywordFlags: 0, source: src });
     }
-    if (item.armourStats?.evasion) {
-      db.addMod({ name: 'Evasion', type: 'BASE', value: item.armourStats.evasion, flags: 0, keywordFlags: 0, source: src });
+    if (resolved.armourStats?.evasion) {
+      db.addMod({ name: 'Evasion', type: 'BASE', value: resolved.armourStats.evasion, flags: 0, keywordFlags: 0, source: src });
     }
-    if (item.armourStats?.energyShield) {
-      db.addMod({ name: 'EnergyShield', type: 'BASE', value: item.armourStats.energyShield, flags: 0, keywordFlags: 0, source: src });
+    if (resolved.armourStats?.energyShield) {
+      db.addMod({ name: 'EnergyShield', type: 'BASE', value: resolved.armourStats.energyShield, flags: 0, keywordFlags: 0, source: src });
     }
-    if (item.armourStats?.blockChance) {
-      db.addMod({ name: 'BlockChance', type: 'BASE', value: item.armourStats.blockChance, flags: 0, keywordFlags: 0, source: src });
+    if (resolved.armourStats?.blockChance) {
+      db.addMod({ name: 'BlockChance', type: 'BASE', value: resolved.armourStats.blockChance, flags: 0, keywordFlags: 0, source: src });
     }
-    db.addMods(parseModLines(item.implicits, `${src} [Implicit]`));
-    db.addMods(parseModLines(item.explicits, src));
+    db.addMods(parseModLines(resolved.globalImplicits, `${src} [Implicit]`));
+    db.addMods(parseModLines(resolved.globalExplicits, src));
   }
 
-  // 4. Global Auras & Persistent Spirit Buffs
-  let totalManaReservedPct = 0;
+  // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs
+  const auraManaResList: number[] = [];
   let totalSpiritReserved = 0;
   for (const group of build.skills) {
     if (!group.enabled) continue;
@@ -245,7 +258,7 @@ export function calculateBuild(build: Build): CalcOutput {
       if (!def || !def.isAuraOrBuff) continue;
       db.addMods(parseModLines(def.stats, `Aura/Buff: ${def.name.en}`));
       if (def.manaReservationPct) {
-        totalManaReservedPct += def.manaReservationPct;
+        auraManaResList.push(def.manaReservationPct);
       }
       if (def.spiritReservation) {
         totalSpiritReserved += def.spiritReservation;
@@ -308,7 +321,8 @@ export function calculateBuild(build: Build): CalcOutput {
   if (ruleset.accuracyPerDexterity > 0) {
     db.addMod({ name: 'Accuracy', type: 'BASE', value: Math.floor(dex * ruleset.accuracyPerDexterity), flags: 0, keywordFlags: 0, source: `Dexterity (${dex})` });
   }
-  if (ruleset.evasionPctPerDexterity > 0) {
+  const ironReflexes = db.flag('IronReflexes');
+  if (ruleset.evasionPctPerDexterity > 0 && !ironReflexes) {
     db.addMod({ name: 'Evasion', type: 'INC', value: Math.floor(dex * ruleset.evasionPctPerDexterity), flags: 0, keywordFlags: 0, source: `Dexterity (${dex})` });
   }
   if (ruleset.manaPerIntelligence > 0) {
@@ -318,7 +332,14 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMod({ name: 'EnergyShield', type: 'INC', value: Math.floor(int * ruleset.esPctPerIntelligence), flags: 0, keywordFlags: 0, source: `Intelligence (${int})` });
   }
 
-  // 7. Compute Defence Output
+  // 7. Compute Defence Output (including Iron Reflexes, Life->ES conversion & Reservation Efficiency)
+  const rawLifeEval = db.calcStat('Life');
+  const lifeConvToEsPct = Math.min(100, Math.max(0, db.sum('BASE', 'LifeConvertToES')));
+  if (lifeConvToEsPct > 0 && rawLifeEval.total > 1) {
+    const convertedBase = Math.round(rawLifeEval.base * (lifeConvToEsPct / 100));
+    db.addMod({ name: 'EnergyShield', type: 'BASE', value: convertedBase, flags: 0, keywordFlags: 0, source: 'Life Converted to Energy Shield' });
+  }
+
   const lifeEval = db.calcStat('Life');
   const esEval = db.calcStat('EnergyShield');
   const manaEval = db.calcStat('Mana');
@@ -327,13 +348,32 @@ export function calculateBuild(build: Build): CalcOutput {
   const evasionEval = db.calcStat('Evasion');
   const moveSpeedEval = db.calcStat('MovementSpeed');
 
-  const life = Math.round(lifeEval.total);
+  const life =
+    lifeConvToEsPct > 0 && lifeEval.total > 1
+      ? Math.max(1, Math.round(lifeEval.total * (1 - lifeConvToEsPct / 100)))
+      : Math.round(lifeEval.total);
   const energyShield = Math.round(esEval.total);
   const mana = Math.round(manaEval.total);
   const spirit = ruleset.supportsSpirit ? Math.round(spiritEval.total) : 0;
-  const armour = Math.round(armourEval.total);
-  const evasion = Math.round(evasionEval.total);
 
+  let armour = Math.round(armourEval.total);
+  let evasion = Math.round(evasionEval.total);
+  if (ironReflexes) {
+    // Official PoB Iron Reflexes: Base Evasion converts to Armour and scales with BOTH Armour & Evasion inc/more
+    const convertedArmour =
+      evasionEval.base *
+      (1 + (armourEval.incPct + evasionEval.incPct) / 100) *
+      armourEval.moreMultiplier *
+      evasionEval.moreMultiplier;
+    armour = Math.round(armourEval.total + convertedArmour);
+    evasion = 0;
+  }
+
+  const manaResEff = Math.max(-90, db.sum('INC', 'ManaReservationEfficiency'));
+  const totalManaReservedPct = auraManaResList.reduce(
+    (sum, pct) => sum + Math.ceil(pct / (1 + manaResEff / 100)),
+    0,
+  );
   const manaUnreserved = Math.max(0, Math.round(mana * (1 - totalManaReservedPct / 100)));
   const spiritUnreserved = spirit - totalSpiritReserved;
 
@@ -714,7 +754,8 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
 
   const effectiveness =
     ((activeLevelEntry?.damageEffectivenessPct ?? activeDef.damageEffectivenessPct ?? 100) / 100);
-  const weapon = getActiveWeapon(build);
+  const rawWeapon = getActiveWeapon(build);
+  const weaponStats = rawWeapon ? resolveItemEffectiveStats(rawWeapon, build.game).weaponStats : undefined;
 
   // Step A: Base Min/Max per DamageType before conversion
   const baseMin: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
@@ -723,12 +764,12 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   if (isAttack) {
     const baseAtkPct = activeLevelEntry?.attackDamageMultiplierPct ?? activeDef.attackDamageMultiplierPct ?? 100;
     const atkMult = activeLevelEntry ? baseAtkPct / 100 : (baseAtkPct / 100) * Math.pow(1.03, activeLevel - 20);
-    const wMin = weapon?.weaponStats?.physicalMin ?? 15;
-    const wMax = weapon?.weaponStats?.physicalMax ?? 30;
+    const wMin = weaponStats?.physicalMin ?? 15;
+    const wMax = weaponStats?.physicalMax ?? 30;
     baseMin.Physical += wMin * atkMult;
     baseMax.Physical += wMax * atkMult;
-    if (weapon?.weaponStats?.elementalDamage) {
-      for (const [el, range] of Object.entries(weapon.weaponStats.elementalDamage)) {
+    if (weaponStats?.elementalDamage) {
+      for (const [el, range] of Object.entries(weaponStats.elementalDamage)) {
         if (!range) continue;
         const dt = el as DamageType;
         baseMin[dt] += range[0] * atkMult;
@@ -803,21 +844,46 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     finalBaseMax.Chaos += eleMax * (eleExtraChaos / 100);
   }
 
-  // Step C: Apply Increased & More multipliers + Enemy Resistances / Penetration + Shock
+  // Cold & Lightning -> Fire conversion (e.g., Avatar of Fire)
+  const coldToFire = Math.min(100, skillDb.sum('BASE', 'ColdDamageConvertToFire', flags, kwFlags));
+  if (coldToFire > 0) {
+    const frac = coldToFire / 100;
+    finalBaseMin.Fire += finalBaseMin.Cold * frac;
+    finalBaseMax.Fire += finalBaseMax.Cold * frac;
+    finalBaseMin.Cold *= 1 - frac;
+    finalBaseMax.Cold *= 1 - frac;
+  }
+  const lightToFire = Math.min(100, skillDb.sum('BASE', 'LightningDamageConvertToFire', flags, kwFlags));
+  if (lightToFire > 0) {
+    const frac = lightToFire / 100;
+    finalBaseMin.Fire += finalBaseMin.Lightning * frac;
+    finalBaseMax.Fire += finalBaseMax.Lightning * frac;
+    finalBaseMin.Lightning *= 1 - frac;
+    finalBaseMax.Lightning *= 1 - frac;
+  }
+
+  // Step C: Apply Increased & More multipliers + Enemy Resistances / Curses / Penetration + Shock/DamageTaken
   const enemyBossResistBonus =
     build.config.enemyIsBoss === 'Pinnacle' ? 20 : build.config.enemyIsBoss === 'Guardian' ? 10 : 0;
 
-  const shockMult = build.config.enemyShocked ? 1 + Math.max(0, Math.min(100, build.config.shockValue)) / 100 : 1;
+  const shockVal = build.config.enemyShocked ? Math.max(0, Math.min(100, build.config.shockValue)) : 0;
+  const enemyGlobalDmgTaken = skillDb.sum('INC', 'EnemyDamageTaken', flags, kwFlags);
+  const enemyPhysDmgTaken = skillDb.sum('INC', 'EnemyPhysicalDamageTaken', flags, kwFlags);
+  const curseFireRes = skillDb.sum('BASE', 'EnemyFireResist', flags, kwFlags);
+  const curseColdRes = skillDb.sum('BASE', 'EnemyColdResist', flags, kwFlags);
+  const curseLightRes = skillDb.sum('BASE', 'EnemyLightningResist', flags, kwFlags);
+  const curseChaosRes = skillDb.sum('BASE', 'EnemyChaosResist', flags, kwFlags);
 
   const ruleset = getRuleset(build.game);
   const damageByType: Record<DamageType, DamageRange> = { ...emptyRanges };
   const dealNoEle = skillDb.flag('DealNoElemental', flags, kwFlags);
   const dealNoChaos = skillDb.flag('DealNoChaos', flags, kwFlags);
+  const dealNoNonFire = skillDb.flag('DealNoNonFire', flags, kwFlags);
   let totalAvgHit = 0;
 
   for (const dt of DAMAGE_TYPES) {
     const isEle = dt === 'Fire' || dt === 'Cold' || dt === 'Lightning';
-    if ((isEle && dealNoEle) || (dt === 'Chaos' && dealNoChaos)) {
+    if ((isEle && dealNoEle) || (dt === 'Chaos' && dealNoChaos) || (dealNoNonFire && dt !== 'Fire')) {
       damageByType[dt] = { min: 0, max: 0, average: 0 };
       continue;
     }
@@ -831,29 +897,37 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     const rawMax = finalBaseMax[dt] * preMitMult;
     const rawAvg = (rawMin + rawMax) / 2;
 
-    // Enemy mitigation (Resistances + Penetration for Ele/Chaos; Enemy Armour PDR capped at 75% for Physical)
+    // Enemy mitigation (Resistances + Curses + Penetration; Enemy Armour PDR capped at 75%)
     let enemyFactor = 1;
+    let typeDmgTaken = shockVal + enemyGlobalDmgTaken;
     if (dt === 'Physical') {
+      typeDmgTaken += enemyPhysDmgTaken;
       const eArm = Math.max(0, build.config.enemyArmour);
       if (eArm > 0 && rawAvg > 0) {
         const pdr = Math.min(0.75, eArm / (eArm + ruleset.armourFormulaFactor * rawAvg));
         enemyFactor = 1 - pdr;
       }
     } else if (dt === 'Fire') {
-      const effRes = Math.min(75, build.config.enemyFireResist + enemyBossResistBonus) - skillDb.sum('BASE', 'FirePenetration', flags, kwFlags);
+      const effRes =
+        Math.min(75, build.config.enemyFireResist + enemyBossResistBonus + curseFireRes) -
+        skillDb.sum('BASE', 'FirePenetration', flags, kwFlags);
       enemyFactor = 1 - effRes / 100;
     } else if (dt === 'Cold') {
-      const effRes = Math.min(75, build.config.enemyColdResist + enemyBossResistBonus) - skillDb.sum('BASE', 'ColdPenetration', flags, kwFlags);
+      const effRes =
+        Math.min(75, build.config.enemyColdResist + enemyBossResistBonus + curseColdRes) -
+        skillDb.sum('BASE', 'ColdPenetration', flags, kwFlags);
       enemyFactor = 1 - effRes / 100;
     } else if (dt === 'Lightning') {
-      const effRes = Math.min(75, build.config.enemyLightningResist + enemyBossResistBonus) - skillDb.sum('BASE', 'LightningPenetration', flags, kwFlags);
+      const effRes =
+        Math.min(75, build.config.enemyLightningResist + enemyBossResistBonus + curseLightRes) -
+        skillDb.sum('BASE', 'LightningPenetration', flags, kwFlags);
       enemyFactor = 1 - effRes / 100;
     } else if (dt === 'Chaos') {
-      const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2);
+      const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);
       enemyFactor = 1 - effRes / 100;
     }
 
-    const finalMult = Math.max(0.05, enemyFactor) * shockMult;
+    const finalMult = Math.max(0.05, enemyFactor) * (1 + typeDmgTaken / 100);
     const min = rawMin * finalMult;
     const max = rawMax * finalMult;
     const average = (min + max) / 2;
@@ -872,21 +946,28 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     );
   }
 
-  // Step E: Crit Chance & Crit Multiplier (including Attack crit confirmation roll = crit * hitChance)
+  // Step E: Crit Chance & Crit Multiplier (including Attack crit confirmation, Assassin's Mark & EO)
   const neverCrit = skillDb.flag('NeverCrit', flags, kwFlags);
-  const baseCrit = isAttack ? (weapon?.weaponStats?.critChance ?? 5) : (activeDef.baseCritChance ?? 6);
+  const noCritExtra = skillDb.flag('NoCritExtraDamage', flags, kwFlags);
+  const enemyCritBonus = skillDb.sum('BASE', 'EnemyCritChance', flags, kwFlags);
+  const enemyCritMulti = skillDb.sum('BASE', 'EnemyCritMultiplier', flags, kwFlags);
+  const baseCrit =
+    (isAttack ? (weaponStats?.critChance ?? 5) : (activeDef.baseCritChance ?? 6)) + enemyCritBonus;
   const critInc = skillDb.sum('INC', 'CritChance', flags, kwFlags);
   const critMore = skillDb.more('CritChance', flags, kwFlags);
   const preEffectiveCrit = neverCrit ? 0 : Math.min(100, baseCrit * (1 + critInc / 100) * critMore);
   const critChance = Math.round(preEffectiveCrit * (isAttack ? hitChance / 100 : 1) * 100) / 100;
-  const critMultiplier = neverCrit ? 0 : Math.round(skillDb.sum('BASE', 'CritMultiplier', flags, kwFlags));
-  const effectiveCritMultiplier = neverCrit
-    ? 1
-    : 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
+  const critMultiplier = neverCrit
+    ? 0
+    : noCritExtra
+      ? 100
+      : Math.round(skillDb.sum('BASE', 'CritMultiplier', flags, kwFlags) + enemyCritMulti);
+  const effectiveCritMultiplier =
+    neverCrit || noCritExtra ? 1 : 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
 
   // Step F: Attack / Cast Speed
   const baseRate = isAttack
-    ? (weapon?.weaponStats?.attacksPerSecond ?? 1.2) * (activeDef.attackSpeedMultiplier ?? 1)
+    ? (weaponStats?.attacksPerSecond ?? 1.2) * (activeDef.attackSpeedMultiplier ?? 1)
     : 1 / (activeDef.castTime ?? 0.75);
   const speedInc = skillDb.sum('INC', 'Speed', flags, kwFlags);
   const speedMore = skillDb.more('Speed', flags, kwFlags);
@@ -918,7 +999,9 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     const critFrac = critChance / 100;
     const effIgniteChance = critFrac + (1 - critFrac) * baseChanceFrac;
     const critShare = effIgniteChance > 0 ? Math.min(1, (critFrac / effIgniteChance) * 1.9) : 0;
-    igniteDps = Math.round(nonCritIgnite * (1 - critShare) + critIgnite * critShare);
+    const igniteUptime =
+      baseChanceFrac > 0 ? 1 : Math.min(1, 1 - Math.pow(1 - effIgniteChance, Math.max(1, speedExact * 4)));
+    igniteDps = Math.round((nonCritIgnite * (1 - critShare) + critIgnite * critShare) * igniteUptime);
   }
 
   const bleedChance = Math.min(100, skillDb.sum('BASE', 'BleedChance', flags, kwFlags));
