@@ -178,6 +178,138 @@ export function ConfigTab() {
         </div>
       </div>
 
+      {/* Endgame Buffs, Debuffs & Exposure (Phase 6 PoB Parity) */}
+      <div className="pob-panel rounded-lg p-4 space-y-3 text-xs">
+        <h3 className="font-bold text-amber-300 border-b border-[#242a3c] pb-1.5">
+          {locale === 'zh-CN'
+            ? '终局战斗增益 / 敌人减益与曝露 (PoB 完整对齐)'
+            : 'Endgame Buffs, Debuffs & Exposure'}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-2.5">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.conditionLowLife)}
+              onChange={(e) => updateConfig({ conditionLowLife: e.target.checked })}
+              className="accent-rose-500"
+            />
+            <span>
+              {locale === 'zh-CN'
+                ? '处于低血状态 (触发苦痛灵曲 30% 更多法伤)'
+                : 'Are you on Low Life? (Pain Attunement)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.buffArcaneSurge)}
+              onChange={(e) => updateConfig({ buffArcaneSurge: e.target.checked })}
+              className="accent-sky-400"
+            />
+            <span>
+              {locale === 'zh-CN'
+                ? '秘术增强 (+20% 施法速度 / +30% 魔力回复)'
+                : 'Arcane Surge (+20% Cast Speed / +30% Mana Regen)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.buffTailwind)}
+              onChange={(e) => updateConfig({ buffTailwind: e.target.checked })}
+              className="accent-emerald-400"
+            />
+            <span>
+              {locale === 'zh-CN'
+                ? '顺风 (+8% 行动速度 / 攻速施速移速更多)'
+                : 'Tailwind (+8% Action Speed)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyIntimidated)}
+              onChange={(e) => updateConfig({ enemyIntimidated: e.target.checked })}
+              className="accent-orange-400"
+            />
+            <span>
+              {locale === 'zh-CN'
+                ? '敌人被恐吓 (+10% 承受攻击伤害)'
+                : 'Enemy Intimidated (+10% Attack Dmg Taken)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyUnnerved)}
+              onChange={(e) => updateConfig({ enemyUnnerved: e.target.checked })}
+              className="accent-purple-400"
+            />
+            <span>
+              {locale === 'zh-CN'
+                ? '敌人被胆怯 (+10% 承受法术伤害)'
+                : 'Enemy Unnerved (+10% Spell Dmg Taken)'}
+            </span>
+          </label>
+
+          <label className="flex items-center justify-between gap-2">
+            <span className="text-purple-200">
+              {locale === 'zh-CN' ? '凋零层数 (0–15, 每层+6%混沌承伤)' : 'Withered Stacks (0–15)'}
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={15}
+              value={cfg.witheredStacks ?? 0}
+              onChange={(e) =>
+                updateConfig({ witheredStacks: Math.max(0, Math.min(15, Number(e.target.value) || 0)) })
+              }
+              className="pob-input rounded w-16 px-2 py-1 text-center font-mono"
+            />
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyFireExposure)}
+              onChange={(e) => updateConfig({ enemyFireExposure: e.target.checked })}
+              className="accent-orange-500"
+            />
+            <span className="text-orange-300">
+              {locale === 'zh-CN' ? '火焰曝露 (-10% 火抗 / 元素使 -35%)' : 'Fire Exposure (-10% Fire Res)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyColdExposure)}
+              onChange={(e) => updateConfig({ enemyColdExposure: e.target.checked })}
+              className="accent-sky-400"
+            />
+            <span className="text-sky-300">
+              {locale === 'zh-CN' ? '冰霜曝露 (-10% 冰抗 / 元素使 -35%)' : 'Cold Exposure (-10% Cold Res)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyLightningExposure)}
+              onChange={(e) => updateConfig({ enemyLightningExposure: e.target.checked })}
+              className="accent-yellow-400"
+            />
+            <span className="text-yellow-300">
+              {locale === 'zh-CN' ? '闪电曝露 (-10% 雷抗 / 元素使 -35%)' : 'Lightning Exposure (-10% Light Res)'}
+            </span>
+          </label>
+        </div>
+      </div>
+
       {/* Custom Modifiers (Supports EN & ZH!) */}
       <div className="pob-panel rounded-lg p-4 space-y-2">
         <h3 className="text-xs font-bold text-amber-300">{t(locale, 'config.customMods')}</h3>

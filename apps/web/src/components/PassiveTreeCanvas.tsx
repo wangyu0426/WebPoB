@@ -15,6 +15,7 @@ import {
 import type { NodePowerDelta, PassiveNode } from '@webpob/core';
 import {
   findShortestPathToNode,
+  getAllClusterNotables,
   getAscendancyStartNodeId,
   getTreeForGame,
   getUniquesForGame,
@@ -86,7 +87,16 @@ export function PassiveTreeCanvas() {
   const [hoveredNodeId, setHoveredNodeId] = useState<number | null>(null);
   const [masteryModalNodeId, setMasteryModalNodeId] = useState<number | null>(null);
   const [jewelModalNodeId, setJewelModalNodeId] = useState<number | null>(null);
+  const [jewelModalTab, setJewelModalTab] = useState<'standard' | 'cluster'>('standard');
   const [jewelSearch, setJewelSearch] = useState('');
+  const [clusterSize, setClusterSize] = useState<'Large' | 'Medium' | 'Small'>('Large');
+  const [clusterSmallGrant, setClusterSmallGrant] = useState('12% increased Lightning Damage');
+  const [clusterEffectPct, setClusterEffectPct] = useState(0);
+  const [clusterSelectedNotables, setClusterSelectedNotables] = useState<string[]>([
+    'Storm Drinker',
+    'Prismatic Heart',
+  ]);
+  const [clusterNotableSearch, setClusterNotableSearch] = useState('');
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
@@ -1093,7 +1103,7 @@ export function PassiveTreeCanvas() {
       {/* Jewel Socket Picker Modal */}
       {jewelModalNodeId !== null && (
         <div className="absolute inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
-          <div className="pob-panel rounded-lg w-full max-w-lg p-4 space-y-3 shadow-2xl border-emerald-500/40">
+          <div className="pob-panel rounded-lg w-full max-w-xl p-4 space-y-3 shadow-2xl border-emerald-500/40 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#252b3d] pb-2">
               <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
                 <Sparkles className="w-4 h-4" />
@@ -1110,6 +1120,33 @@ export function PassiveTreeCanvas() {
               </button>
             </div>
 
+            {build.game === 'poe1' && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setJewelModalTab('standard')}
+                  className={`px-3 py-1 rounded border cursor-pointer ${
+                    jewelModalTab === 'standard'
+                      ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200 font-semibold'
+                      : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {locale === 'zh-CN' ? '普通与传奇珠宝' : 'Standard & Unique'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJewelModalTab('cluster')}
+                  className={`px-3 py-1 rounded border cursor-pointer ${
+                    jewelModalTab === 'cluster'
+                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 font-semibold'
+                      : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {locale === 'zh-CN' ? '星团珠宝工坊 (308核心天赋)' : 'Cluster Jewel Builder (308 Notables)'}
+                </button>
+              </div>
+            )}
+
             {build.tree.socketedJewels?.[jewelModalNodeId] &&
               build.items[build.tree.socketedJewels[jewelModalNodeId]!] && (
                 <div className="rounded bg-emerald-950/25 border border-emerald-500/40 p-2.5 text-xs space-y-1">
@@ -1125,109 +1162,304 @@ export function PassiveTreeCanvas() {
                       {locale === 'zh-CN' ? '取下珠宝' : 'Unsocket'}
                     </button>
                   </div>
-                  {build.items[build.tree.socketedJewels[jewelModalNodeId]!]!.explicits.map(
-                    (l, i) => (
-                      <div key={i} className="text-indigo-200/90">
-                        • {localizeStatLine(l, locale)}
-                      </div>
-                    ),
-                  )}
+                  {[
+                    ...build.items[build.tree.socketedJewels[jewelModalNodeId]!]!.implicits,
+                    ...build.items[build.tree.socketedJewels[jewelModalNodeId]!]!.explicits,
+                  ].map((l, i) => (
+                    <div key={i} className="text-indigo-200/90">
+                      • {localizeStatLine(l, locale)}
+                    </div>
+                  ))}
                 </div>
               )}
 
-            {/* Quick Rare Jewel Presets */}
-            <div className="space-y-1">
-              <div className="text-[11px] text-zinc-400 font-semibold">
-                {locale === 'zh-CN' ? '快捷镶嵌稀有珠宝' : 'Quick Rare Jewels'}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
-                {[
-                  {
-                    name: 'Cobalt Spell Jewel',
-                    nameZh: '钴蓝法术珠宝',
-                    baseName: 'Cobalt Jewel',
-                    explicits: ['7% increased maximum Life', '14% increased Spell Damage', '+15% to Global Critical Strike Multiplier'],
-                  },
-                  {
-                    name: 'Crimson Melee Jewel',
-                    nameZh: '赤红近战珠宝',
-                    baseName: 'Crimson Jewel',
-                    explicits: ['7% increased maximum Life', '14% increased Melee Physical Damage', '6% increased Attack Speed'],
-                  },
-                  {
-                    name: 'Viridian Crit ES Jewel',
-                    nameZh: '翠绿护盾暴击珠宝',
-                    baseName: 'Viridian Jewel',
-                    explicits: ['8% increased maximum Energy Shield', '14% increased Elemental Damage', '+15% to Global Critical Strike Multiplier'],
-                  },
-                ].map((preset) => (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    onClick={() => {
-                      socketJewel(jewelModalNodeId, {
-                        id: `jewel_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-                        name: preset.name,
-                        nameZh: preset.nameZh,
-                        baseName: preset.baseName,
-                        rarity: 'RARE',
-                        slotType: 'Any',
-                        quality: 0,
-                        implicits: [],
-                        explicits: preset.explicits,
-                      });
-                      setJewelModalNodeId(null);
-                    }}
-                    className="rounded p-2 text-left bg-[#121623] hover:bg-[#1a2033] border border-yellow-500/30 text-yellow-200 cursor-pointer"
-                  >
-                    <div className="font-semibold text-[11px]">
-                      {locale === 'zh-CN' ? preset.nameZh : preset.name}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Official Unique Jewels Search */}
-            <div className="space-y-1.5">
-              <input
-                type="text"
-                value={jewelSearch}
-                onChange={(e) => setJewelSearch(e.target.value)}
-                placeholder={locale === 'zh-CN' ? '搜索官方传奇珠宝 (如 守望之眼 / Watcher)...' : 'Search official Unique Jewels...'}
-                className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
-              />
-              <div className="max-h-44 overflow-y-auto space-y-1">
-                {getUniquesForGame(build.game)
-                  .filter((u) => {
-                    if (u.s !== 'Jewel') return false;
-                    const q = jewelSearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return `${u.en} ${u.zh ?? ''} ${u.e.join(' ')}`.toLowerCase().includes(q);
-                  })
-                  .slice(0, 25)
-                  .map((u) => (
-                    <button
-                      key={u.en}
-                      type="button"
-                      onClick={() => {
-                        socketJewel(jewelModalNodeId, instantiateUniqueItem(build.game, u, 0));
-                        setJewelModalNodeId(null);
-                      }}
-                      className="w-full text-left rounded px-2.5 py-1.5 bg-[#0e111b] hover:bg-[#171c2b] border border-orange-500/25 text-xs cursor-pointer"
+            {jewelModalTab === 'cluster' && build.game === 'poe1' ? (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[11px] text-zinc-400">
+                      {locale === 'zh-CN' ? '星团尺寸' : 'Cluster Size'}
+                    </span>
+                    <select
+                      value={clusterSize}
+                      onChange={(e) => setClusterSize(e.target.value as 'Large' | 'Medium' | 'Small')}
+                      className="pob-input w-full rounded px-2 py-1 text-xs"
                     >
-                      <div className="font-semibold text-orange-300">
-                        {locale === 'zh-CN' && u.zh ? `${u.zh} (${u.en})` : u.en}
-                      </div>
-                      {u.e.length > 0 && (
-                        <div className="text-[10px] text-indigo-200/80 truncate">
-                          {u.e.slice(0, 2).map((l) => localizeStatLine(l, locale)).join(' · ')}
-                        </div>
-                      )}
-                    </button>
-                  ))}
+                      <option value="Large">
+                        {locale === 'zh-CN' ? '大型星团 (8天赋 / 2插槽)' : 'Large (8 Passives, 2 Sockets)'}
+                      </option>
+                      <option value="Medium">
+                        {locale === 'zh-CN' ? '中型星团 (4天赋 / 1插槽)' : 'Medium (4 Passives, 1 Socket)'}
+                      </option>
+                      <option value="Small">
+                        {locale === 'zh-CN' ? '小型星团 (2天赋)' : 'Small (2 Passives)'}
+                      </option>
+                    </select>
+                  </label>
+                  <label className="space-y-1 sm:col-span-2">
+                    <span className="text-[11px] text-zinc-400">
+                      {locale === 'zh-CN' ? '小天赋基础附魔' : 'Small Passive Enchant'}
+                    </span>
+                    <select
+                      value={clusterSmallGrant}
+                      onChange={(e) => setClusterSmallGrant(e.target.value)}
+                      className="pob-input w-full rounded px-2 py-1 text-xs"
+                    >
+                      <option value="12% increased Lightning Damage">12% Lightning Damage (闪电伤害)</option>
+                      <option value="12% increased Fire Damage">12% Fire Damage (火焰伤害)</option>
+                      <option value="12% increased Cold Damage">12% Cold Damage (冰霜伤害)</option>
+                      <option value="12% increased Physical Damage">12% Physical Damage (物理伤害)</option>
+                      <option value="12% increased Chaos Damage">12% Chaos Damage (混沌伤害)</option>
+                      <option value="10% increased Elemental Damage">10% Elemental Damage (元素伤害)</option>
+                      <option value="10% increased Spell Damage">10% Spell Damage (法术伤害)</option>
+                      <option value="10% increased Attack Damage">10% Attack Damage (攻击伤害)</option>
+                      <option value="4% increased maximum Life">4% maximum Life (最大生命)</option>
+                      <option value="6% increased maximum Energy Shield">6% maximum Energy Shield (能量护盾)</option>
+                      <option value="15% increased Armour">15% Armour (护甲)</option>
+                      <option value="15% increased Evasion Rating">15% Evasion Rating (闪避)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-zinc-400">
+                    {locale === 'zh-CN' ? '小天赋效果提高' : 'Increased Small Passive Effect'}:
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {[0, 25, 35].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setClusterEffectPct(pct)}
+                        className={`px-2 py-0.5 rounded border text-[11px] font-mono cursor-pointer ${
+                          clusterEffectPct === pct
+                            ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                            : 'bg-[#121623] border-[#252c40] text-zinc-400'
+                        }`}
+                      >
+                        +{pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selected Notables Chips */}
+                <div className="space-y-1">
+                  <div className="text-[11px] text-zinc-400">
+                    {locale === 'zh-CN'
+                      ? `已选核心天赋 (${clusterSelectedNotables.length}/3):`
+                      : `Selected Cluster Notables (${clusterSelectedNotables.length}/3):`}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {clusterSelectedNotables.map((name) => (
+                      <span
+                        key={name}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-200 text-[11px]"
+                      >
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setClusterSelectedNotables((prev) => prev.filter((n) => n !== name))
+                          }
+                          className="text-amber-300/80 hover:text-rose-300 cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Searchable 308 Official Cluster Notables */}
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    value={clusterNotableSearch}
+                    onChange={(e) => setClusterNotableSearch(e.target.value)}
+                    placeholder={
+                      locale === 'zh-CN'
+                        ? '搜索 308 个官方星团核心天赋 (如 风暴痛饮 / 棱光之心 / Prismatic)...'
+                        : 'Search 308 official Cluster Notables (e.g. Storm Drinker, Prismatic Heart)...'
+                    }
+                    className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
+                  />
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {getAllClusterNotables()
+                      .filter((n) => {
+                        const q = clusterNotableSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return `${n.en} ${n.zh ?? ''} ${n.st.join(' ')} ${(n.sz ?? []).join(' ')}`
+                          .toLowerCase()
+                          .includes(q);
+                      })
+                      .slice(0, 30)
+                      .map((n) => {
+                        const picked = clusterSelectedNotables.includes(n.en);
+                        return (
+                          <button
+                            key={n.en}
+                            type="button"
+                            onClick={() =>
+                              setClusterSelectedNotables((prev) =>
+                                prev.includes(n.en)
+                                  ? prev.filter((x) => x !== n.en)
+                                  : prev.length < 3
+                                    ? [...prev, n.en]
+                                    : prev,
+                              )
+                            }
+                            className={`w-full text-left rounded px-2.5 py-1.5 border text-xs cursor-pointer ${
+                              picked
+                                ? 'bg-amber-500/20 border-amber-400/60'
+                                : 'bg-[#0e111b] hover:bg-[#171c2b] border-[#252c40]'
+                            }`}
+                          >
+                            <div className="font-semibold text-amber-200">
+                              {locale === 'zh-CN' && n.zh ? `${n.zh} (${n.en})` : n.en}
+                            </div>
+                            <div className="text-[10px] text-indigo-200/80 truncate">
+                              {(locale === 'zh-CN' && n.sz ? n.sz : n.st).join(' · ')}
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const addedPassives = clusterSize === 'Large' ? 8 : clusterSize === 'Medium' ? 4 : 2;
+                    const sockets = clusterSize === 'Large' ? 2 : clusterSize === 'Medium' ? 1 : 0;
+                    const implicits = [
+                      `Adds ${addedPassives} Passive Skills`,
+                      ...(sockets > 0
+                        ? [`${sockets} Added Passive Skill${sockets > 1 ? 's are Jewel Sockets' : ' is a Jewel Socket'}`]
+                        : []),
+                      `Added Small Passive Skills grant: ${clusterSmallGrant}`,
+                    ];
+                    const explicits = [
+                      ...(clusterEffectPct > 0
+                        ? [`Added Small Passive Skills have ${clusterEffectPct}% increased effect`]
+                        : []),
+                      ...clusterSelectedNotables.map((n) => `1 Added Passive Skill is ${n}`),
+                    ];
+                    socketJewel(jewelModalNodeId, {
+                      id: `cluster_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                      name: `${clusterSize} Cluster (${clusterSelectedNotables.join(' + ') || 'Custom'})`,
+                      nameZh: `${clusterSize === 'Large' ? '大型' : clusterSize === 'Medium' ? '中型' : '小型'}星团珠宝`,
+                      baseName: `${clusterSize} Cluster Jewel`,
+                      rarity: 'RARE',
+                      slotType: 'Any',
+                      quality: 0,
+                      implicits,
+                      explicits,
+                    });
+                    setJewelModalNodeId(null);
+                  }}
+                  className="w-full py-2 rounded font-semibold bg-amber-500/25 hover:bg-amber-500/35 text-amber-200 border border-amber-400/60 cursor-pointer"
+                >
+                  {locale === 'zh-CN' ? '制作并镶嵌此星团珠宝' : 'Craft & Socket Cluster Jewel'}
+                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Quick Rare Jewel Presets */}
+                <div className="space-y-1">
+                  <div className="text-[11px] text-zinc-400 font-semibold">
+                    {locale === 'zh-CN' ? '快捷镶嵌稀有珠宝' : 'Quick Rare Jewels'}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
+                    {[
+                      {
+                        name: 'Cobalt Spell Jewel',
+                        nameZh: '钴蓝法术珠宝',
+                        baseName: 'Cobalt Jewel',
+                        explicits: ['7% increased maximum Life', '14% increased Spell Damage', '+15% to Global Critical Strike Multiplier'],
+                      },
+                      {
+                        name: 'Crimson Melee Jewel',
+                        nameZh: '赤红近战珠宝',
+                        baseName: 'Crimson Jewel',
+                        explicits: ['7% increased maximum Life', '14% increased Melee Physical Damage', '6% increased Attack Speed'],
+                      },
+                      {
+                        name: 'Viridian Crit ES Jewel',
+                        nameZh: '翠绿护盾暴击珠宝',
+                        baseName: 'Viridian Jewel',
+                        explicits: ['8% increased maximum Energy Shield', '14% increased Elemental Damage', '+15% to Global Critical Strike Multiplier'],
+                      },
+                    ].map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => {
+                          socketJewel(jewelModalNodeId, {
+                            id: `jewel_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                            name: preset.name,
+                            nameZh: preset.nameZh,
+                            baseName: preset.baseName,
+                            rarity: 'RARE',
+                            slotType: 'Any',
+                            quality: 0,
+                            implicits: [],
+                            explicits: preset.explicits,
+                          });
+                          setJewelModalNodeId(null);
+                        }}
+                        className="rounded p-2 text-left bg-[#121623] hover:bg-[#1a2033] border border-yellow-500/30 text-yellow-200 cursor-pointer"
+                      >
+                        <div className="font-semibold text-[11px]">
+                          {locale === 'zh-CN' ? preset.nameZh : preset.name}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Official Unique Jewels Search */}
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    value={jewelSearch}
+                    onChange={(e) => setJewelSearch(e.target.value)}
+                    placeholder={locale === 'zh-CN' ? '搜索官方传奇珠宝 (如 守望之眼 / Watcher)...' : 'Search official Unique Jewels...'}
+                    className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
+                  />
+                  <div className="max-h-44 overflow-y-auto space-y-1">
+                    {getUniquesForGame(build.game)
+                      .filter((u) => {
+                        if (u.s !== 'Jewel') return false;
+                        const q = jewelSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return `${u.en} ${u.zh ?? ''} ${u.e.join(' ')}`.toLowerCase().includes(q);
+                      })
+                      .slice(0, 25)
+                      .map((u) => (
+                        <button
+                          key={u.en}
+                          type="button"
+                          onClick={() => {
+                            socketJewel(jewelModalNodeId, instantiateUniqueItem(build.game, u, 0));
+                            setJewelModalNodeId(null);
+                          }}
+                          className="w-full text-left rounded px-2.5 py-1.5 bg-[#0e111b] hover:bg-[#171c2b] border border-orange-500/25 text-xs cursor-pointer"
+                        >
+                          <div className="font-semibold text-orange-300">
+                            {locale === 'zh-CN' && u.zh ? `${u.zh} (${u.en})` : u.en}
+                          </div>
+                          {u.e.length > 0 && (
+                            <div className="text-[10px] text-indigo-200/80 truncate">
+                              {u.e.slice(0, 2).map((l) => localizeStatLine(l, locale)).join(' · ')}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-end pt-1 border-t border-[#252b3d]">
               <button

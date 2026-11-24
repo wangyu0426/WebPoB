@@ -26,7 +26,7 @@ WebPoB/
 │   ├── web/         # @webpob/web   - React + Vite + Tailwind web app, 60fps Canvas Tree, Web Worker & IndexedDB Library
 │   └── cors-proxy/  # Optional Cloudflare Worker CORS proxy for pobb.in / pastebin / GGG APIs
 ├── fixtures/
-│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (12 PoE 1 3.30 & PoE 2 0.5 benchmarks)
+│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (25 PoE 1 3.30 & PoE 2 0.5 benchmarks)
 └── scripts/
     ├── sync-data/   # Upstream PathOfBuilding & PoeCharm/PoeCharm2 bilingual sync + LuaJIT skill/base exporter
     └── oracle-diff/ # Automated differential verification harness against official PathOfBuilding LuaJIT
@@ -58,8 +58,8 @@ pnpm oracle:diff
 
 WebPoB's pure TypeScript calculation engine is continuously regression-tested against **official upstream [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding) (PoE 1 `3.30`)** and **[PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2) (PoE 2 `0.5`)** running headlessly in LuaJIT (`HeadlessWrapper.lua`):
 
-- **19 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, Armour, Evasion, Resistances, Crit Confirmation, Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **Curses & Marks** (`Conductivity`, `Assassin's Mark`), **Socketed Passive Tree Jewels**, **Unique Items** (`Astramentis`, `Shavronne's Wrappings`), **Endgame Keystones** (`Chaos Inoculation`, `Resolute Technique`, `Mind Over Matter`, `Iron Reflexes`, `Avatar of Fire`), **Spell Totem Support**, **Elementalist Ascendancy**, **Active Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **PoE 2 Sorceress Spark & Comet**.
-- **0.00% – 0.04% Hit DPS error** across all 19 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
+- **25 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, Armour, Evasion, Resistances, Crit Confirmation, PoE 1 & PoE 2 Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **Dual-Wielding** (`+10% more AS`, `+20% Block`, alternating weapons), **Cluster Jewels** (308 official Notables + small passives), **Endgame Combat Buffs/Debuffs** (`Pain Attunement Low Life`, `Arcane Surge`, `Tailwind`, `Intimidated`, `Unnerved`, `Withered 0–15`, `Elemental Exposure + Mastermind of Discord`), **Curses & Marks** (`Conductivity`, `Despair`, `Assassin's Mark`), **Socketed Passive Tree Jewels**, **Unique Items**, **Endgame Keystones** (`CI`, `RT`, `MoM`, `Iron Reflexes`, `Avatar of Fire`), **Spell Totem Support**, **Elementalist Ascendancy**, **Active Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **PoE 2 Sorceress Spark/Comet & Monk Quarterstaff Ice Strike**.
+- **0.00% – 0.18% Hit DPS error** across all 25 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
 
 ## Roadmap
 
@@ -91,8 +91,15 @@ WebPoB's pure TypeScript calculation engine is continuously regression-tested ag
   - **Curses & Marks** (`Conductivity`, `Flammability`, `Frostbite`, `Elemental Weakness`, `Despair`, `Vulnerability`, `Assassin's Mark`, `Sniper's Mark`), **Mana Reservation Efficiency**, **Totem/Trap supports**, and **Endgame Keystones** (`Iron Reflexes`, `Avatar of Fire`, `Elemental Overload`)
   - **Interactive Passive Tree Jewel Sockets** (`<Sockets><Socket/>` PoB XML import/export + in-canvas Jewel picker modal)
   - **Trade Search Link Helper** (International PoE 1/2 & Tencent CN) + GitHub Pages & Cloudflare Pages static deployment workflows
-- [ ] **Phase 6 — Next Horizons**
-  - Timeless jewels, cluster jewel sub-graph generation, full minion/trigger/ward calculations, and live GGG / Tencent CN character profile import
+- [x] **Phase 6 — Cluster Jewels, Dual-Wielding, Endgame Combat Configs, Character Import & Build Compare**
+  - **308 official PoE 1 `3.30` Cluster Jewel Notables** (`301` ZH) exported with an interactive **Cluster Jewel Builder** inside the Passive Tree Jewel Socket modal (`Large / Medium / Small`, enchant, `% increased effect`, up to 3 searchable bilingual Notables)
+  - **Dual-Wielding** (`+10% more Attack Speed`, `+20% Attack Block`, harmonic-mean alternating APS & avg weapon damage) & **PoE 2 `0.5` Hit Chance / Quarterstaff** parity
+  - **Endgame Combat Conditions** (`Low Life / Pain Attunement`, `Arcane Surge`, `Tailwind`, `Intimidated`, `Unnerved`, `Withered 0–15`, `Fire/Cold/Lightning Exposure` + Elementalist extra `-25%`, `Double Damage Chance`)
+  - **Character Profile Importer** supporting GGG International (`pathofexile.com`), Tencent CN (`poe.game.qq.com`), and **Zero-Proxy Direct JSON Paste** (`get-passive-skills` + `get-items`)
+  - **Side-by-Side Build Compare** inside the Calcs tab comparing current build vs IndexedDB saved builds / baselines with live `ΔDPS`, `ΔLife`, `ΔES`, `ΔEHP` deltas
+  - **25/25 official LuaJIT PoB Oracle benchmarks** passing within `<= 0.18%` Hit DPS parity
+- [ ] **Phase 7 — Next Horizons**
+  - Timeless jewels, full minion/trigger/ward calculations, and visual cluster sub-graph rendering on canvas
 
 ## License
 

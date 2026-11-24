@@ -3,6 +3,7 @@ import { createSamplePoe1Build, createSamplePoe2Build } from '@webpob/data';
 import {
   encodeBuildToPobCode,
   importBuildFromCode,
+  parseCharacterJsonToBuild,
   parseItemText,
   resolveShareUrl,
 } from './index.js';
@@ -78,5 +79,41 @@ Energy Shield: 520 (augmented)
   it('resolves pobb.in and pastebin URLs to raw endpoints', () => {
     expect(resolveShareUrl('https://pobb.in/AbCd1234')).toBe('https://pobb.in/AbCd1234/raw');
     expect(resolveShareUrl('https://pastebin.com/XyZ987')).toBe('https://pastebin.com/raw/XyZ987');
+  });
+
+  it('imports GGG/Tencent character JSON (passives + items + socketed gems) into a Build', () => {
+    const imported = parseCharacterJsonToBuild({
+      game: 'poe1',
+      passivesJson: {
+        hashes: [54447, 57264, 37569],
+      },
+      itemsJson: {
+        character: { name: 'StormWitch', class: 'Elementalist', level: 94, league: 'Settlers' },
+        items: [
+          {
+            id: 'chest1',
+            name: 'Astral Vestment',
+            baseType: 'Vaal Regalia',
+            inventoryId: 'BodyArmour',
+            frameType: 2,
+            properties: [{ name: 'Quality', values: [['+20%', 1]] }],
+            explicitMods: ['+100 to maximum Life', '+40% to Fire Resistance'],
+            socketedItems: [
+              { baseType: 'Arc', properties: [{ name: 'Level', values: [['21', 0]] }, { name: 'Quality', values: [['+20%', 1]] }] },
+              { baseType: 'Controlled Destruction Support', support: true, properties: [{ name: 'Level', values: [['20', 0]] }] },
+            ],
+          },
+        ],
+      },
+    });
+    expect(imported.name).toBe('StormWitch');
+    expect(imported.classId).toBe('Witch');
+    expect(imported.ascendancyId).toBe('Elementalist');
+    expect(imported.level).toBe(94);
+    expect(imported.tree.allocatedNodeIds).toContain(57264);
+    expect(imported.equipped['Body Armour']).toBeDefined();
+    expect(imported.skills.length).toBe(1);
+    expect(imported.skills[0]!.gems.length).toBe(2);
+    expect(imported.skills[0]!.gems[0]!.level).toBe(21);
   });
 });

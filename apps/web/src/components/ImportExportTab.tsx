@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Check, Copy, Download, Link2, Upload } from 'lucide-react';
+import { Check, Copy, Download, Globe, Link2, Upload } from 'lucide-react';
 import {
   buildToPobXml,
   encodeBuildToPobCode,
+  fetchCharacterProfileBuild,
   fetchRemoteBuildCode,
   importBuildFromCode,
+  parseCharacterJsonToBuild,
+  type PoeRealm,
 } from '@webpob/codec';
 import { t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
@@ -18,6 +21,15 @@ export function ImportExportTab() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Character Profile Importer (GGG International / Tencent CN + Zero-Proxy JSON)
+  const [realm, setRealm] = useState<PoeRealm>('pc');
+  const [accountName, setAccountName] = useState('');
+  const [characterName, setCharacterName] = useState('');
+  const [passivesJsonInput, setPassivesJsonInput] = useState('');
+  const [itemsJsonInput, setItemsJsonInput] = useState('');
+  const [charMsg, setCharMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [charLoading, setCharLoading] = useState(false);
 
   const shareCode = useMemo(() => encodeBuildToPobCode(build), [build]);
   const shareUrl = useMemo(() => {
@@ -150,6 +162,163 @@ export function ImportExportTab() {
         {message && (
           <div className={`text-xs ${message.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
             {message.text}
+          </div>
+        )}
+      </div>
+
+      {/* Character Profile Importer (GGG International & Tencent CN + Zero-Proxy JSON) */}
+      <div className="pob-panel rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+            <Globe className="w-4 h-4" />
+            {locale === 'zh-CN'
+              ? '官方角色导入 (GGG 国际服 / 腾讯国服 / 免代理 JSON 导入)'
+              : 'Import Character Profile (GGG International / Tencent CN / Direct JSON)'}
+          </h3>
+          <div className="flex items-center gap-1 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setRealm('pc')}
+              className={`px-2 py-0.5 rounded border cursor-pointer ${
+                realm === 'pc'
+                  ? 'bg-sky-500/20 border-sky-400/60 text-sky-200'
+                  : 'bg-[#121623] border-[#252c40] text-zinc-400'
+              }`}
+            >
+              {locale === 'zh-CN' ? '国际服 (pathofexile.com)' : 'International (GGG)'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRealm('tencent')}
+              className={`px-2 py-0.5 rounded border cursor-pointer ${
+                realm === 'tencent'
+                  ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                  : 'bg-[#121623] border-[#252c40] text-zinc-400'
+              }`}
+            >
+              {locale === 'zh-CN' ? '国服 (poe.game.qq.com)' : 'Tencent CN'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input
+            type="text"
+            value={accountName}
+            onChange={(e) => setAccountName(e.target.value)}
+            placeholder={locale === 'zh-CN' ? '账号名 (如 Player#1234)' : 'Account Name (e.g. Player#1234)'}
+            className="pob-input rounded px-2.5 py-1.5 text-xs"
+          />
+          <input
+            type="text"
+            value={characterName}
+            onChange={(e) => setCharacterName(e.target.value)}
+            placeholder={locale === 'zh-CN' ? '角色名 (Character Name)' : 'Character Name'}
+            className="pob-input rounded px-2.5 py-1.5 text-xs"
+          />
+          <button
+            type="button"
+            disabled={charLoading || !accountName.trim() || !characterName.trim()}
+            onClick={async () => {
+              setCharLoading(true);
+              setCharMsg(null);
+              try {
+                const imported = await fetchCharacterProfileBuild({
+                  realm,
+                  accountName,
+                  characterName,
+                  game: build.game,
+                  corsProxyBase: corsProxyUrl,
+                });
+                replaceBuild(imported);
+                setCharMsg({
+                  ok: true,
+                  text:
+                    locale === 'zh-CN'
+                      ? `已导入角色 ${imported.name} (${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备)`
+                      : `Imported ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`,
+                });
+              } catch (err) {
+                setCharMsg({
+                  ok: false,
+                  text: err instanceof Error ? err.message : String(err),
+                });
+              } finally {
+                setCharLoading(false);
+              }
+            }}
+            className="px-3 py-1.5 rounded text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/50 cursor-pointer disabled:opacity-50"
+          >
+            {charLoading
+              ? '...'
+              : locale === 'zh-CN'
+                ? '在线拉取角色 (需代理)'
+                : 'Fetch Character (via Proxy)'}
+          </button>
+        </div>
+
+        <details className="rounded bg-[#0b0e15] border border-[#22283a] p-3 space-y-2">
+          <summary className="text-[11px] font-semibold text-zinc-300 cursor-pointer">
+            {locale === 'zh-CN'
+              ? '免代理直连：粘贴官网 get-passive-skills / get-items JSON 导入'
+              : 'Zero-Proxy Mode: Paste get-passive-skills / get-items JSON directly'}
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
+            <textarea
+              rows={3}
+              value={passivesJsonInput}
+              onChange={(e) => setPassivesJsonInput(e.target.value)}
+              placeholder='{"hashes":[54447,57264,...]} (get-passive-skills JSON)'
+              className="pob-input rounded p-2 text-[11px] font-mono"
+            />
+            <textarea
+              rows={3}
+              value={itemsJsonInput}
+              onChange={(e) => setItemsJsonInput(e.target.value)}
+              placeholder='{"character":{"name":"...","class":"Elementalist","level":95},"items":[...]} (get-items JSON)'
+              className="pob-input rounded p-2 text-[11px] font-mono"
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={!passivesJsonInput.trim() && !itemsJsonInput.trim()}
+              onClick={() => {
+                setCharMsg(null);
+                try {
+                  const imported = parseCharacterJsonToBuild({
+                    game: build.game,
+                    characterName: characterName.trim() || undefined,
+                    passivesJson: passivesJsonInput.trim() || undefined,
+                    itemsJson: itemsJsonInput.trim() || undefined,
+                  });
+                  replaceBuild(imported);
+                  setPassivesJsonInput('');
+                  setItemsJsonInput('');
+                  setCharMsg({
+                    ok: true,
+                    text:
+                      locale === 'zh-CN'
+                        ? `JSON 导入成功：${imported.name} (${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 装备)`
+                        : `Imported from JSON: ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`,
+                  });
+                } catch (err) {
+                  setCharMsg({
+                    ok: false,
+                    text: `JSON Error: ${err instanceof Error ? err.message : String(err)}`,
+                  });
+                }
+              }}
+              className="px-3 py-1 rounded text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/50 cursor-pointer disabled:opacity-50"
+            >
+              {locale === 'zh-CN' ? '解析 JSON 并导入角色' : 'Parse & Import Character JSON'}
+            </button>
+          </div>
+        </details>
+
+        {charMsg && (
+          <div className={`text-xs ${charMsg.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {charMsg.text}
           </div>
         )}
       </div>

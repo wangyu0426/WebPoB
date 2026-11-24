@@ -19,6 +19,7 @@ import {
   getTreeForGame,
   hasOfficialTreeLoaded,
   loadOfficialBaseItems,
+  loadOfficialClusterNotables,
   loadOfficialGems,
   loadOfficialTree,
   loadOfficialUniques,
@@ -134,6 +135,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
           loadOfficialGems(game),
           loadOfficialBaseItems(game),
           loadOfficialUniques(game),
+          game === 'poe1' ? loadOfficialClusterNotables() : Promise.resolve(0),
         ]);
         const cur = get().build;
         if (cur.game === game) {
