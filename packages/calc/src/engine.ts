@@ -18,12 +18,14 @@ import {
   findShortestPathToNode,
   getAscendancyStartNodeId,
   getClassDef,
+  getClusterNotable,
   getGemById,
   getRuleset,
   getTreeForGame,
   removeNodeAndPruneDisconnected,
   UTILITY_FLASK_BUFFS,
 } from '@webpob/data';
+import { normalizeStatLineToEn } from '@webpob/i18n';
 import { ModDB } from './modDb.js';
 import { parseModLines } from './modParser.js';
 import { resolveItemEffectiveStats } from './localItem.js';
@@ -55,12 +57,85 @@ function getActiveEquippedItems(build: Build): Array<{ slot: EquipmentSlotId; it
   return result;
 }
 
-function getActiveWeapon(build: Build): Item | undefined {
-  if (build.game === 'poe2' && build.activeWeaponSet === 2 && build.equipped['Weapon 1 Swap']) {
-    return build.items[build.equipped['Weapon 1 Swap']!];
+function getActiveWeapons(build: Build): { main?: Item; off?: Item } {
+  if (build.game === 'poe2' && build.activeWeaponSet === 2) {
+    const hasSwap = Boolean(build.equipped['Weapon 1 Swap'] || build.equipped['Weapon 2 Swap']);
+    if (hasSwap) {
+      const mId = build.equipped['Weapon 1 Swap'];
+      const oId = build.equipped['Weapon 2 Swap'];
+      return {
+        main: mId ? build.items[mId] : undefined,
+        off: oId ? build.items[oId] : undefined,
+      };
+    }
   }
-  const w1 = build.equipped['Weapon 1'];
-  return w1 ? build.items[w1] : undefined;
+  const mId = build.equipped['Weapon 1'];
+  const oId = build.equipped['Weapon 2'];
+  return {
+    main: mId ? build.items[mId] : undefined,
+    off: oId ? build.items[oId] : undefined,
+  };
+}
+
+function scaleClusterGrantLine(line: string, effectPct: number): string {
+  if (effectPct <= 0) return line;
+  const mult = 1 + effectPct / 100;
+  return line.replace(/([+-]?)(\d+(?:\.\d+)?)/g, (_all, sign: string, numStr: string) => {
+    const scaled = Math.floor(Number(numStr) * mult);
+    return `${sign}${scaled}`;
+  });
+}
+
+function injectClusterJewelMods(db: ModDB, jewel: Item, nodeId: number) {
+  const allLines = [...jewel.implicits, ...jewel.explicits].map((l) => normalizeStatLineToEn(l)).filter(Boolean);
+  let totalAdded = 0;
+  let socketCount = 0;
+  let smallEffectPct = 0;
+  const notableNames: string[] = [];
+  const smallGrants: string[] = [];
+
+  for (const line of allLines) {
+    let m = line.match(/^Adds (\d+) Passive Skills$/i);
+    if (m) {
+      totalAdded = Number(m[1]);
+      continue;
+    }
+    m = line.match(/^(\d+) Added Passive Skills? (?:is|are) (?:a )?Jewel Sockets?$/i);
+    if (m) {
+      socketCount = Number(m[1]);
+      continue;
+    }
+    m = line.match(/^1 Added Passive Skill is (.+)$/i);
+    if (m) {
+      notableNames.push(m[1]!.trim());
+      continue;
+    }
+    m = line.match(/^Added Small Passive Skills (?:also )?grant:\s*(.+)$/i);
+    if (m) {
+      smallGrants.push(m[1]!.trim());
+      continue;
+    }
+    m = line.match(/^Added Small Passive Skills have (\d+)% increased effect$/i);
+    if (m) {
+      smallEffectPct += Number(m[1]);
+      continue;
+    }
+  }
+
+  for (const notableName of notableNames) {
+    const def = getClusterNotable(notableName);
+    if (def) {
+      db.addMods(parseModLines(def.st, `Cluster Notable (${nodeId}): ${def.en}`));
+    }
+  }
+
+  const smallCount = Math.max(0, totalAdded - socketCount - notableNames.length);
+  if (smallCount > 0 && smallGrants.length > 0) {
+    const scaledGrants = smallGrants.map((g) => scaleClusterGrantLine(g, smallEffectPct));
+    for (let i = 0; i < smallCount; i++) {
+      db.addMods(parseModLines(scaledGrants, `Cluster Small (${nodeId}): ${jewel.name}`));
+    }
+  }
 }
 
 function getLevelScalingFactor(gemLevel: number): number {
@@ -132,7 +207,7 @@ export function calculateBuild(build: Build): CalcOutput {
   db.addMod({
     name: 'Accuracy',
     type: 'BASE',
-    value: build.level * ruleset.accuracyPerLevel,
+    value: (build.game === 'poe2' ? Math.max(0, build.level - 1) : build.level) * ruleset.accuracyPerLevel,
     flags: 0,
     keywordFlags: 0,
     source: `Level ${build.level}`,
@@ -201,15 +276,52 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parseModLines(statText.split('\n'), `Mastery: ${label}`));
   }
 
-  // Socketed Passive Tree Jewels
+  // Socketed Passive Tree Jewels (Standard, Unique & Cluster Jewels)
   for (const [nodeIdStr, itemId] of Object.entries(build.tree.socketedJewels ?? {})) {
     const nodeId = Number(nodeIdStr);
     if (!activeTreeNodes.has(nodeId)) continue;
     const jewel = build.items[itemId];
     if (!jewel) continue;
+    if (jewel.baseName.toLowerCase().includes('cluster jewel')) {
+      injectClusterJewelMods(db, jewel, nodeId);
+      continue;
+    }
     const src = `Jewel (${nodeId}): ${jewel.name}`;
     db.addMods(parseModLines(jewel.implicits, `${src} [Implicit]`));
     db.addMods(parseModLines(jewel.explicits, src));
+  }
+
+  // Dual-Wielding inherent PoE 1 bonuses (10% more Attack Speed + 20% Attack Block)
+  const activeWeapons = getActiveWeapons(build);
+  const mainWeaponResolved = activeWeapons.main
+    ? resolveItemEffectiveStats(activeWeapons.main, build.game).weaponStats
+    : undefined;
+  const offWeaponResolved = activeWeapons.off
+    ? resolveItemEffectiveStats(activeWeapons.off, build.game).weaponStats
+    : undefined;
+  const isDualWielding = Boolean(
+    mainWeaponResolved &&
+      offWeaponResolved &&
+      !mainWeaponResolved.twoHanded &&
+      !offWeaponResolved.twoHanded,
+  );
+  if (isDualWielding && build.game === 'poe1') {
+    db.addMod({
+      name: 'Speed',
+      type: 'MORE',
+      value: 10,
+      flags: ModFlag.Attack,
+      keywordFlags: 0,
+      source: 'Dual Wielding',
+    });
+    db.addMod({
+      name: 'BlockChance',
+      type: 'BASE',
+      value: 20,
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Dual Wielding',
+    });
   }
 
   // 3. Equipped Items & Active Utility Flasks (with PoB-authentic Local Armour/Weapon resolution)
@@ -295,6 +407,55 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMod({ name: 'Speed', type: 'INC', value: 20, flags: ModFlag.Attack, keywordFlags: 0, source: 'Onslaught' });
     db.addMod({ name: 'Speed', type: 'INC', value: 20, flags: ModFlag.Spell, keywordFlags: 0, source: 'Onslaught' });
     db.addMod({ name: 'MovementSpeed', type: 'INC', value: 20, flags: 0, keywordFlags: 0, source: 'Onslaught' });
+  }
+  if (cfg.conditionLowLife && db.flag('PainAttunement')) {
+    db.addMod({
+      name: 'Damage',
+      type: 'MORE',
+      value: 30,
+      flags: ModFlag.Spell,
+      keywordFlags: 0,
+      source: 'Pain Attunement (Low Life)',
+    });
+  }
+  if (cfg.buffArcaneSurge) {
+    // Official PoE 1 3.30 Arcane Surge buff: 20% increased Cast Speed & 30% increased Mana Regen
+    db.addMod({ name: 'Speed', type: 'INC', value: 20, flags: ModFlag.Spell, keywordFlags: 0, source: 'Arcane Surge' });
+    db.addMod({ name: 'ManaRegen', type: 'INC', value: 30, flags: 0, keywordFlags: 0, source: 'Arcane Surge' });
+  }
+  if (cfg.buffTailwind) {
+    // Tailwind: 8% increased Action Speed (multiplicative with Attack/Cast/Movement Speed)
+    db.addMod({ name: 'Speed', type: 'MORE', value: 8, flags: ModFlag.Attack, keywordFlags: 0, source: 'Tailwind' });
+    db.addMod({ name: 'Speed', type: 'MORE', value: 8, flags: ModFlag.Spell, keywordFlags: 0, source: 'Tailwind' });
+    db.addMod({ name: 'MovementSpeed', type: 'MORE', value: 8, flags: 0, keywordFlags: 0, source: 'Tailwind' });
+  }
+  if (cfg.enemyIntimidated) {
+    db.addMod({ name: 'EnemyDamageTaken', type: 'INC', value: 10, flags: ModFlag.Attack, keywordFlags: 0, source: 'Intimidated' });
+  }
+  if (cfg.enemyUnnerved) {
+    db.addMod({ name: 'EnemyDamageTaken', type: 'INC', value: 10, flags: ModFlag.Spell, keywordFlags: 0, source: 'Unnerved' });
+  }
+  if (cfg.witheredStacks && cfg.witheredStacks > 0) {
+    const stacks = Math.min(15, Math.max(0, Math.round(cfg.witheredStacks)));
+    db.addMod({
+      name: 'EnemyChaosDamageTaken',
+      type: 'INC',
+      value: stacks * 6,
+      flags: 0,
+      keywordFlags: 0,
+      source: `Withered (${stacks})`,
+    });
+  }
+  const extraExposure = db.sum('BASE', 'ExtraExposure');
+  const exposurePenalty = -(10 + extraExposure);
+  if (cfg.enemyFireExposure) {
+    db.addMod({ name: 'EnemyFireResist', type: 'BASE', value: exposurePenalty, flags: 0, keywordFlags: 0, source: 'Fire Exposure' });
+  }
+  if (cfg.enemyColdExposure) {
+    db.addMod({ name: 'EnemyColdResist', type: 'BASE', value: exposurePenalty, flags: 0, keywordFlags: 0, source: 'Cold Exposure' });
+  }
+  if (cfg.enemyLightningExposure) {
+    db.addMod({ name: 'EnemyLightningResist', type: 'BASE', value: exposurePenalty, flags: 0, keywordFlags: 0, source: 'Lightning Exposure' });
   }
   if (cfg.customMods.trim()) {
     const customLines = cfg.customMods
@@ -443,7 +604,8 @@ export function calculateBuild(build: Build): CalcOutput {
 
   const lifeRegen =
     Math.round((db.sum('BASE', 'LifeRegen') + (life * db.sum('BASE', 'LifeRegenPercent')) / 100) * 10) / 10;
-  const manaRegen = Math.round(mana * 0.0175 * 10) / 10;
+  const manaRegenInc = db.sum('INC', 'ManaRegen');
+  const manaRegen = Math.round(mana * 0.0175 * (1 + manaRegenInc / 100) * 10) / 10;
 
   // Effective Hit Pool & Max Hit Taken
   const momPct = Math.min(100, db.sum('BASE', 'DamageTakenFromManaBeforeLife'));
@@ -754,8 +916,17 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
 
   const effectiveness =
     ((activeLevelEntry?.damageEffectivenessPct ?? activeDef.damageEffectivenessPct ?? 100) / 100);
-  const rawWeapon = getActiveWeapon(build);
-  const weaponStats = rawWeapon ? resolveItemEffectiveStats(rawWeapon, build.game).weaponStats : undefined;
+  const activeWeapons = getActiveWeapons(build);
+  const mainWeaponStats = activeWeapons.main
+    ? resolveItemEffectiveStats(activeWeapons.main, build.game).weaponStats
+    : undefined;
+  const offWeaponStats = activeWeapons.off
+    ? resolveItemEffectiveStats(activeWeapons.off, build.game).weaponStats
+    : undefined;
+  const isDualWield = Boolean(
+    mainWeaponStats && offWeaponStats && !mainWeaponStats.twoHanded && !offWeaponStats.twoHanded,
+  );
+  const weaponStats = mainWeaponStats;
 
   // Step A: Base Min/Max per DamageType before conversion
   const baseMin: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
@@ -764,16 +935,29 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   if (isAttack) {
     const baseAtkPct = activeLevelEntry?.attackDamageMultiplierPct ?? activeDef.attackDamageMultiplierPct ?? 100;
     const atkMult = activeLevelEntry ? baseAtkPct / 100 : (baseAtkPct / 100) * Math.pow(1.03, activeLevel - 20);
-    const wMin = weaponStats?.physicalMin ?? 15;
-    const wMax = weaponStats?.physicalMax ?? 30;
-    baseMin.Physical += wMin * atkMult;
-    baseMax.Physical += wMax * atkMult;
-    if (weaponStats?.elementalDamage) {
-      for (const [el, range] of Object.entries(weaponStats.elementalDamage)) {
-        if (!range) continue;
-        const dt = el as DamageType;
-        baseMin[dt] += range[0] * atkMult;
-        baseMax[dt] += range[1] * atkMult;
+    if (isDualWield && mainWeaponStats && offWeaponStats) {
+      baseMin.Physical += ((mainWeaponStats.physicalMin + offWeaponStats.physicalMin) / 2) * atkMult;
+      baseMax.Physical += ((mainWeaponStats.physicalMax + offWeaponStats.physicalMax) / 2) * atkMult;
+      for (const dt of ['Fire', 'Cold', 'Lightning', 'Chaos'] as const) {
+        const mRange = mainWeaponStats.elementalDamage?.[dt];
+        const oRange = offWeaponStats.elementalDamage?.[dt];
+        if (mRange || oRange) {
+          baseMin[dt] += (((mRange?.[0] ?? 0) + (oRange?.[0] ?? 0)) / 2) * atkMult;
+          baseMax[dt] += (((mRange?.[1] ?? 0) + (oRange?.[1] ?? 0)) / 2) * atkMult;
+        }
+      }
+    } else {
+      const wMin = weaponStats?.physicalMin ?? 15;
+      const wMax = weaponStats?.physicalMax ?? 30;
+      baseMin.Physical += wMin * atkMult;
+      baseMax.Physical += wMax * atkMult;
+      if (weaponStats?.elementalDamage) {
+        for (const [el, range] of Object.entries(weaponStats.elementalDamage)) {
+          if (!range) continue;
+          const dt = el as DamageType;
+          baseMin[dt] += range[0] * atkMult;
+          baseMax[dt] += range[1] * atkMult;
+        }
       }
     }
   } else if (activeLevelEntry?.baseDamage ?? activeDef.baseDamage) {
@@ -869,6 +1053,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const shockVal = build.config.enemyShocked ? Math.max(0, Math.min(100, build.config.shockValue)) : 0;
   const enemyGlobalDmgTaken = skillDb.sum('INC', 'EnemyDamageTaken', flags, kwFlags);
   const enemyPhysDmgTaken = skillDb.sum('INC', 'EnemyPhysicalDamageTaken', flags, kwFlags);
+  const enemyChaosDmgTaken = skillDb.sum('INC', 'EnemyChaosDamageTaken', flags, kwFlags);
   const curseFireRes = skillDb.sum('BASE', 'EnemyFireResist', flags, kwFlags);
   const curseColdRes = skillDb.sum('BASE', 'EnemyColdResist', flags, kwFlags);
   const curseLightRes = skillDb.sum('BASE', 'EnemyLightningResist', flags, kwFlags);
@@ -923,6 +1108,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
         skillDb.sum('BASE', 'LightningPenetration', flags, kwFlags);
       enemyFactor = 1 - effRes / 100;
     } else if (dt === 'Chaos') {
+      typeDmgTaken += enemyChaosDmgTaken;
       const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);
       enemyFactor = 1 - effRes / 100;
     }
@@ -935,15 +1121,16 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     totalAvgHit += average;
   }
 
-  // Step D: Accuracy / Hit Chance first (exact PoB formula: acc / (acc + (eva/5)^0.9) * 125)
+  // Step D: Accuracy / Hit Chance first (exact PoE 1 & PoE 2 PoB formulas)
   let hitChance = 100;
   if (isAttack && !skillDb.flag('HitsCantBeEvaded', flags, kwFlags)) {
     const accuracy = Math.max(1, skillDb.calcStat('Accuracy', flags, kwFlags).total);
     const enemyEva = Math.max(1, build.config.enemyEvasion);
-    hitChance = Math.min(
-      100,
-      Math.max(5, Math.round((accuracy / (accuracy + Math.pow(enemyEva / 5, 0.9))) * 125)),
-    );
+    const rawHitChance =
+      build.game === 'poe2'
+        ? ((accuracy * 1.25) / (accuracy + enemyEva * 0.3)) * 100
+        : (accuracy / (accuracy + Math.pow(enemyEva / 5, 0.9))) * 125;
+    hitChance = Math.min(100, Math.max(5, Math.round(rawHitChance)));
   }
 
   // Step E: Crit Chance & Crit Multiplier (including Attack crit confirmation, Assassin's Mark & EO)
@@ -951,8 +1138,12 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const noCritExtra = skillDb.flag('NoCritExtraDamage', flags, kwFlags);
   const enemyCritBonus = skillDb.sum('BASE', 'EnemyCritChance', flags, kwFlags);
   const enemyCritMulti = skillDb.sum('BASE', 'EnemyCritMultiplier', flags, kwFlags);
+  const weaponBaseCrit =
+    isDualWield && mainWeaponStats && offWeaponStats
+      ? (mainWeaponStats.critChance + offWeaponStats.critChance) / 2
+      : (weaponStats?.critChance ?? 5);
   const baseCrit =
-    (isAttack ? (weaponStats?.critChance ?? 5) : (activeDef.baseCritChance ?? 6)) + enemyCritBonus;
+    (isAttack ? weaponBaseCrit : (activeDef.baseCritChance ?? 6)) + enemyCritBonus;
   const critInc = skillDb.sum('INC', 'CritChance', flags, kwFlags);
   const critMore = skillDb.more('CritChance', flags, kwFlags);
   const preEffectiveCrit = neverCrit ? 0 : Math.min(100, baseCrit * (1 + critInc / 100) * critMore);
@@ -965,16 +1156,22 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const effectiveCritMultiplier =
     neverCrit || noCritExtra ? 1 : 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
 
-  // Step F: Attack / Cast Speed
+  // Step F: Attack / Cast Speed (with exact harmonic-mean alternating dual-wield attack speed)
+  const weaponBaseAps =
+    isDualWield && mainWeaponStats && offWeaponStats
+      ? 2 / (1 / Math.max(0.1, mainWeaponStats.attacksPerSecond) + 1 / Math.max(0.1, offWeaponStats.attacksPerSecond))
+      : (weaponStats?.attacksPerSecond ?? 1.2);
   const baseRate = isAttack
-    ? (weaponStats?.attacksPerSecond ?? 1.2) * (activeDef.attackSpeedMultiplier ?? 1)
+    ? weaponBaseAps * (activeDef.attackSpeedMultiplier ?? 1)
     : 1 / (activeDef.castTime ?? 0.75);
   const speedInc = skillDb.sum('INC', 'Speed', flags, kwFlags);
   const speedMore = skillDb.more('Speed', flags, kwFlags);
   const speedExact = baseRate * (1 + speedInc / 100) * speedMore;
   const speed = Math.round(speedExact * 100) / 100;
 
-  const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * 100) / 100;
+  const doubleDamagePct = Math.min(100, Math.max(0, skillDb.sum('BASE', 'DoubleDamageChance', flags, kwFlags)));
+  const doubleDamageMult = 1 + doubleDamagePct / 100;
+  const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * doubleDamageMult * 100) / 100;
   const hitDps = Math.round(avgHitWithCrit * speedExact * (hitChance / 100) * 100) / 100;
 
   // Ailment DPS (Ignite / Bleed / Poison) with DoT Multiplier & Crit Ailment bonus

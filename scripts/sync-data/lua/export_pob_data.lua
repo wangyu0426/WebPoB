@@ -9,6 +9,7 @@ local game = arg[1] or "poe1"
 local outBasesPath = arg[2]
 local outGemsPath = arg[3]
 local outUniquesPath = arg[4]
+local outClustersPath = arg[5]
 local isPoe2 = (game == "poe2")
 
 -- Strip PoB's #@ preprocessor header when loading Lua files
@@ -580,4 +581,33 @@ if outUniquesPath then
   fh3:write(toJson({ game = game, count = #uniquesOut, uniques = uniquesOut }))
   fh3:close()
   print(string.format("Exported %d %s official unique items -> %s", #uniquesOut, game, outUniquesPath))
+end
+
+-- 5. Export Official PoE 1 Cluster Jewel Notables (308 cluster notables)
+if outClustersPath and not isPoe2 then
+  local tree = main.tree and (main.tree["3_30"] or main.tree[latestTreeVersion])
+  local clustersOut = {}
+  local ccount = 0
+  if tree and tree.clusterNodeMap then
+    local names = {}
+    for name, _ in pairs(tree.clusterNodeMap) do table.insert(names, name) end
+    table.sort(names)
+    for _, name in ipairs(names) do
+      local node = tree.clusterNodeMap[name]
+      if type(node) == "table" and node.sd and #node.sd > 0 then
+        local st = {}
+        for _, line in ipairs(node.sd) do
+          if type(line) == "string" and #line > 0 then table.insert(st, line) end
+        end
+        if #st > 0 then
+          clustersOut[name] = { en = name, st = st }
+          ccount = ccount + 1
+        end
+      end
+    end
+  end
+  local fh4 = assert(io.open(outClustersPath, "w"))
+  fh4:write(toJson({ game = game, count = ccount, notables = clustersOut }))
+  fh4:close()
+  print(string.format("Exported %d %s official Cluster Jewel notables -> %s", ccount, game, outClustersPath))
 end

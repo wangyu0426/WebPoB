@@ -83,6 +83,36 @@ async function fetchUniqueZhDict(game: 'poe1' | 'poe2'): Promise<Map<string, str
   return merged;
 }
 
+async function fetchClusterZhDict(): Promise<{ dn: Map<string, string>; sd: Map<string, string> }> {
+  const dn = new Map<string, string>();
+  const sd = new Map<string, string>();
+  await Promise.all([
+    (async () => {
+      try {
+        const res = await fetch(
+          'https://raw.githubusercontent.com/Chuanhsing/PoeCharm/master/Data/Translate/zh-rCN/tree_dn.csv',
+          { headers: { 'User-Agent': 'WebPoB-Sync/0.3' } },
+        );
+        if (res.ok) {
+          for (const [k, v] of parseTranslationCsv(await res.text())) dn.set(k, v);
+        }
+      } catch {}
+    })(),
+    (async () => {
+      try {
+        const res = await fetch(
+          'https://raw.githubusercontent.com/Chuanhsing/PoeCharm/master/Data/Translate/zh-rCN/tree_sd.csv',
+          { headers: { 'User-Agent': 'WebPoB-Sync/0.3' } },
+        );
+        if (res.ok) {
+          for (const [k, v] of parseTranslationCsv(await res.text())) sd.set(k, v);
+        }
+      } catch {}
+    })(),
+  ]);
+  return { dn, sd };
+}
+
 async function runGameExport(game: 'poe1' | 'poe2') {
   const upstreamSrc = path.join(
     ROOT_DIR,
@@ -91,10 +121,15 @@ async function runGameExport(game: 'poe1' | 'poe2') {
   const outBases = path.join(PUBLIC_DATA_DIR, `${game}-bases.json`);
   const tmpGems = path.join(ROOT_DIR, `.cache/${game}-gems-lua.json`);
   const outUniques = path.join(PUBLIC_DATA_DIR, `${game}-uniques.json`);
+  const outClusters = game === 'poe1' ? path.join(PUBLIC_DATA_DIR, 'poe1-clusters.json') : '';
 
-  console.log(`\n=== Exporting ${game.toUpperCase()} Bases, Uniques & Official Skill Tables via LuaJIT ===`);
-  const [zhDict] = await Promise.all([fetchUniqueZhDict(game)]);
-  const stdout = execFileSync(LUAJIT_BIN, [EXPORT_LUA, game, outBases, tmpGems, outUniques], {
+  console.log(`\n=== Exporting ${game.toUpperCase()} Bases, Uniques, Clusters & Official Skill Tables via LuaJIT ===`);
+  const [zhDict, clusterZh] = await Promise.all([
+    fetchUniqueZhDict(game),
+    game === 'poe1' ? fetchClusterZhDict() : Promise.resolve(null),
+  ]);
+  const luaArgs = [EXPORT_LUA, game, outBases, tmpGems, outUniques, ...(outClusters ? [outClusters] : [])];
+  const stdout = execFileSync(LUAJIT_BIN, luaArgs, {
     cwd: upstreamSrc,
     env: {
       ...process.env,
@@ -106,6 +141,34 @@ async function runGameExport(game: 'poe1' | 'poe2') {
   });
   for (const line of stdout.split('\n')) {
     if (line.startsWith('Exported ')) console.log('  ' + line);
+  }
+
+  if (outClusters && clusterZh) {
+    const rawCl = JSON.parse(await fs.readFile(outClusters, 'utf-8')) as {
+      game: 'poe1';
+      count: number;
+      notables: Record<string, { en: string; st: string[] }>;
+    };
+    const enrichedClusters: Record<string, { en: string; zh?: string; st: string[]; sz?: string[] }> = {};
+    let zhClHits = 0;
+    for (const [k, v] of Object.entries(rawCl.notables)) {
+      const zh = clusterZh.dn.get(v.en);
+      if (zh) zhClHits++;
+      const sz = v.st.map((l) => clusterZh.sd.get(l) ?? l);
+      const anySz = sz.some((l, idx) => l !== v.st[idx]);
+      enrichedClusters[k] = {
+        en: v.en,
+        ...(zh ? { zh } : {}),
+        st: v.st,
+        ...(anySz ? { sz } : {}),
+      };
+    }
+    await fs.writeFile(
+      outClusters,
+      JSON.stringify({ game: 'poe1', count: rawCl.count, notables: enrichedClusters }),
+      'utf-8',
+    );
+    console.log(`  ✓ Enriched ${zhClHits}/${rawCl.count} PoE 1 Cluster Jewel notables with ZH names`);
   }
 
   // Enrich exported Uniques with Chinese names & base names from PoeCharm

@@ -4,6 +4,7 @@ export * from './trees.js';
 export * from './gems.js';
 export * from './baseItems.js';
 export * from './uniques.js';
+export * from './clusters.js';
 export * from './items.js';
 export * from './samples.js';
 export * from './treeLoader.js';

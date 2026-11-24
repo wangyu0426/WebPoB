@@ -653,4 +653,207 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding>`,
   },
+  {
+    id: 'poe1_dual_wield_cyclone',
+    title: 'PoE 1 — Dual-Wielding 1H Foil + 1H Axe Cyclone (+10% more AS, +20% Block, alternating)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Dual Wield Cyclone"/>
+  <Tree activeSpec="1">
+    <Spec title="DW" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175,31628,9511,23881,26523,6446,10221,50422,50570,29353,63282,31961"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Cyclone">
+        <Gem gemId="Metadata/Items/Gems/SkillGemCyclone" skillId="Cyclone" nameSpec="Cyclone" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Tempest Foil
+Jewelled Foil
+Quality: 20
+Implicits: 1
++25% to Global Critical Strike Multiplier
+150% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Rift Cleaver
+Siege Axe
+Quality: 20
+Implicits: 0
+120% increased Physical Damage
+10% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Weapon 2" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_pain_attunement_low_life',
+    title: 'PoE 1 — Pain Attunement Keystone (Low Life 30% more Spell Damage) + Arc',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Pain Attunement Low Life"/>
+  <Tree activeSpec="1">
+    <Spec title="PA" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57226,21678,32210,8948,27659,37671,31703"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"><Input name="conditionLowLife" boolean="true"/></ConfigSet></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_wither_despair_soulrend',
+    title: 'PoE 1 — Lua-Exported Soulrend Lv.20 + Despair (-30% Chaos Res) + 15x Withered (+90% Taken)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Wither Despair Soulrend"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Soulrend">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSoulrend" skillId="Soulrend" nameSpec="Soulrend" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Curse">
+        <Gem gemId="Metadata/Items/Gems/SkillGemDespair" skillId="Despair" nameSpec="Despair" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Gloves" label="Wither">
+        <Gem gemId="Metadata/Items/Gems/SkillGemWither" skillId="Wither" nameSpec="Wither" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"><Input name="multiplierWitheredStackCount" number="15"/></ConfigSet></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_exposure_arcane_tailwind_unnerve',
+    title: 'PoE 1 — Elementalist Mastermind of Discord (-35% Light Exposure) + Arcane Surge + Tailwind + Unnerve',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Elementalist" mainSocketGroup="1" buildName="Oracle: Exposure Arcane Tailwind Unnerve"/>
+  <Tree activeSpec="1">
+    <Spec title="Elem" treeVersion="3_30" classId="3" ascendClassId="2" nodes="54447,16023,37114,61259"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Exposure">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHydrosphere" skillId="Hydrosphere" nameSpec="Hydrosphere" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="buffArcaneSurge" boolean="true"/>
+      <Input name="buffTailwind" boolean="true"/>
+      <Input name="conditionEnemyUnnerved" boolean="true"/>
+      <Input name="conditionEnemyLightningExposure" boolean="true"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_cluster_jewel_large',
+    title: 'PoE 1 — Large Lightning Cluster Jewel (Storm Drinker + Prismatic Heart + 4x 12% Small)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Large Cluster Jewel"/>
+  <Tree activeSpec="1">
+    <Spec title="Cluster" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57226,21678,32210,8948,27659,37671,27415,32710,49605,22618,21033,21984,65888,65890,65893,65895,65894,65898,64583,13170">
+      <Sockets>
+        <Socket nodeId="21984" itemId="1"/>
+      </Sockets>
+    </Spec>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Storm Cluster
+Large Cluster Jewel
+Implicits: 3
+Adds 8 Passive Skills
+2 Added Passive Skills are Jewel Sockets
+Added Small Passive Skills grant: 12% increased Lightning Damage
+1 Added Passive Skill is Storm Drinker
+1 Added Passive Skill is Prismatic Heart
+    </Item>
+    <ItemSet id="1"/>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_monk_quarterstaff_ice_strike',
+    title: 'PoE 2 — Lv.90 Monk w/ Local-Mod Gothic Quarterstaff + Ice Strike Lv.20',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Monk" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Monk Ice Strike"/>
+  <Tree activeSpec="1">
+    <Spec title="Monk" treeVersion="0_5" classId="10" classInternalId="10" ascendClassId="0" nodes="44683"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Ice Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemIceStrike" skillId="IceStrikePlayer" nameSpec="Ice Strike" variantId="IceStrike" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Frost Pillar
+Gothic Quarterstaff
+Quality: 20
+Implicits: 0
+120% increased Physical Damage
+Adds 15 to 30 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

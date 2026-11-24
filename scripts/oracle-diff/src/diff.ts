@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url';
 import {
   hydrateCompactTree,
   registerBaseItems,
+  registerClusterNotables,
   registerGemsData,
   registerTreeData,
   type CompactBaseItemsPayload,
+  type CompactClusterNotablesPayload,
   type CompactGemsPayload,
   type CompactTreePayload,
 } from '@webpob/data';
@@ -40,12 +42,14 @@ async function loadLocalDatasets() {
   const poe2Gems = JSON.parse(await fs.readFile(path.join(dataDir, 'poe2-gems.json'), 'utf-8')) as CompactGemsPayload;
   const poe1Bases = JSON.parse(await fs.readFile(path.join(dataDir, 'poe1-bases.json'), 'utf-8')) as CompactBaseItemsPayload;
   const poe2Bases = JSON.parse(await fs.readFile(path.join(dataDir, 'poe2-bases.json'), 'utf-8')) as CompactBaseItemsPayload;
+  const poe1Clusters = JSON.parse(await fs.readFile(path.join(dataDir, 'poe1-clusters.json'), 'utf-8')) as CompactClusterNotablesPayload;
   registerTreeData(hydrateCompactTree(poe1Tree));
   registerTreeData(hydrateCompactTree(poe2Tree));
   registerGemsData('poe1', poe1Gems);
   registerGemsData('poe2', poe2Gems);
   registerBaseItems(poe1Bases);
   registerBaseItems(poe2Bases);
+  registerClusterNotables(poe1Clusters);
 }
 
 async function main() {

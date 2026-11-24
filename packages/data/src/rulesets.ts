@@ -69,7 +69,7 @@ export const POE2_RULESET: GameRuleset = {
   supportsSpellSuppression: false,
   lifePerStrength: 2,
   meleePhysPctPerStrength: 0,
-  accuracyPerDexterity: 5,
+  accuracyPerDexterity: 6,
   evasionPctPerDexterity: 0,
   manaPerIntelligence: 2,
   esPctPerIntelligence: 0,

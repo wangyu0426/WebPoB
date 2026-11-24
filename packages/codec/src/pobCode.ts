@@ -209,6 +209,15 @@ export function buildToPobXml(build: Build): string {
   lines.push(`      <Input name="onslaught" boolean="${cfg.onslaught}" />`);
   lines.push(`      <Input name="enemyShocked" boolean="${cfg.enemyShocked}" />`);
   lines.push(`      <Input name="shockValue" number="${cfg.shockValue}" />`);
+  if (cfg.conditionLowLife) lines.push(`      <Input name="conditionLowLife" boolean="true" />`);
+  if (cfg.buffArcaneSurge) lines.push(`      <Input name="buffArcaneSurge" boolean="true" />`);
+  if (cfg.buffTailwind) lines.push(`      <Input name="buffTailwind" boolean="true" />`);
+  if (cfg.enemyIntimidated) lines.push(`      <Input name="conditionEnemyIntimidated" boolean="true" />`);
+  if (cfg.enemyUnnerved) lines.push(`      <Input name="conditionEnemyUnnerved" boolean="true" />`);
+  if (cfg.witheredStacks) lines.push(`      <Input name="multiplierWitheredStackCount" number="${cfg.witheredStacks}" />`);
+  if (cfg.enemyFireExposure) lines.push(`      <Input name="conditionEnemyFireExposure" boolean="true" />`);
+  if (cfg.enemyColdExposure) lines.push(`      <Input name="conditionEnemyColdExposure" boolean="true" />`);
+  if (cfg.enemyLightningExposure) lines.push(`      <Input name="conditionEnemyLightningExposure" boolean="true" />`);
   if (cfg.customMods.trim()) {
     lines.push(`      <Placeholder name="customMods" string="${escapeXml(cfg.customMods)}" />`);
   }
@@ -426,8 +435,8 @@ export function xmlToBuild(xml: string): Build {
     enemyColdResist: ruleset.defaultEnemyEleResist,
     enemyLightningResist: ruleset.defaultEnemyEleResist,
     enemyChaosResist: game === 'poe1' ? 30 : 0,
-    enemyArmour: game === 'poe1' ? 61989 : 0,
-    enemyEvasion: game === 'poe1' ? 10143 : 1800,
+    enemyArmour: game === 'poe1' ? 61989 : 8063,
+    enemyEvasion: game === 'poe1' ? 10143 : 1175,
     usePowerCharges: false,
     useFrenzyCharges: false,
     useEnduranceCharges: false,
@@ -462,6 +471,15 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'onslaught' && attrs.boolean) config.onslaught = attrs.boolean === 'true';
     if (key === 'enemyShocked' && attrs.boolean) config.enemyShocked = attrs.boolean === 'true';
     if (key === 'shockValue' && attrs.number) config.shockValue = Number(attrs.number);
+    if (key === 'conditionLowLife' && attrs.boolean) config.conditionLowLife = attrs.boolean === 'true';
+    if (key === 'buffArcaneSurge' && attrs.boolean) config.buffArcaneSurge = attrs.boolean === 'true';
+    if (key === 'buffTailwind' && attrs.boolean) config.buffTailwind = attrs.boolean === 'true';
+    if (key === 'conditionEnemyIntimidated' && attrs.boolean) config.enemyIntimidated = attrs.boolean === 'true';
+    if (key === 'conditionEnemyUnnerved' && attrs.boolean) config.enemyUnnerved = attrs.boolean === 'true';
+    if (key === 'multiplierWitheredStackCount' && attrs.number) config.witheredStacks = Number(attrs.number);
+    if (key === 'conditionEnemyFireExposure' && attrs.boolean) config.enemyFireExposure = attrs.boolean === 'true';
+    if (key === 'conditionEnemyColdExposure' && attrs.boolean) config.enemyColdExposure = attrs.boolean === 'true';
+    if (key === 'conditionEnemyLightningExposure' && attrs.boolean) config.enemyLightningExposure = attrs.boolean === 'true';
     if (key === 'customMods' && attrs.string) config.customMods = attrs.string;
   }
 

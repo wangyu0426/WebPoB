@@ -309,6 +309,16 @@ export interface BuildConfig {
   enemyShocked: boolean;
   shockValue: number;
   enemyChilled: boolean;
+  /** Endgame combat conditions (matching official PoB ConfigOptions). */
+  conditionLowLife?: boolean;
+  buffArcaneSurge?: boolean;
+  buffTailwind?: boolean;
+  enemyIntimidated?: boolean;
+  enemyUnnerved?: boolean;
+  witheredStacks?: number;
+  enemyFireExposure?: boolean;
+  enemyColdExposure?: boolean;
+  enemyLightningExposure?: boolean;
   /** Free-form custom modifiers (supports both English and Chinese lines!). */
   customMods: string;
 }

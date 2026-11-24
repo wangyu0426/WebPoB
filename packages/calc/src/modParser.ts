@@ -564,6 +564,32 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^(\d+)% increased Damage with (Bow|Wand|Sword|Axe|Mace|Claw|Dagger|Staff)s?$/i,
     build: (m, src) => [mkMod('Damage', 'INC', Number(m[1]), src, ModFlag.Attack)],
   },
+  // Pain Attunement, Double Damage, Exposure & Minions
+  {
+    pattern: /^30% more Spell Damage when on Low Life$/i,
+    build: (_, src) => [mkMod('PainAttunement', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Exposure you inflict applies an extra -(\d+)% to the affected Resistance$/i,
+    build: (m, src) => [mkMod('ExtraExposure', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% chance to deal Double Damage$/i,
+    build: (m, src) => [mkMod('DoubleDamageChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Minions deal (\d+)% (increased|more|less) Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('MinionDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
+  },
+  {
+    pattern: /^Minions have (\d+)% (increased|more) Attack and Cast Speed$/i,
+    build: (m, src) => [
+      mkMod('MinionSpeed', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', Number(m[1]), src),
+    ],
+  },
 ];
 
 /**
