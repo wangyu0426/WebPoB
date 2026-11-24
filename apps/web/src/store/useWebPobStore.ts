@@ -17,6 +17,7 @@ import {
   getSampleBuild,
   getTreeForGame,
   hasOfficialTreeLoaded,
+  loadOfficialBaseItems,
   loadOfficialGems,
   loadOfficialTree,
   removeNodeAndPruneDisconnected,
@@ -127,6 +128,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
         const [tree] = await Promise.all([
           loadOfficialTree(game),
           loadOfficialGems(game),
+          loadOfficialBaseItems(game),
         ]);
         const cur = get().build;
         if (cur.game === game) {

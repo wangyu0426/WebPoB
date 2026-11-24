@@ -30,6 +30,14 @@ export interface CompactTreePayload {
   nodes: CompactTreeNode[];
 }
 
+export interface CompactGemLevelEntry {
+  bd?: Partial<Record<'Physical' | 'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>>;
+  am?: number;
+  de?: number;
+  mc?: number;
+  st?: string[];
+}
+
 export interface CompactGemsPayload {
   game: GameId;
   count: number;
@@ -40,6 +48,18 @@ export interface CompactGemsPayload {
     cat: 'active' | 'support';
     color: 'red' | 'green' | 'blue' | 'white';
     tags: string[];
+    ct?: number;
+    cc?: number;
+    asm?: number;
+    mrp?: number;
+    sr?: number;
+    bd?: Partial<Record<'Physical' | 'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>>;
+    am?: number;
+    de?: number;
+    mc?: number;
+    st?: string[];
+    qs?: Array<{ t: string; q: number }> | Record<string, never>;
+    ls?: Record<string, CompactGemLevelEntry>;
   }>;
 }
 
@@ -120,6 +140,35 @@ export async function loadOfficialTree(game: GameId, basePath = '/data'): Promis
   return hydrated;
 }
 
+function hydrateLevelScaling(
+  ls?: Record<string, CompactGemLevelEntry>,
+): GemDefinition['levelScaling'] | undefined {
+  if (!ls) return undefined;
+  const out: NonNullable<GemDefinition['levelScaling']> = {};
+  let count = 0;
+  for (const [lvStr, snap] of Object.entries(ls)) {
+    const lv = Number(lvStr);
+    if (!Number.isFinite(lv)) continue;
+    out[lv] = {
+      ...(snap.bd ? { baseDamage: snap.bd } : {}),
+      ...(snap.am !== undefined ? { attackDamageMultiplierPct: snap.am } : {}),
+      ...(snap.de !== undefined ? { damageEffectivenessPct: snap.de } : {}),
+      ...(snap.mc !== undefined ? { manaCost: snap.mc } : {}),
+      ...(snap.st && snap.st.length > 0 ? { stats: snap.st } : {}),
+    };
+    count++;
+  }
+  return count > 0 ? out : undefined;
+}
+
+function hydrateQualityStats(
+  qs?: Array<{ t: string; q: number }> | Record<string, never>,
+): GemDefinition['qualityStats'] | undefined {
+  if (!qs) return undefined;
+  if (!Array.isArray(qs)) return [];
+  return qs.map((row) => ({ template: row.t, perQuality: row.q }));
+}
+
 function synthesizeGemDefinition(
   game: GameId,
   entry: CompactGemsPayload['gems'][number],
@@ -127,7 +176,7 @@ function synthesizeGemDefinition(
   const tagSet = new Set(entry.tags.map((t) => t.toLowerCase()));
   const isSpell = tagSet.has('spell');
   const isAttack = tagSet.has('attack');
-  const isAura = tagSet.has('aura') || tagSet.has('herald');
+  const isAura = tagSet.has('aura') || tagSet.has('herald') || (entry.mrp ?? 0) > 0 || (entry.sr ?? 0) > 0;
 
   let modFlags = ModFlag.None;
   let kwFlags = KeywordFlag.None;
@@ -142,13 +191,18 @@ function synthesizeGemDefinition(
   if (tagSet.has('projectile')) modFlags |= ModFlag.Projectile;
   if (tagSet.has('melee')) modFlags |= ModFlag.Melee;
   if (tagSet.has('area')) modFlags |= ModFlag.Area;
+  if (tagSet.has('bow')) modFlags |= ModFlag.Bow;
   if (tagSet.has('fire')) kwFlags |= KeywordFlag.Fire;
   if (tagSet.has('cold')) kwFlags |= KeywordFlag.Cold;
   if (tagSet.has('lightning')) kwFlags |= KeywordFlag.Lightning;
   if (tagSet.has('chaos')) kwFlags |= KeywordFlag.Chaos;
   if (tagSet.has('physical')) kwFlags |= KeywordFlag.Physical;
 
+  const qualityStats = hydrateQualityStats(entry.qs);
+  const levelScaling = hydrateLevelScaling(entry.ls);
+
   if (entry.cat === 'support') {
+    const hasOfficialStats = Array.isArray(entry.st) && entry.st.length > 0;
     const defaultStat = tagSet.has('fire')
       ? '25% more Fire Damage'
       : tagSet.has('cold')
@@ -171,11 +225,13 @@ function synthesizeGemDefinition(
       tags: entry.tags,
       modFlags,
       keywordFlags: kwFlags,
-      stats: [defaultStat],
+      stats: hasOfficialStats ? entry.st! : [defaultStat],
+      ...(qualityStats ? { qualityStats } : {}),
+      ...(levelScaling ? { levelScaling } : {}),
     };
   }
 
-  // Active gem fallback scaling
+  // Active gem: prefer official Lua-exported Lv.20 numbers when present, fallback otherwise
   const primaryDamageType = tagSet.has('fire')
     ? 'Fire'
     : tagSet.has('cold')
@@ -185,6 +241,8 @@ function synthesizeGemDefinition(
         : tagSet.has('chaos')
           ? 'Chaos'
           : 'Physical';
+
+  const officialStats = Array.isArray(entry.st) ? entry.st : [];
 
   return {
     id: entry.id,
@@ -196,27 +254,29 @@ function synthesizeGemDefinition(
     modFlags,
     keywordFlags: kwFlags,
     isAuraOrBuff: isAura,
+    ...(qualityStats ? { qualityStats } : {}),
+    ...(levelScaling ? { levelScaling } : {}),
     ...(isAura
       ? {
-          manaReservationPct: game === 'poe1' ? 35 : undefined,
-          spiritReservation: game === 'poe2' ? 30 : undefined,
-          stats: [`15% more ${primaryDamageType} Damage`],
+          manaReservationPct: entry.mrp ?? (game === 'poe1' ? 35 : undefined),
+          spiritReservation: entry.sr ?? (game === 'poe2' ? 30 : undefined),
+          stats: officialStats.length > 0 ? officialStats : [`15% more ${primaryDamageType} Damage`],
         }
       : isAttack
         ? {
-            attackDamageMultiplierPct: 145,
-            damageEffectivenessPct: 145,
-            attackSpeedMultiplier: 1.0,
-            manaCost: 12,
-            stats: [],
+            attackDamageMultiplierPct: entry.am ?? 145,
+            damageEffectivenessPct: entry.de ?? entry.am ?? 145,
+            attackSpeedMultiplier: entry.asm ?? 1.0,
+            manaCost: entry.mc ?? 12,
+            stats: officialStats,
           }
         : {
-            baseDamage: { [primaryDamageType]: [420, 760] as [number, number] },
-            damageEffectivenessPct: 120,
-            castTime: 0.75,
-            baseCritChance: game === 'poe2' ? 9 : 6,
-            manaCost: 22,
-            stats: [],
+            baseDamage: entry.bd ?? { [primaryDamageType]: [420, 760] as [number, number] },
+            damageEffectivenessPct: entry.de ?? 120,
+            castTime: entry.ct ?? 0.75,
+            baseCritChance: entry.cc ?? (game === 'poe2' ? 9 : 6),
+            manaCost: entry.mc ?? 22,
+            stats: officialStats,
           }),
   };
 }
@@ -227,8 +287,19 @@ function normalizeGemNameKey(name: string): string {
 
 export function registerGemsData(game: GameId, payload: CompactGemsPayload): GemDefinition[] {
   const curated = game === 'poe2' ? POE2_GEMS : POE1_GEMS;
-  const seenEn = new Set(curated.map((g) => normalizeGemNameKey(g.name.en)));
-  const merged = [...curated];
+  const payloadByKey = new Map(payload.gems.map((e) => [normalizeGemNameKey(e.en), e]));
+  const seenEn = new Set<string>();
+  const merged: GemDefinition[] = curated.map((g) => {
+    const key = normalizeGemNameKey(g.name.en);
+    seenEn.add(key);
+    const official = payloadByKey.get(key);
+    if (!official) return g;
+    const ls = hydrateLevelScaling(official.ls);
+    return {
+      ...g,
+      ...(ls && !g.levelScaling ? { levelScaling: ls } : {}),
+    };
+  });
 
   for (const entry of payload.gems) {
     const key = normalizeGemNameKey(entry.en);

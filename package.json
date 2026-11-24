@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
     "sync:data": "tsx scripts/sync-data/src/index.ts",
+    "sync:lua": "tsx scripts/sync-data/src/exportFromLua.ts",
     "oracle:generate": "tsx scripts/oracle-diff/src/generate.ts",
     "oracle:diff": "tsx scripts/oracle-diff/src/diff.ts"
   },

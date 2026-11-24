@@ -1,0 +1,449 @@
+-- Official Path of Building (PoE 1 & PoE 2) LuaJIT Data Exporter
+-- Exports evaluated Lv.1-30 skill scaling, support modifiers, quality stats,
+-- and complete base item stats directly from upstream PoB HeadlessWrapper.
+--
+-- Usage:
+--   luajit export_pob_data.lua <poe1|poe2> <out_bases.json> <out_gems_raw.json>
+
+local game = arg[1] or "poe1"
+local outBasesPath = arg[2]
+local outGemsPath = arg[3]
+local isPoe2 = (game == "poe2")
+
+-- Strip PoB's #@ preprocessor header when loading Lua files
+local orig_loadfile = loadfile
+function loadfile(filename, mode, env)
+  local fh = io.open(filename, "r")
+  if not fh then return orig_loadfile(filename, mode, env) end
+  local content = fh:read("*a")
+  fh:close()
+  if content:sub(1, 2) == "#@" then
+    content = content:gsub("^#@[^\r\n]*", "")
+  end
+  return loadstring(content, "@" .. filename)
+end
+function dofile(filename)
+  local fn, err = loadfile(filename)
+  if not fn then error(err) end
+  return fn()
+end
+
+dofile("HeadlessWrapper.lua")
+
+-- Minimal JSON encoder (deterministic key order)
+local function escapeStr(s)
+  return s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+end
+
+local function toJson(val)
+  local t = type(val)
+  if t == "nil" then return "null" end
+  if t == "boolean" then return val and "true" or "false" end
+  if t == "number" then
+    if val ~= val or val == math.huge or val == -math.huge then return "0" end
+    if math.floor(val) == val then return tostring(math.floor(val)) end
+    return string.format("%.4g", val)
+  end
+  if t == "string" then return '"' .. escapeStr(val) .. '"' end
+  if t == "table" then
+    local isArr = true
+    local n = 0
+    for k, _ in pairs(val) do
+      if type(k) ~= "number" or k < 1 or math.floor(k) ~= k then
+        isArr = false
+        break
+      end
+      if k > n then n = k end
+    end
+    if isArr and n > 0 then
+      local parts = {}
+      for i = 1, n do parts[i] = toJson(val[i]) end
+      return "[" .. table.concat(parts, ",") .. "]"
+    end
+    -- Empty table -> [] only if explicitly empty array? Use {} for maps.
+    local keys = {}
+    for k, _ in pairs(val) do
+      if type(k) == "string" or type(k) == "number" then
+        table.insert(keys, k)
+      end
+    end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local parts = {}
+    for _, k in ipairs(keys) do
+      table.insert(parts, '"' .. escapeStr(tostring(k)) .. '":' .. toJson(val[k]))
+    end
+    return "{" .. table.concat(parts, ",") .. "}"
+  end
+  return "null"
+end
+
+local function mapWeaponType(rawType, tags)
+  if not rawType then return nil end
+  local lt = rawType:lower()
+  if lt:find("crossbow") then return "Crossbow" end
+  if lt:find("bow") then return "Bow" end
+  if lt:find("wand") then return "Wand" end
+  if lt:find("quarterstaff") or (isPoe2 and lt:find("staff") and tags and tags.quarterstaff) then return "Quarterstaff" end
+  if lt:find("staff") then return "Staff" end
+  if lt:find("axe") then return "Axe" end
+  if lt:find("mace") or lt:find("sceptre") or lt:find("flail") then return "Mace" end
+  if lt:find("sword") or lt:find("spear") then return "Sword" end
+  if lt:find("dagger") then return "Dagger" end
+  if lt:find("claw") then return "Claw" end
+  return nil
+end
+
+-- 1. Export Base Items
+local basesOut = {}
+local baseCount = 0
+for name, base in pairs(data.itemBases or {}) do
+  if type(base) == "table" and type(name) == "string" then
+    local entry = {}
+    local hasUseful = false
+    if base.armour then
+      local arm = base.armour.ArmourBaseMax or base.armour.Armour or 0
+      local eva = base.armour.EvasionBaseMax or base.armour.Evasion or 0
+      local es = base.armour.EnergyShieldBaseMax or base.armour.EnergyShield or 0
+      local blk = base.armour.BlockChance or 0
+      if arm > 0 or eva > 0 or es > 0 or blk > 0 then
+        entry.a = { arm, eva, es, blk }
+        hasUseful = true
+      end
+    end
+    if base.weapon and base.weapon.PhysicalMax and base.weapon.PhysicalMax > 0 then
+      local wt = mapWeaponType(base.type, base.tags)
+      if wt then
+        local twoH = (base.tags and (base.tags.two_hand_weapon or base.tags.twohand or base.tags.bow or base.tags.staff or base.tags.crossbow or base.tags.quarterstaff)) and 1 or 0
+        entry.w = {
+          base.weapon.PhysicalMin or 0,
+          base.weapon.PhysicalMax or 0,
+          base.weapon.AttackRateBase or 1.2,
+          base.weapon.CritChanceBase or 5,
+          wt,
+          twoH
+        }
+        hasUseful = true
+      end
+    end
+    if base.implicit and type(base.implicit) == "string" and #base.implicit > 0 then
+      entry.i = base.implicit
+      hasUseful = true
+    end
+    if hasUseful then
+      basesOut[name] = entry
+      baseCount = baseCount + 1
+    end
+  end
+end
+
+local fh1 = assert(io.open(outBasesPath, "w"))
+fh1:write(toJson({ game = game, count = baseCount, bases = basesOut }))
+fh1:close()
+print(string.format("Exported %d %s base items -> %s", baseCount, game, outBasesPath))
+
+-- 2. Helper: translate a PoB mod entry + numeric value into canonical WebPoB stat text
+local function modToStatLine(m, val)
+  if type(m) ~= "table" or type(m.name) ~= "string" then return nil end
+  -- Skip conditional/per-stat/global-effect complex mods except simple buff/aura ones
+  for _, extra in ipairs(m) do
+    if type(extra) == "table" and extra.type and extra.type ~= "GlobalEffect" then
+      return nil
+    end
+  end
+  local v = m.value
+  if v == nil then v = val end
+  if type(v) == "number" and m.div then v = v / m.div end
+  if type(v) == "number" and m.mult then v = v * m.mult end
+  if type(v) == "number" then v = math.floor(v * 100 + 0.5) / 100 end
+  if v == 0 then return nil end
+
+  local flags = m.flags or 0
+  local isSpell = bit.band(flags, ModFlag.Spell or 0) ~= 0
+  local isAttack = bit.band(flags, ModFlag.Attack or 0) ~= 0
+  local isMelee = bit.band(flags, ModFlag.Melee or 0) ~= 0
+  local isProj = bit.band(flags, ModFlag.Projectile or 0) ~= 0
+  local isArea = bit.band(flags, ModFlag.Area or 0) ~= 0
+
+  local name = m.name
+  local mtype = m.type
+
+  if mtype == "MORE" and type(v) == "number" then
+    local word = v < 0 and "less" or "more"
+    local av = math.abs(v)
+    if name == "Damage" then
+      if isSpell then return av .. "% " .. word .. " Spell Damage" end
+      if isMelee then return av .. "% " .. word .. " Melee Damage" end
+      if isAttack then return av .. "% " .. word .. " Attack Damage" end
+      if isProj then return av .. "% " .. word .. " Projectile Damage" end
+      if isArea then return av .. "% " .. word .. " Area Damage" end
+      return av .. "% " .. word .. " Damage"
+    elseif name == "PhysicalDamage" or name == "FireDamage" or name == "ColdDamage" or name == "LightningDamage" or name == "ChaosDamage" or name == "ElementalDamage" then
+      local dt = name:gsub("Damage$", "")
+      if isAttack then return av .. "% " .. word .. " " .. dt .. " Damage with Attack Skills" end
+      return av .. "% " .. word .. " " .. dt .. " Damage"
+    elseif name == "Speed" then
+      if isSpell then return av .. "% " .. word .. " Cast Speed" end
+      if isAttack then return av .. "% " .. word .. " Attack Speed" end
+      return av .. "% " .. word .. " Attack and Cast Speed"
+    elseif name == "CritChance" then
+      return av .. "% " .. word .. " Critical Strike Chance"
+    elseif name == "Armour" then
+      return av .. "% " .. word .. " Armour"
+    elseif name == "Evasion" then
+      return av .. "% " .. word .. " Evasion Rating"
+    elseif name == "EnergyShield" then
+      return av .. "% " .. word .. " maximum Energy Shield"
+    end
+  elseif mtype == "INC" and type(v) == "number" and v > 0 then
+    if name == "Damage" then
+      if isSpell then return v .. "% increased Spell Damage" end
+      if isMelee then return v .. "% increased Melee Damage" end
+      if isAttack then return v .. "% increased Attack Damage" end
+      if isProj then return v .. "% increased Projectile Damage" end
+      if isArea then return v .. "% increased Area Damage" end
+      return v .. "% increased Damage"
+    elseif name == "PhysicalDamage" or name == "FireDamage" or name == "ColdDamage" or name == "LightningDamage" or name == "ChaosDamage" or name == "ElementalDamage" then
+      local dt = name:gsub("Damage$", "")
+      if isAttack then return v .. "% increased " .. dt .. " Damage with Attack Skills" end
+      return v .. "% increased " .. dt .. " Damage"
+    elseif name == "Speed" then
+      if isSpell then return v .. "% increased Cast Speed" end
+      if isAttack then return v .. "% increased Attack Speed" end
+      return v .. "% increased Attack and Cast Speed"
+    elseif name == "CritChance" then
+      if isSpell then return v .. "% increased Critical Strike Chance for Spells" end
+      return v .. "% increased Critical Strike Chance"
+    elseif name == "Armour" then return v .. "% increased Armour"
+    elseif name == "Evasion" then return v .. "% increased Evasion Rating"
+    elseif name == "EnergyShield" then return v .. "% increased maximum Energy Shield"
+    elseif name == "MovementSpeed" then return v .. "% increased Movement Speed"
+    elseif name == "Accuracy" then return v .. "% increased Accuracy Rating"
+    end
+  elseif mtype == "BASE" and type(v) == "number" then
+    if name == "FirePenetration" then return "Damage Penetrates " .. v .. "% Fire Resistance"
+    elseif name == "ColdPenetration" then return "Damage Penetrates " .. v .. "% Cold Resistance"
+    elseif name == "LightningPenetration" then return "Damage Penetrates " .. v .. "% Lightning Resistance"
+    elseif name == "ElementalPenetration" then return "Damage Penetrates " .. v .. "% Elemental Resistance"
+    elseif name == "CritMultiplier" and v > 0 then return "+" .. v .. "% to Critical Strike Multiplier"
+    elseif name == "Armour" and v > 0 then return "+" .. v .. " to Armour"
+    elseif name == "Evasion" and v > 0 then return "+" .. v .. " to Evasion Rating"
+    elseif name == "EnergyShield" and v > 0 then return "+" .. v .. " to maximum Energy Shield"
+    elseif name == "Life" and v > 0 then return "+" .. v .. " to maximum Life"
+    elseif name == "Mana" and v > 0 then return "+" .. v .. " to maximum Mana"
+    elseif name == "Accuracy" and v > 0 then return "+" .. v .. " to Accuracy Rating"
+    elseif name == "PhysicalDamageConvertToFire" then return v .. "% of Physical Damage Converted to Fire Damage"
+    elseif name == "PhysicalDamageConvertToCold" then return v .. "% of Physical Damage Converted to Cold Damage"
+    elseif name == "PhysicalDamageConvertToLightning" then return v .. "% of Physical Damage Converted to Lightning Damage"
+    elseif name == "PhysicalDamageConvertToChaos" then return v .. "% of Physical Damage Converted to Chaos Damage"
+    elseif name == "PhysicalDamageGainAsFire" then return "Gain " .. v .. "% of Physical Damage as Extra Fire Damage"
+    elseif name == "PhysicalDamageGainAsCold" then return "Gain " .. v .. "% of Physical Damage as Extra Cold Damage"
+    elseif name == "PhysicalDamageGainAsLightning" then return "Gain " .. v .. "% of Physical Damage as Extra Lightning Damage"
+    elseif name == "PhysicalDamageGainAsChaos" then return "Gain " .. v .. "% of Physical Damage as Extra Chaos Damage"
+    elseif name == "ElementalDamageGainAsChaos" then return "Gain " .. v .. "% of Elemental Damage as Extra Chaos Damage"
+    end
+  elseif mtype == "FLAG" and v == true then
+    if name == "DealNoElemental" then return "Deal no Elemental Damage"
+    elseif name == "DealNoChaos" then return "Deal no Chaos Damage"
+    elseif name == "CannotBeEvaded" then return "Your Hits can't be Evaded"
+    elseif name == "NeverCrit" then return "Never deal Critical Strikes"
+    end
+  end
+  return nil
+end
+
+local QUALITY_KEY_MAP = {
+  ["damage_+%"] = "{v}% increased Damage",
+  ["spell_damage_+%"] = "{v}% increased Spell Damage",
+  ["attack_damage_+%"] = "{v}% increased Attack Damage",
+  ["physical_damage_+%"] = "{v}% increased Physical Damage",
+  ["fire_damage_+%"] = "{v}% increased Fire Damage",
+  ["cold_damage_+%"] = "{v}% increased Cold Damage",
+  ["lightning_damage_+%"] = "{v}% increased Lightning Damage",
+  ["chaos_damage_+%"] = "{v}% increased Chaos Damage",
+  ["elemental_damage_+%"] = "{v}% increased Elemental Damage",
+  ["projectile_damage_+%"] = "{v}% increased Projectile Damage",
+  ["melee_damage_+%"] = "{v}% increased Melee Damage",
+  ["area_damage_+%"] = "{v}% increased Area Damage",
+  ["attack_speed_+%"] = "{v}% increased Attack Speed",
+  ["base_cast_speed_+%"] = "{v}% increased Cast Speed",
+  ["critical_strike_chance_+%"] = "{v}% increased Critical Strike Chance",
+  ["base_critical_strike_multiplier_+"] = "+{v}% to Critical Strike Multiplier",
+  ["attack_skills_elemental_damage_+%"] = "{v}% increased Elemental Damage with Attack Skills",
+}
+
+local SAMPLE_LEVELS = { 1, 5, 10, 15, 18, 19, 20, 21, 22, 23, 25, 30 }
+
+local function extractLevelSnapshot(ge, ss, level)
+  local ok, stats = pcall(function()
+    if isPoe2 then
+      return calcLib.buildSkillInstanceStats({ level = level, quality = 0 }, ge, ss)
+    else
+      return calcLib.buildSkillInstanceStats({ level = level, quality = 0 }, ge)
+    end
+  end)
+  if not ok or type(stats) ~= "table" then return nil end
+
+  local lvl = (ge.levels and ge.levels[level]) or (ss and ss.levels and ss.levels[level]) or {}
+  local ssLvl = (ss and ss.levels and ss.levels[level]) or lvl
+  local out = {}
+
+  -- Base spell damage
+  local dmg = {}
+  local hasDmg = false
+  local dtypes = {
+    { "Physical", "physical" },
+    { "Fire", "fire" },
+    { "Cold", "cold" },
+    { "Lightning", "lightning" },
+    { "Chaos", "chaos" },
+  }
+  for _, dt in ipairs(dtypes) do
+    local mn = stats["spell_minimum_base_" .. dt[2] .. "_damage"]
+    local mx = stats["spell_maximum_base_" .. dt[2] .. "_damage"]
+    if mn and mx and mx > 0 then
+      dmg[dt[1]] = { math.floor(mn + 0.5), math.floor(mx + 0.5) }
+      hasDmg = true
+    end
+  end
+  if hasDmg then out.bd = dmg end
+
+  -- Attack multiplier & damage effectiveness
+  local baseMult = ssLvl.baseMultiplier or lvl.baseMultiplier
+  local dmgEff = ssLvl.damageEffectiveness or lvl.damageEffectiveness
+  if baseMult and baseMult > 0 then
+    out.am = math.floor(baseMult * 1000 + 0.5) / 10
+  end
+  if dmgEff and dmgEff > 0 then
+    out.de = math.floor(dmgEff * 1000 + 0.5) / 10
+  end
+  if lvl.cost and type(lvl.cost) == "table" and lvl.cost.Mana and lvl.cost.Mana > 0 then
+    out.mc = math.floor(lvl.cost.Mana + 0.5)
+  elseif lvl.manaCost and lvl.manaCost > 0 then
+    out.mc = math.floor(lvl.manaCost + 0.5)
+  end
+
+  -- Convert evaluated stats to canonical stat lines via statMap + common direct keys
+  local lines = {}
+  local seenLine = {}
+  local function addLine(l)
+    if l and not seenLine[l] then
+      seenLine[l] = true
+      table.insert(lines, l)
+    end
+  end
+
+  -- Direct added damage pairs
+  for _, dt in ipairs(dtypes) do
+    for _, scope in ipairs({ { "spell", "to Spells" }, { "attack", "to Attacks" }, { "global", "" } }) do
+      local kMin = scope[1] .. "_minimum_added_" .. dt[2] .. "_damage"
+      local kMax = scope[1] .. "_maximum_added_" .. dt[2] .. "_damage"
+      if stats[kMin] and stats[kMax] and stats[kMax] > 0 then
+        local suffix = #scope[2] > 0 and (" " .. scope[2]) or ""
+        addLine("Adds " .. math.floor(stats[kMin] + 0.5) .. " to " .. math.floor(stats[kMax] + 0.5) .. " " .. dt[1] .. " Damage" .. suffix)
+      end
+    end
+    -- Conversions
+    local c1 = stats["skill_physical_damage_%_to_convert_to_" .. dt[2]] or stats["active_skill_base_physical_damage_%_to_convert_to_" .. dt[2]]
+    if c1 and c1 > 0 and dt[1] ~= "Physical" then
+      addLine(c1 .. "% of Physical Damage Converted to " .. dt[1] .. " Damage")
+    end
+  end
+  if stats["deal_no_elemental_damage"] and stats["deal_no_elemental_damage"] ~= 0 then addLine("Deal no Elemental Damage") end
+  if stats["base_deal_no_chaos_damage"] and stats["base_deal_no_chaos_damage"] ~= 0 then addLine("Deal no Chaos Damage") end
+  if stats["global_always_hit"] and stats["global_always_hit"] ~= 0 then addLine("Your Hits can't be Evaded") end
+
+  -- Walk statMap (skill-local + global data.skillStatMap)
+  local localStatMap = (ss and ss.statMap) or ge.statMap or {}
+  local globalStatMap = data.skillStatMap or {}
+  local statKeys = {}
+  for k, _ in pairs(stats) do table.insert(statKeys, k) end
+  table.sort(statKeys)
+  for _, sk in ipairs(statKeys) do
+    local sv = stats[sk]
+    if type(sv) == "number" and sv ~= 0 then
+      local mapEntry = localStatMap[sk] or globalStatMap[sk]
+      if type(mapEntry) == "table" then
+        for _, m in ipairs(mapEntry) do
+          local line = modToStatLine(m, sv)
+          addLine(line)
+        end
+      end
+    end
+  end
+
+  if #lines > 0 then out.st = lines end
+  return out, stats, lvl, ssLvl
+end
+
+-- 3. Export Enriched Official Gems
+local gemsOut = {}
+local gemCount = 0
+for gemId, g in pairs(data.gems or {}) do
+  local ge = g.grantedEffect
+  if ge and type(g.name) == "string" and #g.name > 0 then
+    local ss = isPoe2 and (ge.statSets and ge.statSets[1]) or nil
+    if (not isPoe2) or ss then
+      local targetLv = (ge.levels and ge.levels[20]) and 20 or (ge.levels and ge.levels[1] and 1) or 20
+      local lv20, stats20, lvl20, ssLvl20 = extractLevelSnapshot(ge, ss, targetLv)
+      if lv20 then
+        local rec = {
+          en = g.name,
+          sup = ge.support and 1 or 0,
+        }
+        if ge.castTime and ge.castTime > 0 then rec.ct = ge.castTime end
+        local crit = (ssLvl20 and ssLvl20.critChance) or (lvl20 and lvl20.critChance)
+        if crit and crit > 0 then rec.cc = crit end
+        if lvl20 and lvl20.attackSpeedMultiplier and lvl20.attackSpeedMultiplier ~= 100 then
+          rec.asm = math.floor((1 + lvl20.attackSpeedMultiplier / 100) * 1000 + 0.5) / 1000
+        elseif stats20 and stats20["active_skill_attack_speed_+%_final"] and stats20["active_skill_attack_speed_+%_final"] ~= 0 then
+          rec.asm = math.floor((1 + stats20["active_skill_attack_speed_+%_final"] / 100) * 1000 + 0.5) / 1000
+        end
+        if lvl20 and lvl20.manaReservationPercent and lvl20.manaReservationPercent > 0 then
+          rec.mrp = lvl20.manaReservationPercent
+        end
+        if lvl20 and lvl20.spiritReservationFlat and lvl20.spiritReservationFlat > 0 then
+          rec.sr = lvl20.spiritReservationFlat
+        end
+        if lv20.bd then rec.bd = lv20.bd end
+        if lv20.am then rec.am = lv20.am end
+        if lv20.de then rec.de = lv20.de end
+        if lv20.mc then rec.mc = lv20.mc end
+        if lv20.st then rec.st = lv20.st end
+
+        -- Quality stats
+        if ge.qualityStats and type(ge.qualityStats) == "table" then
+          local qout = {}
+          for _, row in ipairs(ge.qualityStats) do
+            local tpl = QUALITY_KEY_MAP[row[1]]
+            if tpl and type(row[2]) == "number" and row[2] ~= 0 then
+              table.insert(qout, { t = tpl, q = row[2] })
+            end
+          end
+          rec.qs = qout
+        end
+
+        -- Multi-level scaling snapshots
+        local ls = {}
+        local lsCount = 0
+        for _, L in ipairs(SAMPLE_LEVELS) do
+          if ge.levels and ge.levels[L] and L ~= targetLv then
+            local snap = extractLevelSnapshot(ge, ss, L)
+            if snap and (snap.bd or snap.am or snap.st) then
+              ls[tostring(L)] = snap
+              lsCount = lsCount + 1
+            end
+          end
+        end
+        if lsCount > 0 then rec.ls = ls end
+
+        gemsOut[g.name:lower()] = rec
+        gemCount = gemCount + 1
+      end
+    end
+  end
+end
+
+local fh2 = assert(io.open(outGemsPath, "w"))
+fh2:write(toJson({ game = game, count = gemCount, gems = gemsOut }))
+fh2:close()
+print(string.format("Exported %d %s official skill definitions -> %s", gemCount, game, outGemsPath))

@@ -1,4 +1,4 @@
-import type { ArmourBaseStats, EquipmentSlotId, Item, ItemRarity, WeaponBaseStats } from '@webpob/core';
+import type { ArmourBaseStats, EquipmentSlotId, GameId, Item, ItemRarity, WeaponBaseStats } from '@webpob/core';
 import { getBaseItemStats } from '@webpob/data';
 import { normalizeStatLineToEn } from '@webpob/i18n';
 
@@ -71,7 +71,7 @@ function parseDamageRange(val: string): [number, number] | null {
  * Parses both English and Chinese Path of Exile 1/2 in-game `Ctrl+C` item text
  * as well as Path of Building XML `<Item>` text blocks into a normalized `Item`.
  */
-export function parseItemText(rawText: string, idOverride?: string): Item | null {
+export function parseItemText(rawText: string, idOverride?: string, game: GameId = 'poe1'): Item | null {
   const trimmed = rawText.trim();
   if (!trimmed) return null;
 
@@ -323,7 +323,7 @@ export function parseItemText(rawText: string, idOverride?: string): Item | null
   }
 
   const inferred = inferSlotAndWeapon(`${itemClassHint} ${baseName} ${name}`);
-  const officialBase = getBaseItemStats(baseName, quality);
+  const officialBase = getBaseItemStats(baseName, quality, game);
 
   let weaponStats: WeaponBaseStats | undefined;
   if (physDamage || aps !== null || critChance !== null) {

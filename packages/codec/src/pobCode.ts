@@ -356,7 +356,7 @@ export function xmlToBuild(xml: string): Build {
     const numId = attrs.id ?? String(numIdToItemId.size + 1);
     const body = unescapeXml(itemMatch[2] ?? '').trim();
     const itemId = `imp_item_${numId}`;
-    const parsed = parseItemText(body, itemId);
+    const parsed = parseItemText(body, itemId, game);
     if (parsed) {
       items[itemId] = parsed;
       numIdToItemId.set(numId, itemId);

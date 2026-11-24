@@ -480,6 +480,69 @@ export function calculateBuild(build: Build): CalcOutput {
   };
 }
 
+function resolveGemLevelEntry(def: GemDefinition, level: number) {
+  if (!def.levelScaling || level === 20) return undefined;
+  if (def.levelScaling[level]) return def.levelScaling[level];
+  // Interpolate smoothly between the nearest exported level breakpoints (including Lv.20 base)
+  const keys = Object.keys(def.levelScaling)
+    .map(Number)
+    .concat([20])
+    .sort((a, b) => a - b);
+  let low = keys[0]!;
+  let high = keys[keys.length - 1]!;
+  for (const k of keys) {
+    if (k <= level) low = k;
+    if (k >= level) {
+      high = k;
+      break;
+    }
+  }
+  const getEntry = (lv: number) =>
+    lv === 20
+      ? {
+          baseDamage: def.baseDamage,
+          attackDamageMultiplierPct: def.attackDamageMultiplierPct,
+          damageEffectivenessPct: def.damageEffectivenessPct,
+          manaCost: def.manaCost,
+          stats: def.stats,
+        }
+      : def.levelScaling![lv];
+  const lowE = getEntry(low);
+  const highE = getEntry(high);
+  if (!lowE || !highE || low === high) return lowE ?? highE;
+  const t = (level - low) / (high - low);
+  let baseDamage: Partial<Record<DamageType, [number, number]>> | undefined;
+  if (lowE.baseDamage && highE.baseDamage) {
+    baseDamage = {};
+    for (const dt of DAMAGE_TYPES) {
+      const a = lowE.baseDamage[dt];
+      const b = highE.baseDamage[dt];
+      if (a && b) {
+        // Exponential interpolation closely tracks PoE's skill damage curve
+        const mn = a[0] > 0 && b[0] > 0 ? a[0] * Math.pow(b[0] / a[0], t) : a[0] + (b[0] - a[0]) * t;
+        const mx = a[1] > 0 && b[1] > 0 ? a[1] * Math.pow(b[1] / a[1], t) : a[1] + (b[1] - a[1]) * t;
+        baseDamage[dt] = [Math.round(mn), Math.round(mx)];
+      }
+    }
+  }
+  return {
+    baseDamage,
+    attackDamageMultiplierPct:
+      lowE.attackDamageMultiplierPct !== undefined && highE.attackDamageMultiplierPct !== undefined
+        ? Math.round((lowE.attackDamageMultiplierPct + (highE.attackDamageMultiplierPct - lowE.attackDamageMultiplierPct) * t) * 10) / 10
+        : lowE.attackDamageMultiplierPct,
+    damageEffectivenessPct:
+      lowE.damageEffectivenessPct !== undefined && highE.damageEffectivenessPct !== undefined
+        ? Math.round((lowE.damageEffectivenessPct + (highE.damageEffectivenessPct - lowE.damageEffectivenessPct) * t) * 10) / 10
+        : lowE.damageEffectivenessPct,
+    manaCost:
+      lowE.manaCost !== undefined && highE.manaCost !== undefined
+        ? Math.round(lowE.manaCost + (highE.manaCost - lowE.manaCost) * t)
+        : lowE.manaCost,
+    stats: t < 0.5 ? lowE.stats : highE.stats,
+  };
+}
+
 function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutput): CalcOffenceOutput {
   const emptyRanges: Record<DamageType, DamageRange> = {
     Physical: { min: 0, max: 0, average: 0 },
@@ -573,7 +636,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     if (!gemInst.enabled) continue;
     const def = getGemById(build.game, gemInst.gemId);
     if (!def) continue;
-    const levelEntry = def.levelScaling?.[gemInst.level];
+    const levelEntry = resolveGemLevelEntry(def, gemInst.level);
     const effectiveStats = levelEntry?.stats ?? def.stats;
     if (def.category === 'active' && !def.isAuraOrBuff && !activeDef) {
       activeDef = def;
@@ -610,7 +673,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const isAttack = (activeDef.modFlags & ModFlag.Attack) !== 0;
   const flags = activeDef.modFlags;
   const kwFlags = activeDef.keywordFlags;
-  const activeLevelEntry = activeDef.levelScaling?.[activeLevel];
+  const activeLevelEntry = resolveGemLevelEntry(activeDef, activeLevel);
   const levelFactor = activeLevelEntry ? 1 : getLevelScalingFactor(activeLevel);
   void activeQuality;
 

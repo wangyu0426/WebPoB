@@ -1,28 +1,41 @@
-import type { ArmourBaseStats, WeaponBaseStats } from '@webpob/core';
+import type { ArmourBaseStats, GameId, WeaponBaseStats } from '@webpob/core';
 
 export interface BaseItemStatsEntry {
   armour?: ArmourBaseStats;
   weapon?: WeaponBaseStats;
+  implicit?: string;
+}
+
+export interface CompactBaseItemsPayload {
+  game: GameId;
+  count: number;
+  bases: Record<
+    string,
+    {
+      /** [armour, evasion, energyShield, blockChance] */
+      a?: [number, number, number, number];
+      /** [physMin, physMax, aps, crit, weaponType, twoHanded] */
+      w?: [number, number, number, number, WeaponBaseStats['weaponType'], number];
+      /** Default base implicit text */
+      i?: string;
+    }
+  >;
 }
 
 /**
- * Official Path of Building (3.30 / 0.5) midpoint base item stats.
- * Used when official PoB XML `<Item>` entries omit pre-computed local Armour/ES/Weapon lines
- * so our calculation matches Path of Building's item base computation.
+ * Built-in fallback base item stats (used before `/data/poe*-bases.json` loads in browser).
+ * Full 989 PoE 1 + 1,642 PoE 2 base items are registered via `registerBaseItems` / `loadOfficialBaseItems`.
  */
 export const BASE_ITEM_STATS: Record<string, BaseItemStatsEntry> = {
-  // PoE 1 Body Armours (max base roll / 100% percentile, matching PoB default for newly crafted items)
   'Vaal Regalia': { armour: { energyShield: 197 } },
   'Glorious Plate': { armour: { armour: 892 } },
   'Sadist Garb': { armour: { evasion: 491, energyShield: 107 } },
   'Astral Plate': { armour: { armour: 817 } },
-  // PoE 1 Shields / Helmets / Gloves / Boots
   'Titanium Spirit Shield': { armour: { energyShield: 77, blockChance: 25 } },
   'Vaal Spirit Shield': { armour: { energyShield: 67, blockChance: 22 } },
   'Hubris Circlet': { armour: { energyShield: 90 } },
   'Sorcerer Boots': { armour: { energyShield: 58 } },
   'Fingerless Silk Gloves': { armour: { energyShield: 50 } },
-  // PoE 1 Weapons
   'Prophecy Wand': {
     weapon: { physicalMin: 26, physicalMax: 48, attacksPerSecond: 1.5, critChance: 8.7, weaponType: 'Wand', twoHanded: false },
   },
@@ -37,8 +50,70 @@ export const BASE_ITEM_STATS: Record<string, BaseItemStatsEntry> = {
   },
 };
 
-export function getBaseItemStats(baseName: string, quality = 0): BaseItemStatsEntry | undefined {
-  const entry = BASE_ITEM_STATS[baseName];
+const dynamicBases: Record<GameId, Record<string, BaseItemStatsEntry>> = {
+  poe1: {},
+  poe2: {},
+};
+const loadedBasesFlag: Partial<Record<GameId, boolean>> = {};
+
+export const OFFICIAL_BASES_FILES: Record<GameId, string> = {
+  poe1: 'poe1-bases.json',
+  poe2: 'poe2-bases.json',
+};
+
+export function registerBaseItems(payload: CompactBaseItemsPayload): number {
+  const target = dynamicBases[payload.game];
+  let count = 0;
+  for (const [name, compact] of Object.entries(payload.bases)) {
+    const entry: BaseItemStatsEntry = {};
+    if (compact.a) {
+      const [arm, eva, es, blk] = compact.a;
+      entry.armour = {
+        ...(arm > 0 ? { armour: arm } : {}),
+        ...(eva > 0 ? { evasion: eva } : {}),
+        ...(es > 0 ? { energyShield: es } : {}),
+        ...(blk > 0 ? { blockChance: blk } : {}),
+      };
+    }
+    if (compact.w) {
+      const [pMin, pMax, aps, crit, wt, twoH] = compact.w;
+      entry.weapon = {
+        physicalMin: pMin,
+        physicalMax: pMax,
+        attacksPerSecond: aps,
+        critChance: crit,
+        weaponType: wt,
+        twoHanded: twoH === 1,
+      };
+    }
+    if (compact.i) {
+      entry.implicit = compact.i;
+    }
+    target[name] = entry;
+    count++;
+  }
+  loadedBasesFlag[payload.game] = true;
+  return count;
+}
+
+export async function loadOfficialBaseItems(game: GameId, basePath = '/data'): Promise<number> {
+  if (loadedBasesFlag[game]) return Object.keys(dynamicBases[game]).length;
+  const url = `${basePath.replace(/\/+$/, '')}/${OFFICIAL_BASES_FILES[game]}`;
+  const res = await fetch(url);
+  if (!res.ok) return 0;
+  const payload = (await res.json()) as CompactBaseItemsPayload;
+  return registerBaseItems(payload);
+}
+
+export function getBaseItemStats(
+  baseName: string,
+  quality = 0,
+  game: GameId = 'poe1',
+): BaseItemStatsEntry | undefined {
+  const entry =
+    dynamicBases[game][baseName] ??
+    dynamicBases[game === 'poe1' ? 'poe2' : 'poe1'][baseName] ??
+    BASE_ITEM_STATS[baseName];
   if (!entry) return undefined;
   const qMult = 1 + Math.max(0, quality) / 100;
   return {
@@ -57,5 +132,6 @@ export function getBaseItemStats(baseName: string, quality = 0): BaseItemStatsEn
           physicalMax: Math.round(entry.weapon.physicalMax * qMult),
         }
       : undefined,
+    implicit: entry.implicit,
   };
 }
