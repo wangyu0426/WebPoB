@@ -266,12 +266,13 @@ export const POE2_GEMS: GemDefinition[] = [
     tags: ['Spell', 'Cold', 'Area'],
     modFlags: ModFlag.Spell | ModFlag.Hit | ModFlag.Area,
     keywordFlags: KeywordFlag.Spell | KeywordFlag.Cold | KeywordFlag.Hit,
-    baseDamage: { Cold: [1350, 2025] },
+    baseDamage: { Cold: [787, 1181] },
     damageEffectivenessPct: 100,
-    castTime: 1.4,
-    baseCritChance: 11,
-    manaCost: 84,
-    stats: ['20% more Area Damage'],
+    castTime: 2.0,
+    baseCritChance: 13,
+    manaCost: 173,
+    stats: [],
+    qualityStats: [],
   },
   // Active Attacks (PoE 2)
   {

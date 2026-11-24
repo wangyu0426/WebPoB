@@ -105,6 +105,26 @@ export async function loadOfficialBaseItems(game: GameId, basePath = '/data'): P
   return registerBaseItems(payload);
 }
 
+/**
+ * Official PoE 1 (3.30) Utility Flask base buff lines (applied when Flask slot is active).
+ */
+export const UTILITY_FLASK_BUFFS: Record<string, string[]> = {
+  'Granite Flask': ['+1500 to Armour'],
+  'Jade Flask': ['+1500 to Evasion Rating'],
+  'Diamond Flask': ['100% increased Global Critical Strike Chance'],
+  'Quicksilver Flask': ['40% increased Movement Speed'],
+  'Silver Flask': ['Onslaught'],
+  'Bismuth Flask': ['+35% to all Elemental Resistances'],
+  'Amethyst Flask': ['+35% to Chaos Resistance'],
+  'Ruby Flask': ['+5% to maximum Fire Resistance', '+40% to Fire Resistance'],
+  'Sapphire Flask': ['+5% to maximum Cold Resistance', '+40% to Cold Resistance'],
+  'Topaz Flask': ['+5% to maximum Lightning Resistance', '+40% to Lightning Resistance'],
+  'Basalt Flask': ['20% more Armour'],
+  'Stibnite Flask': ['20% more Evasion Rating'],
+  'Sulphur Flask': ['40% increased Damage'],
+  'Quartz Flask': ['+10% chance to Suppress Spell Damage'],
+};
+
 export function getBaseItemStats(
   baseName: string,
   quality = 0,

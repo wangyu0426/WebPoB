@@ -420,8 +420,79 @@ const PARSER_RULES: ParserRule[] = [
     ],
   },
   {
-    pattern: /^30% of Damage is taken from Mana before Life$/i,
-    build: (_, src) => [mkMod('DamageTakenFromManaBeforeLife', 'BASE', 30, src)],
+    pattern: /^(\d+)% of Damage is taken from Mana before Life$/i,
+    build: (m, src) => [mkMod('DamageTakenFromManaBeforeLife', 'BASE', Number(m[1]), src)],
+  },
+  // Flask / Buff keywords
+  {
+    pattern: /^Onslaught$/i,
+    build: (_, src) => [
+      mkMod('Speed', 'INC', 20, src, ModFlag.Attack),
+      mkMod('Speed', 'INC', 20, src, ModFlag.Spell),
+      mkMod('MovementSpeed', 'INC', 20, src),
+    ],
+  },
+  // Ailments & Damage over Time (Ignite / Bleed / Poison)
+  {
+    pattern: /^\+(\d+)% to (Fire|Cold|Chaos|Physical) Damage over Time Multiplier$/i,
+    build: (m, src) => [mkMod(`${m[2]}DotMultiplier`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+)% to Damage over Time Multiplier$/i,
+    build: (m, src) => [mkMod('DotMultiplier', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) (?:Burning|Ignite) Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('IgniteDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Damage with (?:Ignite|Ignites|Ailments)$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('IgniteDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) (?:Damage over Time|Poison Damage|Bleeding Damage)$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('DotDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
+  },
+  {
+    pattern: /^(\d+)% chance to Ignite$/i,
+    build: (m, src) => [mkMod('IgniteChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% chance to cause Bleeding$/i,
+    build: (m, src) => [mkMod('BleedChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% chance to Poison on Hit$/i,
+    build: (m, src) => [mkMod('PoisonChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Hits always Ignite$/i,
+    build: (_, src) => [mkMod('IgniteChance', 'BASE', 100, src)],
+  },
+  {
+    pattern: /^(\d+)% increased Armour during effect$/i,
+    build: (m, src) => [mkMod('Armour', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Evasion Rating during effect$/i,
+    build: (m, src) => [mkMod('Evasion', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Critical Strike Chance during effect$/i,
+    build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Movement Speed during effect$/i,
+    build: (m, src) => [mkMod('MovementSpeed', 'INC', Number(m[1]), src)],
   },
 ];
 

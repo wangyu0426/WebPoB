@@ -40,7 +40,7 @@ const RARITY_COLOR: Record<Item['rarity'], string> = {
 };
 
 export function ItemsTab() {
-  const { locale, build, addItem, equipItem, unequipSlot } = useWebPobStore();
+  const { locale, build, addItem, equipItem, unequipSlot, toggleFlaskActive } = useWebPobStore();
   const [pasteText, setPasteText] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<EquipmentSlotId>('Weapon 1');
@@ -109,17 +109,41 @@ export function ItemsTab() {
                   )}
                 </div>
                 {item && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      unequipSlot(slot);
-                    }}
-                    className="p-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                    title={t(locale, 'items.unequip')}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {slot.startsWith('Flask ') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFlaskActive(slot);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border cursor-pointer transition ${
+                          build.activeFlaskSlots?.[slot]
+                            ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300'
+                            : 'bg-zinc-900/60 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        {build.activeFlaskSlots?.[slot]
+                          ? locale === 'zh-CN'
+                            ? '已启用'
+                            : 'Active'
+                          : locale === 'zh-CN'
+                            ? '未启用'
+                            : 'Off'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        unequipSlot(slot);
+                      }}
+                      className="p-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
+                      title={t(locale, 'items.unequip')}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             );

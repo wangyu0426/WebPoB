@@ -374,29 +374,56 @@ export function findShortestPathToNode(
 }
 
 /**
- * Given a set of allocated nodes and a root class start node, removes `targetNodeId`
- * and prunes any nodes that become disconnected from the class start node.
+ * Finds the start node ID of an Ascendancy sub-tree (e.g. 'Elementalist', 'Stormweaver').
+ */
+export function getAscendancyStartNodeId(
+  tree: PassiveTreeData,
+  ascendancyId?: string,
+): number | undefined {
+  if (!ascendancyId) return undefined;
+  const target = ascendancyId.toLowerCase().trim();
+  if (!target || target === 'none') return undefined;
+  for (const node of Object.values(tree.nodes)) {
+    if (
+      node.ascendancyId &&
+      node.ascendancyId.toLowerCase() === target &&
+      node.name.en.toLowerCase() === target
+    ) {
+      return node.id;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Given a set of allocated nodes and one or more root start nodes (e.g. [classStart, ascStart]),
+ * removes `targetNodeId` and prunes any nodes that become disconnected from all roots.
  */
 export function removeNodeAndPruneDisconnected(
   tree: PassiveTreeData,
   allocatedIds: number[],
-  classStartNodeId: number,
+  rootNodeIds: number | number[],
   targetNodeId: number,
 ): number[] {
-  if (targetNodeId === classStartNodeId) {
+  const roots = (Array.isArray(rootNodeIds) ? rootNodeIds : [rootNodeIds]).filter(
+    (id) => Boolean(tree.nodes[id]),
+  );
+  if (roots.includes(targetNodeId)) {
     return allocatedIds;
   }
 
   const remaining = new Set(allocatedIds);
   remaining.delete(targetNodeId);
 
-  if (!remaining.has(classStartNodeId)) {
-    remaining.add(classStartNodeId);
+  const reachable = new Set<number>();
+  const queue: number[] = [];
+  for (const r of roots) {
+    if (remaining.has(r) || r === roots[0]) {
+      remaining.add(r);
+      reachable.add(r);
+      queue.push(r);
+    }
   }
-
-  // BFS from classStartNodeId restricted to `remaining`
-  const reachable = new Set<number>([classStartNodeId]);
-  const queue: number[] = [classStartNodeId];
 
   while (queue.length > 0) {
     const cur = queue.shift()!;

@@ -12,6 +12,7 @@ import type {
 import {
   createEmptyBuild,
   findShortestPathToNode,
+  getAscendancyStartNodeId,
   getClassesForGame,
   getGemsForGame,
   getSampleBuild,
@@ -68,6 +69,7 @@ interface WebPobState {
   addItem: (item: Item, autoEquipSlot?: EquipmentSlotId) => void;
   equipItem: (slot: EquipmentSlotId, itemId: string) => void;
   unequipSlot: (slot: EquipmentSlotId) => void;
+  toggleFlaskActive: (slot: EquipmentSlotId) => void;
 
   // Config
   updateConfig: (patch: Partial<BuildConfig>) => void;
@@ -206,20 +208,33 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
 
     setBuildMeta: (patch) => {
       const cur = get().build;
+      const tree = getTreeForGame(cur.game);
       let next: Build = { ...cur, ...patch };
       if (patch.classId && patch.classId !== cur.classId) {
         const classes = getClassesForGame(cur.game);
         const classDef = classes.find((c) => c.id === patch.classId) ?? classes[0]!;
-        const tree = getTreeForGame(cur.game);
         const startId = tree.classStartNodeIds[classDef.id] ?? Object.values(tree.classStartNodeIds)[0]!;
+        const nextAsc = classDef.ascendancies[0]?.id ?? '';
+        const ascStartId = getAscendancyStartNodeId(tree, nextAsc);
         next = {
           ...next,
-          ascendancyId: classDef.ascendancies[0]?.id ?? '',
+          ascendancyId: nextAsc,
           tree: {
             ...next.tree,
-            allocatedNodeIds: [startId],
+            allocatedNodeIds: ascStartId ? [startId, ascStartId] : [startId],
             weaponSet1NodeIds: [],
             weaponSet2NodeIds: [],
+          },
+        };
+      } else if (patch.ascendancyId !== undefined && patch.ascendancyId !== cur.ascendancyId) {
+        // Strip previous ascendancy nodes and seed the newly chosen ascendancy start node
+        const mainNodes = cur.tree.allocatedNodeIds.filter((id) => !tree.nodes[id]?.ascendancyId);
+        const ascStartId = getAscendancyStartNodeId(tree, patch.ascendancyId);
+        next = {
+          ...next,
+          tree: {
+            ...next.tree,
+            allocatedNodeIds: ascStartId ? [...mainNodes, ascStartId] : mainNodes,
           },
         };
       }
@@ -231,12 +246,21 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       const mode = get().treePaintMode;
       const tree = getTreeForGame(cur.game);
       const startId = tree.classStartNodeIds[cur.classId] ?? cur.tree.allocatedNodeIds[0] ?? 0;
+      const ascStartId = getAscendancyStartNodeId(tree, cur.ascendancyId);
+      const rootIds = ascStartId ? [startId, ascStartId] : [startId];
 
-      const sharedSet = new Set(cur.tree.allocatedNodeIds);
+      // Auto-seed ascendancy start node when user clicks an ascendancy node for the first time
+      const clickedNode = tree.nodes[nodeId];
+      const baseAlloc =
+        clickedNode?.ascendancyId && ascStartId && !cur.tree.allocatedNodeIds.includes(ascStartId)
+          ? [...cur.tree.allocatedNodeIds, ascStartId]
+          : cur.tree.allocatedNodeIds;
+
+      const sharedSet = new Set(baseAlloc);
       const set1Set = new Set(cur.tree.weaponSet1NodeIds);
       const set2Set = new Set(cur.tree.weaponSet2NodeIds);
 
-      if (cur.game === 'poe2' && (mode === 'set1' || mode === 'set2')) {
+      if (cur.game === 'poe2' && (mode === 'set1' || mode === 'set2') && !clickedNode?.ascendancyId) {
         const targetSet = mode === 'set1' ? set1Set : set2Set;
         const otherSet = mode === 'set1' ? set2Set : set1Set;
         if (targetSet.has(nodeId)) {
@@ -260,9 +284,9 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
         return;
       }
 
-      // Standard shared allocation / deallocation with shortest path
+      // Standard shared allocation / deallocation with multi-root shortest path
       if (sharedSet.has(nodeId)) {
-        const pruned = removeNodeAndPruneDisconnected(tree, cur.tree.allocatedNodeIds, startId, nodeId);
+        const pruned = removeNodeAndPruneDisconnected(tree, baseAlloc, rootIds, nodeId);
         const prunedSet = new Set(pruned);
         commitBuild({
           ...cur,
@@ -276,7 +300,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       } else {
         const path = findShortestPathToNode(tree, sharedSet, nodeId);
         if (path.length === 0) return;
-        const nextAllocated = [...cur.tree.allocatedNodeIds, ...path];
+        const nextAllocated = [...baseAlloc, ...path];
         const nextSet = new Set(nextAllocated);
         commitBuild({
           ...cur,
@@ -443,7 +467,21 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       const cur = get().build;
       const nextEquipped = { ...cur.equipped };
       delete nextEquipped[slot];
-      commitBuild({ ...cur, equipped: nextEquipped });
+      const nextFlasks = { ...(cur.activeFlaskSlots ?? {}) };
+      delete nextFlasks[slot];
+      commitBuild({ ...cur, equipped: nextEquipped, activeFlaskSlots: nextFlasks });
+    },
+
+    toggleFlaskActive: (slot) => {
+      const cur = get().build;
+      const currentActive = Boolean(cur.activeFlaskSlots?.[slot]);
+      commitBuild({
+        ...cur,
+        activeFlaskSlots: {
+          ...(cur.activeFlaskSlots ?? {}),
+          [slot]: !currentActive,
+        },
+      });
     },
 
     updateConfig: (patch) => {

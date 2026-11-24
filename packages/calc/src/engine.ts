@@ -1,5 +1,6 @@
 import {
   DAMAGE_TYPES,
+  KeywordFlag,
   ModFlag,
   type Build,
   type CalcDefenceOutput,
@@ -15,11 +16,13 @@ import {
 } from '@webpob/core';
 import {
   findShortestPathToNode,
+  getAscendancyStartNodeId,
   getClassDef,
   getGemById,
   getRuleset,
   getTreeForGame,
   removeNodeAndPruneDisconnected,
+  UTILITY_FLASK_BUFFS,
 } from '@webpob/data';
 import { ModDB } from './modDb.js';
 import { parseModLines } from './modParser.js';
@@ -197,9 +200,20 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parseModLines(statText.split('\n'), `Mastery: ${label}`));
   }
 
-  // 3. Equipped Items
+  // 3. Equipped Items & Active Utility Flasks
   const equippedItems = getActiveEquippedItems(build);
   for (const { slot, item } of equippedItems) {
+    if (slot.startsWith('Flask ')) {
+      if (!build.activeFlaskSlots?.[slot]) continue;
+      const src = `Flask (${slot}): ${item.name}`;
+      const baseBuffs = UTILITY_FLASK_BUFFS[item.baseName];
+      if (baseBuffs) {
+        db.addMods(parseModLines(baseBuffs, `${src} [Base]`));
+      }
+      db.addMods(parseModLines(item.implicits, `${src} [Implicit]`));
+      db.addMods(parseModLines(item.explicits, src));
+      continue;
+    }
     const src = `Item (${slot}): ${item.name}`;
     if (item.armourStats?.armour) {
       db.addMod({ name: 'Armour', type: 'BASE', value: item.armourStats.armour, flags: 0, keywordFlags: 0, source: src });
@@ -462,11 +476,31 @@ export function calculateBuild(build: Build): CalcOutput {
     { label: 'Dexterity', labelZh: '敏捷', ...dexStat, total: dex },
     { label: 'Intelligence', labelZh: '智慧', ...intStat, total: int },
     { label: 'Movement Speed (%)', labelZh: '移动速度 (%)', ...moveSpeedEval, total: defence.movementSpeedPct },
+    ...(momPct > 0
+      ? [
+          {
+            label: 'Mind Over Matter (%)',
+            labelZh: '心灵升华魔力承伤 (%)',
+            ...db.calcStat('DamageTakenFromManaBeforeLife'),
+            total: momPct,
+          },
+        ]
+      : []),
   ];
 
-  // Exclude start node from passive point count (just like PoB)
+  // Exclude start node and ascendancy nodes from main passive point count (just like PoB)
   const startNodeId = tree.classStartNodeIds[build.classId];
-  const allocatedPoints = build.tree.allocatedNodeIds.filter((id) => id !== startNodeId).length;
+  const ascStartNodeId = getAscendancyStartNodeId(tree, build.ascendancyId);
+  const allocatedPoints = build.tree.allocatedNodeIds.filter((id) => {
+    if (id === startNodeId) return false;
+    const node = tree.nodes[id];
+    return !node?.ascendancyId;
+  }).length;
+  const ascendancyPoints = build.tree.allocatedNodeIds.filter((id) => {
+    if (id === ascStartNodeId) return false;
+    const node = tree.nodes[id];
+    return Boolean(node?.ascendancyId);
+  }).length;
 
   return {
     game: build.game,
@@ -474,6 +508,7 @@ export function calculateBuild(build: Build): CalcOutput {
     defence,
     breakdowns,
     allocatedPoints,
+    ascendancyPoints,
     weaponSet1Points: build.tree.weaponSet1NodeIds.length,
     weaponSet2Points: build.tree.weaponSet2NodeIds.length,
     warnings,
@@ -861,11 +896,53 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * 100) / 100;
   const hitDps = Math.round(avgHitWithCrit * speedExact * (hitChance / 100) * 100) / 100;
 
-  // Ailment DPS estimates (PoE 1 Ignite base = 90% of base Fire hit damage per second)
-  const hasIgnite = damageByType.Fire.average > 0 && ((kwFlags & (1 << 17)) !== 0 || critChance > 0);
-  const igniteDps = hasIgnite ? Math.round(damageByType.Fire.average * 0.9 * (critChance > 0 ? 1 : 0.9)) : 0;
-  const bleedDps = 0;
-  const poisonDps = 0;
+  // Ailment DPS (Ignite / Bleed / Poison) with DoT Multiplier & Crit Ailment bonus
+  const dotMulti = skillDb.sum('BASE', 'DotMultiplier', flags, kwFlags);
+  const dotInc = skillDb.sum('INC', 'DotDamage', flags, kwFlags);
+  const dotMore = skillDb.more('DotDamage', flags, kwFlags);
+
+  const igniteChance = Math.min(100, skillDb.sum('BASE', 'IgniteChance', flags, kwFlags));
+  const hasIgnite =
+    damageByType.Fire.average > 0 &&
+    ((kwFlags & KeywordFlag.Ignite) !== 0 || igniteChance > 0 || critChance > 0);
+  let igniteDps = 0;
+  if (hasIgnite) {
+    const fireDotMulti = dotMulti + skillDb.sum('BASE', 'FireDotMultiplier', flags, kwFlags);
+    const igniteInc = dotInc + skillDb.sum('INC', 'IgniteDamage', flags, kwFlags);
+    const igniteMore = dotMore * skillDb.more('IgniteDamage', flags, kwFlags);
+    const baseIgnite = damageByType.Fire.average * 0.9 * (1 + igniteInc / 100) * igniteMore;
+    const nonCritIgnite = baseIgnite * (1 + fireDotMulti / 100);
+    // Crits always ignite with +50% DoT Multiplier for Ailments from Critical Strikes
+    const critIgnite = baseIgnite * (1 + (fireDotMulti + 50) / 100);
+    const baseChanceFrac = Math.min(1, ((kwFlags & KeywordFlag.Ignite) !== 0 ? Math.max(25, igniteChance) : igniteChance) / 100);
+    const critFrac = critChance / 100;
+    const effIgniteChance = critFrac + (1 - critFrac) * baseChanceFrac;
+    const critShare = effIgniteChance > 0 ? Math.min(1, (critFrac / effIgniteChance) * 1.9) : 0;
+    igniteDps = Math.round(nonCritIgnite * (1 - critShare) + critIgnite * critShare);
+  }
+
+  const bleedChance = Math.min(100, skillDb.sum('BASE', 'BleedChance', flags, kwFlags));
+  let bleedDps = 0;
+  if (isAttack && damageByType.Physical.average > 0 && bleedChance > 0) {
+    const physDotMulti = dotMulti + skillDb.sum('BASE', 'PhysicalDotMultiplier', flags, kwFlags);
+    bleedDps = Math.round(
+      damageByType.Physical.average * 0.7 * (1 + dotInc / 100) * dotMore * (1 + physDotMulti / 100),
+    );
+  }
+
+  const poisonChance = Math.min(100, skillDb.sum('BASE', 'PoisonChance', flags, kwFlags));
+  let poisonDps = 0;
+  if (poisonChance > 0 && damageByType.Physical.average + damageByType.Chaos.average > 0) {
+    const chaosDotMulti = dotMulti + skillDb.sum('BASE', 'ChaosDotMultiplier', flags, kwFlags);
+    const singlePoison =
+      (damageByType.Physical.average + damageByType.Chaos.average) *
+      0.3 *
+      (1 + dotInc / 100) *
+      dotMore *
+      (1 + chaosDotMulti / 100);
+    const activeStacks = speedExact * (hitChance / 100) * (poisonChance / 100) * 2.0; // 2s base duration
+    poisonDps = Math.round(singlePoison * activeStacks);
+  }
 
   const totalDps = Math.round((hitDps + igniteDps + bleedDps + poisonDps) * 100) / 100;
   const manaCost = activeDef.manaCost ?? 15;
@@ -903,6 +980,8 @@ export function computeNodePower(
   const baseOut = baseline ?? calculateBuild(build);
   const tree = getTreeForGame(build.game);
   const startNodeId = tree.classStartNodeIds[build.classId] ?? build.tree.allocatedNodeIds[0] ?? 0;
+  const ascStartNodeId = getAscendancyStartNodeId(tree, build.ascendancyId);
+  const rootIds = ascStartNodeId ? [startNodeId, ascStartNodeId] : [startNodeId];
 
   const allAllocated = new Set<number>([
     ...build.tree.allocatedNodeIds,
@@ -917,10 +996,10 @@ export function computeNodePower(
   let simulatedBuild: Build;
 
   if (isAllocated) {
-    if (nodeId === startNodeId) {
+    if (rootIds.includes(nodeId)) {
       return { nodeId, isAllocated: true, dpsDelta: 0, dpsDeltaPct: 0, lifeDelta: 0, esDelta: 0, ehpDelta: 0 };
     }
-    const pruned = removeNodeAndPruneDisconnected(tree, [...allAllocated], startNodeId, nodeId);
+    const pruned = removeNodeAndPruneDisconnected(tree, [...allAllocated], rootIds, nodeId);
     simulatedBuild = {
       ...build,
       tree: {

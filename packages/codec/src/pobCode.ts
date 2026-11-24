@@ -164,7 +164,11 @@ export function buildToPobXml(build: Build): string {
     if (!itemId) continue;
     const numId = idToNum.get(itemId);
     if (numId) {
-      lines.push(`      <Slot name="${escapeXml(slot)}" itemId="${numId}" />`);
+      const isActiveFlask =
+        slot.startsWith('Flask ') && build.activeFlaskSlots?.[slot as EquipmentSlotId];
+      lines.push(
+        `      <Slot name="${escapeXml(slot)}" itemId="${numId}"${isActiveFlask ? ' active="true"' : ''} />`,
+      );
     }
   }
   lines.push(`    </ItemSet>`);
@@ -364,6 +368,7 @@ export function xmlToBuild(xml: string): Build {
   }
 
   const equipped: Partial<Record<EquipmentSlotId, string>> = {};
+  const activeFlaskSlots: Partial<Record<EquipmentSlotId, boolean>> = {};
   const slotRegex = /<Slot\b([^>]*)\/?>/gi;
   let slotMatch: RegExpExecArray | null;
   while ((slotMatch = slotRegex.exec(xml)) !== null) {
@@ -372,6 +377,9 @@ export function xmlToBuild(xml: string): Build {
     const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
     if (slotName && itemId) {
       equipped[slotName] = itemId;
+      if (slotName.startsWith('Flask ') && attrs.active === 'true') {
+        activeFlaskSlots[slotName] = true;
+      }
     }
   }
 
@@ -449,6 +457,7 @@ export function xmlToBuild(xml: string): Build {
     mainSkillGroupId,
     items,
     equipped,
+    ...(Object.keys(activeFlaskSlots).length > 0 ? { activeFlaskSlots } : {}),
     config,
     notes,
   };

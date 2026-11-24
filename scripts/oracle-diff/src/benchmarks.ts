@@ -290,4 +290,132 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding2>`,
   },
+  {
+    id: 'poe1_elementalist_ascendancy',
+    title: 'PoE 1 — Lv.92 Elementalist Ascendancy + Lua-Exported Ice Spear + Elemental Focus',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="Alira" className="Witch" ascendClassName="Elementalist" mainSocketGroup="1" buildName="Oracle: Elementalist Ascendancy Ice Spear"/>
+  <Tree activeSpec="1">
+    <Spec title="Elementalist" treeVersion="3_30" classId="3" ascendClassId="2" nodes="54447,57264,37569,36542,16023,6052,47873,37114,54279"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ice Spear">
+        <Gem gemId="Metadata/Items/Gems/SkillGemIceSpear" skillId="IceSpear" nameSpec="Ice Spear" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemElementalFocus" skillId="SupportElementalFocus" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"><Input name="bandit" string="Alira"/></ConfigSet></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_utility_flasks_active',
+    title: 'PoE 1 — Active Utility Flasks (Granite + Jade + Diamond) + Frostbolt Lv.20',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Utility Flasks"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Frostbolt">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFrostbolt" skillId="Frostbolt" nameSpec="Frostbolt" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: MAGIC
+Granite Flask
+Quality: 0
+Implicits: 0
+50% increased Armour during effect
+    </Item>
+    <Item id="2">
+Rarity: MAGIC
+Jade Flask
+Quality: 0
+Implicits: 0
+45% increased Evasion Rating during effect
+    </Item>
+    <Item id="3">
+Rarity: MAGIC
+Diamond Flask
+Quality: 0
+Implicits: 0
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Flask 1" itemId="1" active="true"/>
+      <Slot name="Flask 2" itemId="2" active="true"/>
+      <Slot name="Flask 3" itemId="3" active="true"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_mom_hierophant_frostbolt',
+    title: 'PoE 1 — Mind Over Matter (40% MoM) + Lua-Exported Frostbolt Lv.21',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: MoM Frostbolt Lv.21"/>
+  <Tree activeSpec="1">
+    <Spec title="MoM" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,34098"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Frostbolt">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFrostbolt" skillId="Frostbolt" nameSpec="Frostbolt" level="21" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Mind Crown
+Hubris Circlet
+Quality: 20
+Implicits: 0
++120 to maximum Mana
++90 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Helmet" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_comet_sorc',
+    title: 'PoE 2 — Lv.90 Sorceress w/ Lua-Exported Comet Lv.20 + Tree',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Sorceress" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Comet Sorc"/>
+  <Tree activeSpec="1">
+    <Spec title="Tree" treeVersion="0_5" classId="7" classInternalId="7" ascendClassId="0" nodes="54447,44871,30346,29695,43736,2254,13769"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Comet">
+        <Gem gemId="Metadata/Items/Gems/SkillGemComet" skillId="CometPlayer" nameSpec="Comet" variantId="Comet" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

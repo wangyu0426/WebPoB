@@ -76,6 +76,9 @@ export function SidebarStats() {
         {offence.bleedDps > 0 && (
           <StatRow label={t(locale, 'sidebar.bleedDps')} value={fmtNum(offence.bleedDps)} valueClass="text-rose-400" />
         )}
+        {offence.poisonDps > 0 && (
+          <StatRow label={locale === 'zh-CN' ? '中毒 DPS' : 'Poison DPS'} value={fmtNum(offence.poisonDps)} valueClass="text-lime-400" />
+        )}
         <StatRow label={t(locale, 'sidebar.averageHit')} value={fmtNum(offence.averageHit)} />
         <StatRow label={t(locale, 'sidebar.speed')} value={`${offence.speed.toFixed(2)} /s`} />
         <StatRow label={t(locale, 'sidebar.critChance')} value={`${offence.critChance.toFixed(1)}%`} valueClass="text-yellow-300" />
@@ -166,6 +169,11 @@ export function SidebarStats() {
         <span className="text-zinc-400">{t(locale, 'sidebar.points')}</span>
         <span className="font-mono font-semibold text-amber-200">
           {calc.allocatedPoints}
+          {(calc.ascendancyPoints ?? 0) > 0 && (
+            <span className="text-[10px] text-amber-300/90 ml-1">
+              +{calc.ascendancyPoints}/8
+            </span>
+          )}
           {build.game === 'poe2' && (
             <span className="text-[10px] text-zinc-400 ml-1">
               (I:{calc.weaponSet1Points} / II:{calc.weaponSet2Points})

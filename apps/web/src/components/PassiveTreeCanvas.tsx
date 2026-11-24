@@ -12,7 +12,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import type { NodePowerDelta, PassiveNode } from '@webpob/core';
-import { findShortestPathToNode, getTreeForGame } from '@webpob/data';
+import { findShortestPathToNode, getAscendancyStartNodeId, getTreeForGame } from '@webpob/data';
 import { localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { computeNodePower } from '@webpob/calc';
 import { useWebPobStore } from '../store/useWebPobStore';
@@ -100,10 +100,41 @@ export function PassiveTreeCanvas() {
 
   const isOfficialFull = Boolean(tree.isOfficialFull);
 
-  // Filter visible nodes: main passive tree (exclude non-selected ascendancies for clean layout)
+  // Filter visible nodes: main passive tree + selected Ascendancy sub-tree
   const visibleNodes = useMemo(() => {
-    return Object.values(tree.nodes).filter((n) => !n.ascendancyId);
-  }, [tree]);
+    const ascTarget = build.ascendancyId?.toLowerCase().trim() || '';
+    return Object.values(tree.nodes).filter(
+      (n) => !n.ascendancyId || (ascTarget && n.ascendancyId.toLowerCase() === ascTarget),
+    );
+  }, [tree, build.ascendancyId]);
+
+  const ascStartNodeId = useMemo(
+    () => getAscendancyStartNodeId(tree, build.ascendancyId),
+    [tree, build.ascendancyId],
+  );
+
+  const ascendancyCenter = useMemo(() => {
+    const ascTarget = build.ascendancyId?.toLowerCase().trim() || '';
+    if (!ascTarget) return null;
+    const ascNodes = visibleNodes.filter(
+      (n) => n.ascendancyId && n.ascendancyId.toLowerCase() === ascTarget,
+    );
+    if (ascNodes.length === 0) return null;
+    let sumX = 0;
+    let sumY = 0;
+    for (const n of ascNodes) {
+      sumX += n.x;
+      sumY += n.y;
+    }
+    const cx = sumX / ascNodes.length;
+    const cy = sumY / ascNodes.length;
+    let maxDist = 300;
+    for (const n of ascNodes) {
+      const d = Math.hypot(n.x - cx, n.y - cy);
+      if (d > maxDist) maxDist = d;
+    }
+    return { x: cx, y: cy, radius: maxDist + 160, count: ascNodes.length };
+  }, [visibleNodes, build.ascendancyId]);
 
   // Build spatial hash grid for O(1) hover & click hit-testing across 4,500+ nodes
   const spatialGrid = useMemo(() => {
@@ -246,6 +277,16 @@ export function PassiveTreeCanvas() {
     }
   }, [tree]);
 
+  const focusAscendancy = useCallback(() => {
+    if (!ascendancyCenter) return;
+    const targetZoom = isOfficialFull ? 0.2 : 0.9;
+    setCamera({
+      x: -ascendancyCenter.x * targetZoom,
+      y: -ascendancyCenter.y * targetZoom,
+      zoom: targetZoom,
+    });
+  }, [ascendancyCenter, isOfficialFull]);
+
   // Auto-center whenever game or official tree loads
   useEffect(() => {
     centerOnBuild();
@@ -296,10 +337,13 @@ export function PassiveTreeCanvas() {
         ? new Set([...sharedSet, ...set1Set])
         : build.game === 'poe2' && treePaintMode === 'set2'
           ? new Set([...sharedSet, ...set2Set])
-          : sharedSet;
+          : new Set(sharedSet);
+    if (hovered.ascendancyId && ascStartNodeId) {
+      baseAllocated.add(ascStartNodeId);
+    }
     if (baseAllocated.has(hoveredNodeId)) return new Set<number>();
     return new Set(findShortestPathToNode(tree, baseAllocated, hoveredNodeId));
-  }, [hoveredNodeId, build.game, treePaintMode, sharedSet, set1Set, set2Set, tree]);
+  }, [hoveredNodeId, build.game, treePaintMode, sharedSet, set1Set, set2Set, ascStartNodeId, tree]);
 
   // Live Node Power Delta calculation on hover
   const hoveredPower: NodePowerDelta | null = useMemo(() => {
@@ -371,6 +415,30 @@ export function PassiveTreeCanvas() {
     const invZoom = 1 / camera.zoom;
     const baseLineWidth = Math.max(isOfficialFull ? 10 : 2, 1.5 * invZoom);
     const activeLineWidth = Math.max(isOfficialFull ? 18 : 4, 3.2 * invZoom);
+
+    // 0. Draw golden Ascendancy medallion backdrop when selected Ascendancy sub-tree is in view
+    if (ascendancyCenter) {
+      ctx.save();
+      const grad = ctx.createRadialGradient(
+        ascendancyCenter.x,
+        ascendancyCenter.y,
+        ascendancyCenter.radius * 0.15,
+        ascendancyCenter.x,
+        ascendancyCenter.y,
+        ascendancyCenter.radius,
+      );
+      grad.addColorStop(0, 'rgba(217, 155, 45, 0.14)');
+      grad.addColorStop(0.75, 'rgba(180, 120, 30, 0.06)');
+      grad.addColorStop(1, 'rgba(180, 120, 30, 0)');
+      ctx.beginPath();
+      ctx.arc(ascendancyCenter.x, ascendancyCenter.y, ascendancyCenter.radius, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(243, 204, 130, 0.28)';
+      ctx.lineWidth = Math.max(isOfficialFull ? 12 : 2, 1.6 * invZoom);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // 1. Draw visible edges (inactive first, active/highlighted second for crisp layering)
     const activeEdges: Array<{ edge: EdgeRecord; color: string; dashed: boolean }> = [];
@@ -612,6 +680,7 @@ export function PassiveTreeCanvas() {
     build.tree.masteryEffects,
     locale,
     isOfficialFull,
+    ascendancyCenter,
   ]);
 
   // Resize observer
@@ -867,6 +936,17 @@ export function PassiveTreeCanvas() {
             <Crosshair className="w-3.5 h-3.5" />
             {locale === 'zh-CN' ? '定位BD' : 'Focus'}
           </button>
+          {ascendancyCenter && (
+            <button
+              type="button"
+              onClick={focusAscendancy}
+              title={build.ascendancyId}
+              className="flex items-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {locale === 'zh-CN' ? `升华 (${calc.ascendancyPoints ?? 0}/8)` : `Asc (${calc.ascendancyPoints ?? 0}/8)`}
+            </button>
+          )}
           <button
             type="button"
             onClick={fitWholeTree}

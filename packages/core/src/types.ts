@@ -335,6 +335,8 @@ export interface Build {
   mainSkillGroupId: string;
   items: Record<string, Item>;
   equipped: Partial<Record<EquipmentSlotId, string>>;
+  /** Which Flask slots are currently active in calculations (matches PoB `<Slot active="true">`). */
+  activeFlaskSlots?: Partial<Record<EquipmentSlotId, boolean>>;
   config: BuildConfig;
   notes: string;
   /** Bandits (PoE 1) or Campaign Buffs. */
@@ -469,6 +471,7 @@ export interface CalcOutput {
   defence: CalcDefenceOutput;
   breakdowns: StatBreakdownRow[];
   allocatedPoints: number;
+  ascendancyPoints?: number;
   weaponSet1Points: number;
   weaponSet2Points: number;
   warnings: Array<{ code: string; message: LocalizedText }>;
