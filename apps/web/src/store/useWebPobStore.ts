@@ -16,6 +16,9 @@ import {
   getGemsForGame,
   getSampleBuild,
   getTreeForGame,
+  hasOfficialTreeLoaded,
+  loadOfficialGems,
+  loadOfficialTree,
   removeNodeAndPruneDisconnected,
 } from '@webpob/data';
 import { calculateBuild } from '@webpob/calc';
@@ -28,10 +31,13 @@ interface WebPobState {
   activeTab: ActiveTab;
   treePaintMode: TreePaintMode;
   corsProxyUrl: string;
+  dataLoading: boolean;
+  treeRevision: number;
   build: Build;
   calc: CalcOutput;
 
   // Actions
+  ensureOfficialDataLoaded: (game?: GameId) => Promise<void>;
   setLocale: (locale: Locale) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setTreePaintMode: (mode: TreePaintMode) => void;
@@ -44,6 +50,7 @@ interface WebPobState {
   // Character & Tree
   setBuildMeta: (patch: Partial<Pick<Build, 'name' | 'level' | 'classId' | 'ascendancyId' | 'activeWeaponSet' | 'bandit' | 'notes'>>) => void;
   togglePassiveNode: (nodeId: number) => void;
+  setMasteryEffect: (nodeId: number, effectText: string | null) => void;
   resetPassiveTree: () => void;
 
   // Skills
@@ -107,8 +114,59 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
     activeTab: 'tree',
     treePaintMode: 'shared',
     corsProxyUrl: '',
+    dataLoading: false,
+    treeRevision: 0,
     build: initial.build,
     calc: calculateBuild(initial.build),
+
+    ensureOfficialDataLoaded: async (gameArg) => {
+      const game = gameArg ?? get().build.game;
+      if (hasOfficialTreeLoaded(game)) return;
+      set({ dataLoading: true });
+      try {
+        const [tree] = await Promise.all([
+          loadOfficialTree(game),
+          loadOfficialGems(game),
+        ]);
+        const cur = get().build;
+        if (cur.game === game) {
+          // If current build is a sample build created before official tree loaded, upgrade to official sample path
+          const isStarterSample =
+            (cur.id === 'sample-poe1-arc' || cur.id === 'sample-poe2-spark') &&
+            cur.tree.treeVersion !== tree.version;
+          const validCount = cur.tree.allocatedNodeIds.filter((id) => Boolean(tree.nodes[id])).length;
+          if (isStarterSample || validCount === 0) {
+            if (cur.id === 'sample-poe1-arc' || cur.id === 'sample-poe2-spark') {
+              const upgraded = getSampleBuild(game);
+              set({ treeRevision: get().treeRevision + 1, dataLoading: false });
+              commitBuild(upgraded);
+              return;
+            }
+            const startId = tree.classStartNodeIds[cur.classId] ?? Object.values(tree.classStartNodeIds)[0]!;
+            const nextBuild: Build = {
+              ...cur,
+              tree: {
+                ...cur.tree,
+                treeVersion: tree.version,
+                allocatedNodeIds: [startId],
+                weaponSet1NodeIds: [],
+                weaponSet2NodeIds: [],
+              },
+            };
+            set({ treeRevision: get().treeRevision + 1, dataLoading: false });
+            commitBuild(nextBuild);
+            return;
+          }
+          set({ treeRevision: get().treeRevision + 1, dataLoading: false });
+          commitBuild(cur);
+        } else {
+          set({ treeRevision: get().treeRevision + 1, dataLoading: false });
+        }
+      } catch (err) {
+        console.warn('[WebPoB] Failed to load official dataset, using built-in fallback:', err);
+        set({ dataLoading: false });
+      }
+    },
 
     setLocale: (locale) => {
       persistState(get().build, locale);
@@ -124,6 +182,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       const sample = getSampleBuild(game);
       set({ treePaintMode: 'shared' });
       commitBuild(sample);
+      void get().ensureOfficialDataLoaded(game);
     },
 
     loadSampleBuild: (game) => {
@@ -227,6 +286,23 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
           },
         });
       }
+    },
+
+    setMasteryEffect: (nodeId, effectText) => {
+      const cur = get().build;
+      const nextMasteries = { ...cur.tree.masteryEffects };
+      if (!effectText) {
+        delete nextMasteries[nodeId];
+      } else {
+        nextMasteries[nodeId] = effectText;
+      }
+      commitBuild({
+        ...cur,
+        tree: {
+          ...cur.tree,
+          masteryEffects: nextMasteries,
+        },
+      });
     },
 
     resetPassiveTree: () => {

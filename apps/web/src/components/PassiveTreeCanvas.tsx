@@ -1,22 +1,56 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, RotateCcw, Search, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ChevronRight,
+  Crosshair,
+  Loader2,
+  Maximize2,
+  RotateCcw,
+  Search,
+  Sparkles,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import type { NodePowerDelta, PassiveNode } from '@webpob/core';
 import { findShortestPathToNode, getTreeForGame } from '@webpob/data';
 import { localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { computeNodePower } from '@webpob/calc';
 import { useWebPobStore } from '../store/useWebPobStore';
 
-function getNodeRadius(kind: PassiveNode['kind']): number {
+const SPATIAL_CELL_SIZE = 320;
+
+function getNodeRadius(kind: PassiveNode['kind'], isFullOfficial: boolean): number {
+  const scale = isFullOfficial ? 2.4 : 1;
   switch (kind) {
     case 'start':
-      return 24;
+      return 34 * scale;
     case 'keystone':
-      return 22;
+      return 30 * scale;
+    case 'mastery':
+      return 24 * scale;
+    case 'jewel':
+      return 22 * scale;
     case 'notable':
-      return 16;
+      return 21 * scale;
     default:
-      return 11;
+      return 13 * scale;
   }
+}
+
+interface EdgeRecord {
+  a: PassiveNode;
+  b: PassiveNode;
+  sameOrbitArc: boolean;
+  cx?: number;
+  cy?: number;
+  r?: number;
+  startAngle?: number;
+  endAngle?: number;
+  counterclockwise?: boolean;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
 }
 
 export function PassiveTreeCanvas() {
@@ -24,20 +58,32 @@ export function PassiveTreeCanvas() {
     locale,
     build,
     calc,
+    dataLoading,
+    treeRevision,
     treePaintMode,
     setTreePaintMode,
     togglePassiveNode,
+    setMasteryEffect,
     resetPassiveTree,
   } = useWebPobStore();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.62 });
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.08 });
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchIdx, setSearchIdx] = useState(0);
   const [hoveredNodeId, setHoveredNodeId] = useState<number | null>(null);
+  const [masteryModalNodeId, setMasteryModalNodeId] = useState<number | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ active: boolean; moved: boolean; startX: number; startY: number; camX: number; camY: number }>({
+  const dragRef = useRef<{
+    active: boolean;
+    moved: boolean;
+    startX: number;
+    startY: number;
+    camX: number;
+    camY: number;
+  }>({
     active: false,
     moved: false,
     startX: 0,
@@ -46,36 +92,205 @@ export function PassiveTreeCanvas() {
     camY: 0,
   });
 
-  const tree = useMemo(() => getTreeForGame(build.game), [build.game]);
-  const nodeList = useMemo(() => Object.values(tree.nodes), [tree]);
+  // Re-evaluate whenever game switches or official full JSON finishes loading
+  const tree = useMemo(() => {
+    void treeRevision;
+    return getTreeForGame(build.game);
+  }, [build.game, treeRevision]);
+
+  const isOfficialFull = Boolean(tree.isOfficialFull);
+
+  // Filter visible nodes: main passive tree (exclude non-selected ascendancies for clean layout)
+  const visibleNodes = useMemo(() => {
+    return Object.values(tree.nodes).filter((n) => !n.ascendancyId);
+  }, [tree]);
+
+  // Build spatial hash grid for O(1) hover & click hit-testing across 4,500+ nodes
+  const spatialGrid = useMemo(() => {
+    const grid = new Map<string, PassiveNode[]>();
+    for (const node of visibleNodes) {
+      const cx = Math.floor(node.x / SPATIAL_CELL_SIZE);
+      const cy = Math.floor(node.y / SPATIAL_CELL_SIZE);
+      const key = `${cx},${cy}`;
+      let bucket = grid.get(key);
+      if (!bucket) {
+        bucket = [];
+        grid.set(key, bucket);
+      }
+      bucket.push(node);
+    }
+    return grid;
+  }, [visibleNodes]);
+
+  // Precompute deduplicated edge list with orbit arc geometry & AABB for viewport culling
+  const edgeList = useMemo(() => {
+    const visibleSet = new Set(visibleNodes.map((n) => n.id));
+    const seen = new Set<string>();
+    const edges: EdgeRecord[] = [];
+    const groups = tree.groups ?? {};
+
+    for (const a of visibleNodes) {
+      for (const bId of a.adjacent) {
+        if (!visibleSet.has(bId)) continue;
+        const key = a.id < bId ? `${a.id}-${bId}` : `${bId}-${a.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const b = tree.nodes[bId];
+        if (!b) continue;
+
+        let sameOrbitArc = false;
+        let cx: number | undefined;
+        let cy: number | undefined;
+        let r: number | undefined;
+        let startAngle: number | undefined;
+        let endAngle: number | undefined;
+        let counterclockwise = false;
+
+        if (
+          a.group !== undefined &&
+          a.group === b.group &&
+          a.orbit !== undefined &&
+          a.orbit > 0 &&
+          a.orbit === b.orbit &&
+          a.orbitRadius &&
+          groups[a.group]
+        ) {
+          const g = groups[a.group]!;
+          cx = g.x;
+          cy = g.y;
+          r = a.orbitRadius;
+          const angA = Math.atan2(a.y - cy, a.x - cx);
+          const angB = Math.atan2(b.y - cy, b.x - cx);
+          let diff = angB - angA;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          // Draw curved arc only if span is <= 180 deg
+          if (Math.abs(diff) < Math.PI - 0.05) {
+            sameOrbitArc = true;
+            startAngle = angA;
+            endAngle = angB;
+            counterclockwise = diff < 0;
+          }
+        }
+
+        const pad = r ? r : 0;
+        edges.push({
+          a,
+          b,
+          sameOrbitArc,
+          cx,
+          cy,
+          r,
+          startAngle,
+          endAngle,
+          counterclockwise,
+          minX: sameOrbitArc && cx !== undefined ? cx - pad : Math.min(a.x, b.x),
+          maxX: sameOrbitArc && cx !== undefined ? cx + pad : Math.max(a.x, b.x),
+          minY: sameOrbitArc && cy !== undefined ? cy - pad : Math.min(a.y, b.y),
+          maxY: sameOrbitArc && cy !== undefined ? cy + pad : Math.max(a.y, b.y),
+        });
+      }
+    }
+    return edges;
+  }, [visibleNodes, tree]);
 
   const sharedSet = useMemo(() => new Set(build.tree.allocatedNodeIds), [build.tree.allocatedNodeIds]);
   const set1Set = useMemo(() => new Set(build.tree.weaponSet1NodeIds), [build.tree.weaponSet1NodeIds]);
   const set2Set = useMemo(() => new Set(build.tree.weaponSet2NodeIds), [build.tree.weaponSet2NodeIds]);
 
-  const matchedSearchIds = useMemo(() => {
+  const centerOnBuild = useCallback(() => {
+    const startId = tree.classStartNodeIds[build.classId];
+    const focusIds =
+      build.tree.allocatedNodeIds.length > 1
+        ? build.tree.allocatedNodeIds
+        : startId
+          ? [startId]
+          : [];
+
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+    for (const id of focusIds) {
+      const n = tree.nodes[id];
+      if (n && !n.ascendancyId) {
+        sumX += n.x;
+        sumY += n.y;
+        count++;
+      }
+    }
+
+    const defaultZoom = isOfficialFull ? (build.game === 'poe2' ? 0.095 : 0.13) : 0.62;
+    if (count > 0) {
+      const cx = sumX / count;
+      const cy = sumY / count;
+      setCamera({ x: -cx * defaultZoom, y: -cy * defaultZoom, zoom: defaultZoom });
+    } else {
+      setCamera({ x: 0, y: 0, zoom: defaultZoom });
+    }
+  }, [tree, build.classId, build.tree.allocatedNodeIds, build.game, isOfficialFull]);
+
+  const fitWholeTree = useCallback(() => {
+    const container = containerRef.current;
+    const w = container?.clientWidth ?? 1000;
+    const h = container?.clientHeight ?? 700;
+    if (tree.bounds) {
+      const spanX = Math.max(1000, tree.bounds.maxX - tree.bounds.minX);
+      const spanY = Math.max(1000, tree.bounds.maxY - tree.bounds.minY);
+      const zoom = Math.min(w / spanX, h / spanY) * 0.9;
+      const midX = (tree.bounds.minX + tree.bounds.maxX) / 2;
+      const midY = (tree.bounds.minY + tree.bounds.maxY) / 2;
+      setCamera({ x: -midX * zoom, y: -midY * zoom, zoom });
+    } else {
+      setCamera({ x: 0, y: 0, zoom: 0.6 });
+    }
+  }, [tree]);
+
+  // Auto-center whenever game or official tree loads
+  useEffect(() => {
+    centerOnBuild();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [build.game, treeRevision]);
+
+  const matchedSearchList = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return new Set<number>();
-    const matches = new Set<number>();
-    for (const node of nodeList) {
+    if (!q) return [];
+    const matches: PassiveNode[] = [];
+    for (const node of visibleNodes) {
       const hay = [
         node.name.en,
         node.name.zh,
         ...node.stats,
-        ...node.stats.map((s) => localizeStatLine(s, 'zh-CN')),
+        ...(node.statsZh ?? []),
       ]
         .join(' ')
         .toLowerCase();
       if (hay.includes(q)) {
-        matches.add(node.id);
+        matches.push(node);
       }
     }
     return matches;
-  }, [nodeList, searchQuery]);
+  }, [visibleNodes, searchQuery]);
+
+  const matchedSearchIds = useMemo(
+    () => new Set(matchedSearchList.map((n) => n.id)),
+    [matchedSearchList],
+  );
+
+  const jumpToSearchMatch = (nextIndex: number) => {
+    if (matchedSearchList.length === 0) return;
+    const idx = ((nextIndex % matchedSearchList.length) + matchedSearchList.length) % matchedSearchList.length;
+    setSearchIdx(idx);
+    const target = matchedSearchList[idx]!;
+    const targetZoom = isOfficialFull ? 0.22 : 1.0;
+    setCamera({ x: -target.x * targetZoom, y: -target.y * targetZoom, zoom: targetZoom });
+  };
 
   // Preview shortest path for hovered unallocated node
   const previewPathSet = useMemo(() => {
     if (hoveredNodeId === null) return new Set<number>();
+    const hovered = tree.nodes[hoveredNodeId];
+    if (!hovered || hovered.kind === 'mastery') return new Set<number>();
     const baseAllocated =
       build.game === 'poe2' && treePaintMode === 'set1'
         ? new Set([...sharedSet, ...set1Set])
@@ -90,7 +305,7 @@ export function PassiveTreeCanvas() {
   const hoveredPower: NodePowerDelta | null = useMemo(() => {
     if (hoveredNodeId === null) return null;
     const node = tree.nodes[hoveredNodeId];
-    if (!node || node.kind === 'start') return null;
+    if (!node || node.kind === 'start' || node.kind === 'mastery') return null;
     return computeNodePower(build, hoveredNodeId, calc);
   }, [hoveredNodeId, tree, build, calc]);
 
@@ -109,7 +324,7 @@ export function PassiveTreeCanvas() {
     [camera],
   );
 
-  // Canvas render loop
+  // High-FPS Viewport-Culled Canvas Render
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -118,6 +333,8 @@ export function PassiveTreeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     const width = container.clientWidth;
     const height = container.clientHeight;
+    if (width === 0 || height === 0) return;
+
     canvas.width = width * dpr;
     canvas.height = height * dpr;
 
@@ -127,170 +344,264 @@ export function PassiveTreeCanvas() {
     ctx.save();
     ctx.scale(dpr, dpr);
 
-    // Background radial glow
-    const grad = ctx.createRadialGradient(width / 2, height / 2, 40, width / 2, height / 2, Math.max(width, height) * 0.75);
-    grad.addColorStop(0, '#141824');
-    grad.addColorStop(1, '#090b10');
+    // Deep obsidian radial backdrop
+    const grad = ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      30,
+      width / 2,
+      height / 2,
+      Math.max(width, height) * 0.78,
+    );
+    grad.addColorStop(0, '#131826');
+    grad.addColorStop(1, '#080a0f');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
     ctx.translate(width / 2 + camera.x, height / 2 + camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
-    // Subtle concentric orbit guide rings
-    ctx.strokeStyle = 'rgba(200, 162, 101, 0.06)';
-    ctx.lineWidth = 1.5;
-    for (const r of [240, 330, 410, 495, 585, 660]) {
-      ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    // Compute visible world viewport bounds for frustum culling
+    const padWorld = 300 / Math.max(0.02, camera.zoom);
+    const viewMinX = (-width / 2 - camera.x) / camera.zoom - padWorld;
+    const viewMaxX = (width / 2 - camera.x) / camera.zoom + padWorld;
+    const viewMinY = (-height / 2 - camera.y) / camera.zoom - padWorld;
+    const viewMaxY = (height / 2 - camera.y) / camera.zoom + padWorld;
 
-    // Draw edges
-    const drawnEdges = new Set<string>();
-    for (const node of nodeList) {
-      for (const adjId of node.adjacent) {
-        const key = node.id < adjId ? `${node.id}-${adjId}` : `${adjId}-${node.id}`;
-        if (drawnEdges.has(key)) continue;
-        drawnEdges.add(key);
+    const invZoom = 1 / camera.zoom;
+    const baseLineWidth = Math.max(isOfficialFull ? 10 : 2, 1.5 * invZoom);
+    const activeLineWidth = Math.max(isOfficialFull ? 18 : 4, 3.2 * invZoom);
 
-        const target = tree.nodes[adjId];
-        if (!target) continue;
+    // 1. Draw visible edges (inactive first, active/highlighted second for crisp layering)
+    const activeEdges: Array<{ edge: EdgeRecord; color: string; dashed: boolean }> = [];
 
-        const bothShared = sharedSet.has(node.id) && sharedSet.has(adjId);
-        const isSet1Edge =
-          build.game === 'poe2' &&
-          (set1Set.has(node.id) || set1Set.has(adjId)) &&
-          (sharedSet.has(node.id) || set1Set.has(node.id)) &&
-          (sharedSet.has(adjId) || set1Set.has(adjId));
-        const isSet2Edge =
-          build.game === 'poe2' &&
-          (set2Set.has(node.id) || set2Set.has(adjId)) &&
-          (sharedSet.has(node.id) || set2Set.has(node.id)) &&
-          (sharedSet.has(adjId) || set2Set.has(adjId));
-        const isPreviewEdge =
-          (previewPathSet.has(node.id) || previewPathSet.has(adjId)) &&
-          (previewPathSet.has(node.id) || sharedSet.has(node.id) || set1Set.has(node.id) || set2Set.has(node.id)) &&
-          (previewPathSet.has(adjId) || sharedSet.has(adjId) || set1Set.has(adjId) || set2Set.has(adjId));
+    ctx.beginPath();
+    ctx.strokeStyle = '#252c40';
+    ctx.lineWidth = baseLineWidth;
 
-        ctx.beginPath();
-        ctx.moveTo(node.x, node.y);
-        ctx.lineTo(target.x, target.y);
-
-        if (bothShared) {
-          ctx.strokeStyle = '#e5b96e';
-          ctx.lineWidth = 4;
-          ctx.setLineDash([]);
-        } else if (isSet1Edge) {
-          ctx.strokeStyle = '#22d3ee';
-          ctx.lineWidth = 3.5;
-          ctx.setLineDash([]);
-        } else if (isSet2Edge) {
-          ctx.strokeStyle = '#e879f9';
-          ctx.lineWidth = 3.5;
-          ctx.setLineDash([]);
-        } else if (isPreviewEdge) {
-          ctx.strokeStyle = '#fbbf24';
-          ctx.lineWidth = 3;
-          ctx.setLineDash([8, 6]);
-        } else {
-          ctx.strokeStyle = '#2b3247';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([]);
-        }
-        ctx.stroke();
+    for (const edge of edgeList) {
+      if (
+        edge.maxX < viewMinX ||
+        edge.minX > viewMaxX ||
+        edge.maxY < viewMinY ||
+        edge.minY > viewMaxY
+      ) {
+        continue;
       }
+
+      const aId = edge.a.id;
+      const bId = edge.b.id;
+      const bothShared = sharedSet.has(aId) && sharedSet.has(bId);
+      const isSet1Edge =
+        build.game === 'poe2' &&
+        (set1Set.has(aId) || set1Set.has(bId)) &&
+        (sharedSet.has(aId) || set1Set.has(aId)) &&
+        (sharedSet.has(bId) || set1Set.has(bId));
+      const isSet2Edge =
+        build.game === 'poe2' &&
+        (set2Set.has(aId) || set2Set.has(bId)) &&
+        (sharedSet.has(aId) || set2Set.has(aId)) &&
+        (sharedSet.has(bId) || set2Set.has(bId));
+      const isPreviewEdge =
+        (previewPathSet.has(aId) || previewPathSet.has(bId)) &&
+        (previewPathSet.has(aId) || sharedSet.has(aId) || set1Set.has(aId) || set2Set.has(aId)) &&
+        (previewPathSet.has(bId) || sharedSet.has(bId) || set1Set.has(bId) || set2Set.has(bId));
+
+      if (bothShared) {
+        activeEdges.push({ edge, color: '#e8bc72', dashed: false });
+        continue;
+      }
+      if (isSet1Edge) {
+        activeEdges.push({ edge, color: '#22d3ee', dashed: false });
+        continue;
+      }
+      if (isSet2Edge) {
+        activeEdges.push({ edge, color: '#e879f9', dashed: false });
+        continue;
+      }
+      if (isPreviewEdge) {
+        activeEdges.push({ edge, color: '#fbbf24', dashed: true });
+        continue;
+      }
+
+      if (edge.sameOrbitArc && edge.cx !== undefined && edge.cy !== undefined && edge.r !== undefined) {
+        ctx.moveTo(edge.a.x, edge.a.y);
+        ctx.arc(edge.cx, edge.cy, edge.r, edge.startAngle!, edge.endAngle!, edge.counterclockwise);
+      } else {
+        ctx.moveTo(edge.a.x, edge.a.y);
+        ctx.lineTo(edge.b.x, edge.b.y);
+      }
+    }
+    ctx.stroke();
+
+    // Draw highlighted / allocated edges on top
+    for (const { edge, color, dashed } of activeEdges) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = activeLineWidth;
+      ctx.setLineDash(dashed ? [14 * invZoom * 0.5, 10 * invZoom * 0.5] : []);
+      if (edge.sameOrbitArc && edge.cx !== undefined && edge.cy !== undefined && edge.r !== undefined) {
+        ctx.arc(edge.cx, edge.cy, edge.r, edge.startAngle!, edge.endAngle!, edge.counterclockwise);
+      } else {
+        ctx.moveTo(edge.a.x, edge.a.y);
+        ctx.lineTo(edge.b.x, edge.b.y);
+      }
+      ctx.stroke();
     }
     ctx.setLineDash([]);
 
-    // Draw nodes
-    for (const node of nodeList) {
-      const r = getNodeRadius(node.kind);
+    // 2. Draw visible nodes with LOD
+    const showKeystoneLabels = isOfficialFull ? camera.zoom >= 0.055 : true;
+    const showNotableLabels = isOfficialFull ? camera.zoom >= 0.14 : true;
+    const showSmallLabels = isOfficialFull ? camera.zoom >= 0.34 : camera.zoom >= 0.95;
+
+    for (const node of visibleNodes) {
+      if (
+        node.x < viewMinX ||
+        node.x > viewMaxX ||
+        node.y < viewMinY ||
+        node.y > viewMaxY
+      ) {
+        continue;
+      }
+
+      const r = getNodeRadius(node.kind, isOfficialFull);
       const isShared = sharedSet.has(node.id);
       const isSet1 = build.game === 'poe2' && set1Set.has(node.id);
       const isSet2 = build.game === 'poe2' && set2Set.has(node.id);
+      const isMasteryChosen = node.kind === 'mastery' && Boolean(build.tree.masteryEffects[node.id]);
       const isPreview = previewPathSet.has(node.id);
       const isHovered = hoveredNodeId === node.id;
       const isSearchHit = matchedSearchIds.has(node.id);
 
-      // Search pulse ring
+      // Search glow ring
       if (isSearchHit) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, r + 10, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+        ctx.arc(node.x, node.y, r + 14 * (isOfficialFull ? 2 : 0.7), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
         ctx.fill();
         ctx.strokeStyle = '#facc15';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = Math.max(4, 2.2 * invZoom);
         ctx.stroke();
       }
 
-      // Outer node circle
+      // Node shape
       ctx.beginPath();
-      ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+      if (node.kind === 'jewel') {
+        // Hexagonal jewel socket
+        for (let i = 0; i < 6; i++) {
+          const ang = (Math.PI / 3) * i - Math.PI / 6;
+          const px = node.x + r * Math.cos(ang);
+          const py = node.y + r * Math.sin(ang);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      } else {
+        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+      }
 
-      if (isShared) {
-        ctx.fillStyle = node.kind === 'keystone' ? '#7c2d12' : node.kind === 'notable' ? '#5c4119' : '#3e3018';
-        ctx.strokeStyle = '#f3cc82';
-        ctx.lineWidth = node.kind === 'small' ? 2.5 : 3.5;
+      if (isShared || isMasteryChosen) {
+        ctx.fillStyle =
+          node.kind === 'keystone'
+            ? '#7c2d12'
+            : node.kind === 'mastery'
+              ? '#1e3a5f'
+              : node.kind === 'notable'
+                ? '#5c4119'
+                : '#3e3018';
+        ctx.strokeStyle = isMasteryChosen ? '#38bdf8' : '#f3cc82';
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
       } else if (isSet1) {
         ctx.fillStyle = '#0e3a4c';
         ctx.strokeStyle = '#22d3ee';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
       } else if (isSet2) {
         ctx.fillStyle = '#4a124f';
         ctx.strokeStyle = '#e879f9';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
       } else if (isPreview) {
         ctx.fillStyle = '#332812';
         ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = Math.max(isOfficialFull ? 9 : 2.5, 2 * invZoom);
       } else {
-        ctx.fillStyle = node.kind === 'keystone' ? '#1c1724' : node.kind === 'notable' ? '#171c2b' : '#121520';
-        ctx.strokeStyle = isHovered ? '#e5b96e' : node.kind === 'keystone' ? '#7a5c32' : '#3a425b';
-        ctx.lineWidth = isHovered ? 3 : 2;
+        ctx.fillStyle =
+          node.kind === 'keystone'
+            ? '#22182b'
+            : node.kind === 'mastery'
+              ? '#12192b'
+              : node.kind === 'jewel'
+                ? '#0f2220'
+                : node.kind === 'notable'
+                  ? '#1a2033'
+                  : '#111520';
+        ctx.strokeStyle = isHovered
+          ? '#f3cc82'
+          : node.kind === 'keystone'
+            ? '#a3773c'
+            : node.kind === 'notable'
+              ? '#5c6687'
+              : node.kind === 'jewel'
+                ? '#2f7a71'
+                : node.kind === 'mastery'
+                  ? '#385780'
+                  : '#323a52';
+        ctx.lineWidth = Math.max(isOfficialFull ? 6 : 1.8, (isHovered ? 2.5 : 1.4) * invZoom);
       }
 
       ctx.fill();
       ctx.stroke();
 
-      // Inner emblem dot / keystone diamond
+      // Inner emblem for Keystone / Notable / Mastery / Start
       if (node.kind === 'keystone') {
+        const d = r * 0.45;
         ctx.beginPath();
-        ctx.moveTo(node.x, node.y - 9);
-        ctx.lineTo(node.x + 9, node.y);
-        ctx.lineTo(node.x, node.y + 9);
-        ctx.lineTo(node.x - 9, node.y);
+        ctx.moveTo(node.x, node.y - d);
+        ctx.lineTo(node.x + d, node.y);
+        ctx.lineTo(node.x, node.y + d);
+        ctx.lineTo(node.x - d, node.y);
         ctx.closePath();
-        ctx.fillStyle = isShared ? '#fbbf24' : '#7a5c32';
+        ctx.fillStyle = isShared ? '#fbbf24' : '#9c7134';
+        ctx.fill();
+      } else if (node.kind === 'mastery') {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = isMasteryChosen ? '#38bdf8' : '#3a5d8a';
         ctx.fill();
       } else if (node.kind === 'notable' || node.kind === 'start') {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, r * 0.42, 0, Math.PI * 2);
-        ctx.fillStyle = isShared ? '#f3cc82' : isSet1 ? '#22d3ee' : isSet2 ? '#e879f9' : '#4d5878';
+        ctx.arc(node.x, node.y, r * 0.38, 0, Math.PI * 2);
+        ctx.fillStyle = isShared ? '#f3cc82' : isSet1 ? '#22d3ee' : isSet2 ? '#e879f9' : '#4a5575';
         ctx.fill();
       }
 
-      // Labels for Start / Keystone / Notable (and all nodes when zoomed in)
-      if (node.kind !== 'small' || camera.zoom >= 0.95 || isHovered || isSearchHit) {
-        const label = localizeText(node.name, locale);
-        ctx.font =
-          node.kind === 'keystone'
-            ? 'bold 13px sans-serif'
-            : node.kind === 'notable' || node.kind === 'start'
-              ? '600 12px sans-serif'
-              : '11px sans-serif';
+      // LOD Text Labels
+      const shouldLabel =
+        isHovered ||
+        isSearchHit ||
+        node.kind === 'start' ||
+        (node.kind === 'keystone' && showKeystoneLabels) ||
+        (node.kind === 'notable' && showNotableLabels) ||
+        (node.kind === 'small' && showSmallLabels);
+
+      if (shouldLabel) {
+        const fontPx = Math.round(
+          (node.kind === 'keystone' || node.kind === 'start' ? 12.5 : 11) * invZoom,
+        );
+        ctx.font = `${node.kind === 'keystone' || node.kind === 'start' ? '700' : '600'} ${fontPx}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = isShared || isSet1 || isSet2 || isHovered ? '#fef3c7' : '#9aa4bd';
-        ctx.fillText(label, node.x, node.y + r + 5);
+        ctx.fillStyle =
+          isShared || isSet1 || isSet2 || isHovered || isSearchHit ? '#fef3c7' : '#9ca7c2';
+        ctx.fillText(localizeText(node.name, locale), node.x, node.y + r + 4 * invZoom);
       }
     }
 
     ctx.restore();
   }, [
     camera,
-    nodeList,
-    tree,
+    visibleNodes,
+    edgeList,
     sharedSet,
     set1Set,
     set2Set,
@@ -298,10 +609,12 @@ export function PassiveTreeCanvas() {
     hoveredNodeId,
     matchedSearchIds,
     build.game,
+    build.tree.masteryEffects,
     locale,
+    isOfficialFull,
   ]);
 
-  // Resize observer to re-trigger canvas paint cleanly
+  // Resize observer
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -312,17 +625,33 @@ export function PassiveTreeCanvas() {
     return () => observer.disconnect();
   }, []);
 
+  // O(1) spatial hash hit-test
   const hitTestNode = (sx: number, sy: number): number | null => {
     const world = screenToWorld(sx, sy);
-    for (const node of nodeList) {
-      const r = getNodeRadius(node.kind) + 6;
-      const dx = world.x - node.x;
-      const dy = world.y - node.y;
-      if (dx * dx + dy * dy <= r * r) {
-        return node.id;
+    const gx = Math.floor(world.x / SPATIAL_CELL_SIZE);
+    const gy = Math.floor(world.y / SPATIAL_CELL_SIZE);
+
+    let bestId: number | null = null;
+    let bestDistSq = Infinity;
+    const extraPad = 10 / Math.max(0.03, camera.zoom);
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = spatialGrid.get(`${gx + dx},${gy + dy}`);
+        if (!bucket) continue;
+        for (const node of bucket) {
+          const hitR = getNodeRadius(node.kind, isOfficialFull) + extraPad;
+          const distX = world.x - node.x;
+          const distY = world.y - node.y;
+          const dSq = distX * distX + distY * distY;
+          if (dSq <= hitR * hitR && dSq < bestDistSq) {
+            bestDistSq = dSq;
+            bestId = node.id;
+          }
+        }
       }
     }
-    return null;
+    return bestId;
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -362,21 +691,47 @@ export function PassiveTreeCanvas() {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickedId = hitTestNode(e.clientX - rect.left, e.clientY - rect.top);
       if (clickedId !== null) {
-        togglePassiveNode(clickedId);
+        const clickedNode = tree.nodes[clickedId];
+        if (clickedNode?.kind === 'mastery' && clickedNode.masteryEffects?.length) {
+          setMasteryModalNodeId(clickedId);
+        } else {
+          togglePassiveNode(clickedId);
+        }
       }
     }
   };
 
+  // Cursor-centered smooth zoom
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    setCamera((c) => ({
-      ...c,
-      zoom: Math.max(0.32, Math.min(2.2, c.zoom * factor)),
-    }));
+    const rect = e.currentTarget.getBoundingClientRect();
+    const sx = e.clientX - rect.left - rect.width / 2;
+    const sy = e.clientY - rect.top - rect.height / 2;
+
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    const minZoom = isOfficialFull ? 0.025 : 0.3;
+    const maxZoom = isOfficialFull ? 0.75 : 2.2;
+
+    setCamera((c) => {
+      const nextZoom = Math.max(minZoom, Math.min(maxZoom, c.zoom * factor));
+      const ratio = nextZoom / c.zoom;
+      return {
+        zoom: nextZoom,
+        x: sx - (sx - c.x) * ratio,
+        y: sy - (sy - c.y) * ratio,
+      };
+    });
   };
 
   const hoveredNode = hoveredNodeId !== null ? tree.nodes[hoveredNodeId] : null;
+  const masteryModalNode = masteryModalNodeId !== null ? tree.nodes[masteryModalNodeId] : null;
+
+  const getDisplayStats = (node: PassiveNode): string[] => {
+    if (locale === 'zh-CN' && node.statsZh && node.statsZh.length === node.stats.length) {
+      return node.statsZh;
+    }
+    return node.stats.map((s) => localizeStatLine(s, locale));
+  };
 
   return (
     <div ref={containerRef} className="relative flex-1 w-full h-full overflow-hidden select-none">
@@ -395,21 +750,50 @@ export function PassiveTreeCanvas() {
 
       {/* Top Overlay Controls */}
       <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Search */}
-        <div className="relative pointer-events-auto">
-          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t(locale, 'tree.searchPlaceholder')}
-            className="pob-input rounded-md pl-8 pr-3 py-1.5 text-xs w-64 shadow-lg"
-          />
-          {searchQuery.trim() && (
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-300 font-mono">
-              {matchedSearchIds.size}
-            </span>
+        {/* Bilingual Search with Jump-to-Match */}
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchIdx(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') jumpToSearchMatch(searchIdx + 1);
+              }}
+              placeholder={t(locale, 'tree.searchPlaceholder')}
+              className="pob-input rounded-md pl-8 pr-12 py-1.5 text-xs w-64 shadow-lg"
+            />
+            {searchQuery.trim() && (
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-300 font-mono">
+                {matchedSearchList.length}
+              </span>
+            )}
+          </div>
+          {matchedSearchList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => jumpToSearchMatch(searchIdx + 1)}
+              className="flex items-center gap-0.5 px-2 py-1.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs hover:bg-amber-500/30 cursor-pointer"
+              title="Jump to next match"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           )}
+          <span className="rounded bg-[#111521]/90 border border-[#252c40] px-2 py-1 text-[10px] font-mono text-zinc-400">
+            {dataLoading ? (
+              <span className="inline-flex items-center gap-1 text-amber-300">
+                <Loader2 className="w-3 h-3 animate-spin" /> Loading official tree...
+              </span>
+            ) : (
+              <span>
+                v{tree.version} · {visibleNodes.length.toLocaleString()} nodes
+              </span>
+            )}
+          </span>
         </div>
 
         {/* PoE 2 Weapon Set Passive Paint Mode */}
@@ -420,7 +804,9 @@ export function PassiveTreeCanvas() {
               type="button"
               onClick={() => setTreePaintMode('shared')}
               className={`px-2 py-0.5 rounded cursor-pointer ${
-                treePaintMode === 'shared' ? 'bg-amber-500/25 text-amber-200 border border-amber-500/40' : 'text-zinc-400'
+                treePaintMode === 'shared'
+                  ? 'bg-amber-500/25 text-amber-200 border border-amber-500/40'
+                  : 'text-zinc-400'
               }`}
             >
               {t(locale, 'tree.paintShared')}
@@ -429,7 +815,9 @@ export function PassiveTreeCanvas() {
               type="button"
               onClick={() => setTreePaintMode('set1')}
               className={`px-2 py-0.5 rounded cursor-pointer ${
-                treePaintMode === 'set1' ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/40' : 'text-zinc-400'
+                treePaintMode === 'set1'
+                  ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/40'
+                  : 'text-zinc-400'
               }`}
             >
               {t(locale, 'tree.paintSet1')}
@@ -438,7 +826,9 @@ export function PassiveTreeCanvas() {
               type="button"
               onClick={() => setTreePaintMode('set2')}
               className={`px-2 py-0.5 rounded cursor-pointer ${
-                treePaintMode === 'set2' ? 'bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/40' : 'text-zinc-400'
+                treePaintMode === 'set2'
+                  ? 'bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/40'
+                  : 'text-zinc-400'
               }`}
             >
               {t(locale, 'tree.paintSet2')}
@@ -446,11 +836,13 @@ export function PassiveTreeCanvas() {
           </div>
         )}
 
-        {/* Zoom & Reset */}
+        {/* Zoom & Framing Controls */}
         <div className="pointer-events-auto flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(2.2, c.zoom * 1.2) }))}
+            onClick={() =>
+              setCamera((c) => ({ ...c, zoom: Math.min(isOfficialFull ? 0.75 : 2.2, c.zoom * 1.25) }))
+            }
             title={t(locale, 'tree.zoomIn')}
             className="p-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-zinc-300 hover:text-amber-200 cursor-pointer"
           >
@@ -458,7 +850,9 @@ export function PassiveTreeCanvas() {
           </button>
           <button
             type="button"
-            onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.32, c.zoom * 0.85) }))}
+            onClick={() =>
+              setCamera((c) => ({ ...c, zoom: Math.max(isOfficialFull ? 0.025 : 0.3, c.zoom * 0.8) }))
+            }
             title={t(locale, 'tree.zoomOut')}
             className="p-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-zinc-300 hover:text-amber-200 cursor-pointer"
           >
@@ -466,12 +860,21 @@ export function PassiveTreeCanvas() {
           </button>
           <button
             type="button"
-            onClick={() => setCamera({ x: 0, y: 0, zoom: 0.62 })}
+            onClick={centerOnBuild}
+            title="Center on Build"
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer"
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+            {locale === 'zh-CN' ? '定位BD' : 'Focus'}
+          </button>
+          <button
+            type="button"
+            onClick={fitWholeTree}
             title={t(locale, 'tree.resetView')}
             className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer"
           >
             <Maximize2 className="w-3.5 h-3.5" />
-            {t(locale, 'tree.resetView')}
+            {locale === 'zh-CN' ? '全景' : 'Fit All'}
           </button>
           <button
             type="button"
@@ -489,35 +892,93 @@ export function PassiveTreeCanvas() {
         {t(locale, 'tree.hint')}
       </div>
 
+      {/* Mastery Picker Modal (PoE 1) */}
+      {masteryModalNode && masteryModalNode.masteryEffects && (
+        <div className="absolute inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
+          <div className="pob-panel rounded-lg w-full max-w-lg p-4 space-y-3 shadow-2xl border-sky-500/40">
+            <div className="flex items-center justify-between border-b border-[#252b3d] pb-2">
+              <div className="flex items-center gap-2 text-sky-300 font-bold text-sm">
+                <Sparkles className="w-4 h-4" />
+                {localizeText(masteryModalNode.name, locale)}
+              </div>
+              <button
+                type="button"
+                onClick={() => setMasteryModalNodeId(null)}
+                className="text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-1.5 max-h-80 overflow-y-auto">
+              {masteryModalNode.masteryEffects.map((effect) => {
+                const rawEn = effect.stats.join('\n');
+                const isSelected = build.tree.masteryEffects[masteryModalNode.id] === rawEn;
+                const display =
+                  locale === 'zh-CN' && effect.statsZh ? effect.statsZh : effect.stats;
+                return (
+                  <button
+                    key={effect.id}
+                    type="button"
+                    onClick={() => {
+                      setMasteryEffect(masteryModalNode.id, isSelected ? null : rawEn);
+                      setMasteryModalNodeId(null);
+                    }}
+                    className={`w-full text-left rounded p-2.5 text-xs border transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-100'
+                        : 'bg-[#0b0e15] border-[#23293a] text-zinc-200 hover:border-amber-500/40'
+                    }`}
+                  >
+                    {display.map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Rich Bilingual Hover Tooltip with Live Node Power Delta */}
-      {hoveredNode && (
+      {hoveredNode && !masteryModalNode && (
         <div
-          className="pointer-events-none absolute z-30 w-72 rounded-md border border-amber-500/45 bg-[#0e111a]/95 shadow-2xl p-3 text-xs backdrop-blur-sm"
+          className="pointer-events-none absolute z-30 w-80 rounded-md border border-amber-500/45 bg-[#0e111a]/95 shadow-2xl p-3 text-xs backdrop-blur-sm"
           style={{
-            left: Math.min(mousePos.x + 18, (containerRef.current?.clientWidth ?? 800) - 300),
-            top: Math.min(mousePos.y + 18, (containerRef.current?.clientHeight ?? 600) - 220),
+            left: Math.min(mousePos.x + 18, (containerRef.current?.clientWidth ?? 800) - 335),
+            top: Math.min(mousePos.y + 18, (containerRef.current?.clientHeight ?? 600) - 240),
           }}
         >
           <div className="flex items-center justify-between gap-2 border-b border-[#262d40] pb-1.5 mb-2">
-            <div>
-              <div className="font-bold text-amber-200 text-sm">
+            <div className="min-w-0">
+              <div className="font-bold text-amber-200 text-sm truncate">
                 {localizeText(hoveredNode.name, locale)}
               </div>
-              <div className="text-[10px] text-zinc-400">
-                {locale === 'zh-CN' ? hoveredNode.name.en : hoveredNode.name.zh}
-              </div>
+              {hoveredNode.name.zh !== hoveredNode.name.en && (
+                <div className="text-[10px] text-zinc-400 truncate">
+                  {locale === 'zh-CN' ? hoveredNode.name.en : hoveredNode.name.zh}
+                </div>
+              )}
             </div>
-            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-              {t(locale, `tree.${hoveredNode.kind}` as 'tree.keystone' | 'tree.notable' | 'tree.small' | 'tree.start')}
+            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+              {hoveredNode.kind}
             </span>
           </div>
 
           <div className="space-y-1 text-sky-200/95">
-            {hoveredNode.stats.length === 0 ? (
+            {hoveredNode.kind === 'mastery' ? (
+              <div className="text-sky-300">
+                {build.tree.masteryEffects[hoveredNode.id]
+                  ? localizeStatLine(build.tree.masteryEffects[hoveredNode.id]!, locale)
+                  : locale === 'zh-CN'
+                    ? '点击选择专精词缀效果'
+                    : 'Click to choose a Mastery effect'}
+              </div>
+            ) : hoveredNode.stats.length === 0 ? (
               <div className="text-zinc-400 italic">{t(locale, 'tree.start')}</div>
             ) : (
-              hoveredNode.stats.map((stat, idx) => (
-                <div key={idx}>• {localizeStatLine(stat, locale)}</div>
+              getDisplayStats(hoveredNode).map((stat, idx) => (
+                <div key={idx}>• {stat}</div>
               ))
             )}
           </div>
@@ -531,7 +992,8 @@ export function PassiveTreeCanvas() {
               <div className="grid grid-cols-2 gap-1 font-mono text-[11px]">
                 <div className={hoveredPower.dpsDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                   DPS: {hoveredPower.dpsDelta >= 0 ? '+' : ''}
-                  {Math.round(hoveredPower.dpsDelta).toLocaleString()} ({hoveredPower.dpsDeltaPct >= 0 ? '+' : ''}
+                  {Math.round(hoveredPower.dpsDelta).toLocaleString()} (
+                  {hoveredPower.dpsDeltaPct >= 0 ? '+' : ''}
                   {hoveredPower.dpsDeltaPct}%)
                 </div>
                 <div className={hoveredPower.lifeDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}>

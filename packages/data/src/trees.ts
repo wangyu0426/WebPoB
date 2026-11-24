@@ -312,8 +312,18 @@ export const POE2_TREE: PassiveTreeData = buildRadialTree(
   },
 );
 
+const registeredOfficialTrees: Partial<Record<GameId, PassiveTreeData>> = {};
+
+export function registerTreeData(tree: PassiveTreeData): void {
+  registeredOfficialTrees[tree.game] = tree;
+}
+
+export function hasOfficialTreeLoaded(game: GameId): boolean {
+  return Boolean(registeredOfficialTrees[game]?.isOfficialFull);
+}
+
 export function getTreeForGame(game: GameId): PassiveTreeData {
-  return game === 'poe2' ? POE2_TREE : POE1_TREE;
+  return registeredOfficialTrees[game] ?? (game === 'poe2' ? POE2_TREE : POE1_TREE);
 }
 
 /**

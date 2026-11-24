@@ -4,3 +4,4 @@ export * from './trees.js';
 export * from './gems.js';
 export * from './items.js';
 export * from './samples.js';
+export * from './treeLoader.js';

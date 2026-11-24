@@ -1,4 +1,5 @@
-import { Plus, Star, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Search, Star, Trash2 } from 'lucide-react';
 import type { EquipmentSlotId, WeaponSetId } from '@webpob/core';
 import { getGemsForGame, getRuleset } from '@webpob/data';
 import { getSlotLabel, localizeStatLine, localizeText, t } from '@webpob/i18n';
@@ -15,6 +16,7 @@ export function SkillsTab() {
   const {
     locale,
     build,
+    treeRevision,
     setMainSkillGroup,
     addSkillGroup,
     removeSkillGroup,
@@ -25,9 +27,20 @@ export function SkillsTab() {
     updateGem,
   } = useWebPobStore();
 
+  const [gemSearch, setGemSearch] = useState('');
+  void treeRevision;
   const gemsCatalog = getGemsForGame(build.game);
-  const activeGems = gemsCatalog.filter((g) => g.category === 'active');
-  const supportGems = gemsCatalog.filter((g) => g.category === 'support');
+  const q = gemSearch.trim().toLowerCase();
+  const filteredGems = q
+    ? gemsCatalog.filter(
+        (g) =>
+          g.name.en.toLowerCase().includes(q) ||
+          g.name.zh.toLowerCase().includes(q) ||
+          g.tags.some((tag) => tag.toLowerCase().includes(q)),
+      )
+    : gemsCatalog;
+  const activeGems = filteredGems.filter((g) => g.category === 'active').slice(0, 120);
+  const supportGems = filteredGems.filter((g) => g.category === 'support').slice(0, 120);
   const ruleset = getRuleset(build.game);
   const socketableSlots: EquipmentSlotId[] = ruleset.equipmentSlots.filter(
     (s) => !s.startsWith('Flask') && !s.startsWith('Charm') && !s.startsWith('Ring') && s !== 'Amulet' && s !== 'Belt',
@@ -41,16 +54,33 @@ export function SkillsTab() {
 
   return (
     <div className="h-full overflow-y-auto p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-amber-200">{t(locale, 'skills.title')}</h2>
-        <button
-          type="button"
-          onClick={addSkillGroup}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          {t(locale, 'skills.addGroup')}
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-bold text-amber-200">{t(locale, 'skills.title')}</h2>
+          <span className="text-[11px] font-mono text-zinc-400">
+            {gemsCatalog.length} {locale === 'zh-CN' ? '颗官方技能宝石' : 'official gems'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={gemSearch}
+              onChange={(e) => setGemSearch(e.target.value)}
+              placeholder={locale === 'zh-CN' ? '过滤宝石（中/英文/标签）...' : 'Filter gems (EN/ZH/tag)...'}
+              className="pob-input rounded pl-8 pr-2.5 py-1 text-xs w-56"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={addSkillGroup}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {t(locale, 'skills.addGroup')}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

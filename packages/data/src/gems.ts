@@ -427,8 +427,14 @@ export const POE2_GEMS: GemDefinition[] = [
   },
 ];
 
+const registeredOfficialGems: Partial<Record<GameId, GemDefinition[]>> = {};
+
+export function setRegisteredGems(game: GameId, gems: GemDefinition[]): void {
+  registeredOfficialGems[game] = gems;
+}
+
 export function getGemsForGame(game: GameId): GemDefinition[] {
-  return game === 'poe2' ? POE2_GEMS : POE1_GEMS;
+  return registeredOfficialGems[game] ?? (game === 'poe2' ? POE2_GEMS : POE1_GEMS);
 }
 
 export function getGemById(game: GameId, gemId: string): GemDefinition | undefined {

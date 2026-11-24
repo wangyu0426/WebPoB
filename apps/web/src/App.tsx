@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   Calculator,
   FileText,
@@ -30,7 +31,11 @@ const NAV_TABS: Array<{ id: ActiveTab; labelKey: MessageKey; icon: typeof GitBra
 ];
 
 export function App() {
-  const { locale, activeTab, setActiveTab } = useWebPobStore();
+  const { locale, activeTab, setActiveTab, build, ensureOfficialDataLoaded } = useWebPobStore();
+
+  useEffect(() => {
+    void ensureOfficialDataLoaded(build.game);
+  }, [build.game, ensureOfficialDataLoaded]);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0b0d12] text-zinc-100 overflow-hidden">

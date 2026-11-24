@@ -40,11 +40,14 @@ pnpm install
 # 2. 启动本地开发服务器
 pnpm dev
 
-# 3. 运行单元测试与类型检查
+# 3. 同步官方最新赛季天赋树与中文词库（PoE 1 3.30 & PoE 2 0.5）
+pnpm sync:data
+
+# 4. 运行单元测试与类型检查
 pnpm test
 pnpm typecheck
 
-# 4. 生产构建
+# 5. 生产构建
 pnpm build
 ```
 

@@ -1,6 +1,24 @@
 import type { Build, BuildConfig, GameId, Item } from '@webpob/core';
 import { POE1_PRESET_ITEMS, POE2_PRESET_ITEMS } from './items.js';
-import { POE1_TREE, POE2_TREE } from './trees.js';
+import { getTreeForGame, hasOfficialTreeLoaded } from './trees.js';
+
+// Verified connected official PoE 1 (3.30) Witch paths:
+// Start (54447) -> Arcanist's Dominion (11420) -> Heart and Soul (27203) + Cruel Preparation (21958) + Crackling Speed (7555) + Arcane Focus (42795)
+export const OFFICIAL_POE1_WITCH_SAMPLE_NODES = [
+  54447, 57264, 37569, 36542, 4397, 11420, 48362, 27203,
+  7938, 1031, 33755, 21958, 14021, 12379, 44183, 7555,
+  57226, 21678, 32210, 8948, 27929, 7503, 4432, 42795,
+];
+
+// Verified connected official PoE 2 (0.5) Sorceress paths:
+// Shared: Start (54447) -> Pure Energy (2254) -> Open Mind (59636)
+export const OFFICIAL_POE2_SORC_SHARED_NODES = [
+  54447, 44871, 30346, 29695, 43736, 2254, 13769, 59636,
+];
+// Weapon Set 1: Raw Power (51184)
+export const OFFICIAL_POE2_SORC_SET1_NODES = [4739, 18845, 1755, 41965, 51184];
+// Weapon Set 2: Practiced Signs (36302)
+export const OFFICIAL_POE2_SORC_SET2_NODES = [47307, 36302];
 
 export function createDefaultConfig(): BuildConfig {
   return {
@@ -36,6 +54,8 @@ function indexItems(items: Item[]): Record<string, Item> {
 
 export function createSamplePoe1Build(): Build {
   const items = indexItems(POE1_PRESET_ITEMS);
+  const tree = getTreeForGame('poe1');
+  const useOfficial = hasOfficialTreeLoaded('poe1');
   return {
     id: 'sample-poe1-arc',
     name: 'Elementalist Arc (PoE 1 Sample)',
@@ -47,12 +67,14 @@ export function createSamplePoe1Build(): Build {
     bandit: 'Alira',
     tree: {
       title: 'Endgame Crit Arc',
-      treeVersion: POE1_TREE.version,
-      allocatedNodeIds: [
-        1100, 2001, 2002, 2003,
-        3101, 3102, 3103, 3104, 3105, 3106,
-        3201, 3202, 3203, 3204,
-      ],
+      treeVersion: tree.version,
+      allocatedNodeIds: useOfficial
+        ? [...OFFICIAL_POE1_WITCH_SAMPLE_NODES]
+        : [
+            1100, 2001, 2002, 2003,
+            3101, 3102, 3103, 3104, 3105, 3106,
+            3201, 3202, 3203, 3204,
+          ],
       weaponSet1NodeIds: [],
       weaponSet2NodeIds: [],
       masteryEffects: {},
@@ -104,6 +126,8 @@ export function createSamplePoe1Build(): Build {
 
 export function createSamplePoe2Build(): Build {
   const items = indexItems(POE2_PRESET_ITEMS);
+  const tree = getTreeForGame('poe2');
+  const useOfficial = hasOfficialTreeLoaded('poe2');
   return {
     id: 'sample-poe2-spark',
     name: 'Stormweaver Archmage Spark (PoE 2 Sample)',
@@ -114,14 +138,13 @@ export function createSamplePoe2Build(): Build {
     activeWeaponSet: 1,
     tree: {
       title: 'Archmage ES / Mana',
-      treeVersion: POE2_TREE.version,
-      allocatedNodeIds: [
-        5100, 6001, 6002, 6003, 6012,
-        7101, 7104, 7105, 7601,
-      ],
-      // Demonstrate PoE 2 Weapon Set 1 (Lightning) vs Weapon Set 2 (Crit/Cold Swap) passives!
-      weaponSet1NodeIds: [7102, 7103],
-      weaponSet2NodeIds: [7201, 7202, 7203],
+      treeVersion: tree.version,
+      allocatedNodeIds: useOfficial
+        ? [...OFFICIAL_POE2_SORC_SHARED_NODES]
+        : [5100, 6001, 6002, 6003, 6012, 7101, 7104, 7105, 7601],
+      // Demonstrate PoE 2 Weapon Set 1 vs Weapon Set 2 passives!
+      weaponSet1NodeIds: useOfficial ? [...OFFICIAL_POE2_SORC_SET1_NODES] : [7102, 7103],
+      weaponSet2NodeIds: useOfficial ? [...OFFICIAL_POE2_SORC_SET2_NODES] : [7201, 7202, 7203],
       masteryEffects: {},
     },
     skills: [
@@ -173,6 +196,7 @@ export function createSamplePoe2Build(): Build {
 }
 
 export function createEmptyBuild(game: GameId): Build {
+  const tree = getTreeForGame(game);
   if (game === 'poe2') {
     return {
       id: `build-poe2-${Date.now()}`,
@@ -184,8 +208,8 @@ export function createEmptyBuild(game: GameId): Build {
       activeWeaponSet: 1,
       tree: {
         title: 'Default',
-        treeVersion: POE2_TREE.version,
-        allocatedNodeIds: [POE2_TREE.classStartNodeIds.Sorceress!],
+        treeVersion: tree.version,
+        allocatedNodeIds: [tree.classStartNodeIds.Sorceress ?? Object.values(tree.classStartNodeIds)[0]!],
         weaponSet1NodeIds: [],
         weaponSet2NodeIds: [],
         masteryEffects: {},
@@ -218,8 +242,8 @@ export function createEmptyBuild(game: GameId): Build {
     bandit: 'None',
     tree: {
       title: 'Default',
-      treeVersion: POE1_TREE.version,
-      allocatedNodeIds: [POE1_TREE.classStartNodeIds.Witch!],
+      treeVersion: tree.version,
+      allocatedNodeIds: [tree.classStartNodeIds.Witch ?? Object.values(tree.classStartNodeIds)[0]!],
       weaponSet1NodeIds: [],
       weaponSet2NodeIds: [],
       masteryEffects: {},

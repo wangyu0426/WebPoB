@@ -124,12 +124,23 @@ export interface Mod {
 
 export type PassiveNodeKind = 'start' | 'small' | 'notable' | 'keystone' | 'mastery' | 'jewel';
 
+export interface MasteryEffect {
+  id: number;
+  stats: string[];
+  statsZh?: string[];
+}
+
 export interface PassiveNode {
   id: number;
   name: LocalizedText;
   kind: PassiveNodeKind;
   x: number;
   y: number;
+  /** Group center ID for orbit arc rendering. */
+  group?: number;
+  orbit?: number;
+  orbitRadius?: number;
+  angle?: number;
   /** Canonical English stat lines (fed to ModParser). */
   stats: string[];
   /** Optional localized display stat lines for Chinese UI. */
@@ -140,6 +151,8 @@ export interface PassiveNode {
   classStartId?: string;
   /** Optional ascendancy ID if this node belongs to an ascendancy sub-tree. */
   ascendancyId?: string;
+  /** Mastery effect choices for PoE 1 mastery nodes. */
+  masteryEffects?: MasteryEffect[];
   /** Optional icon tag for canvas badge rendering. */
   iconTag?: string;
 }
@@ -147,6 +160,9 @@ export interface PassiveNode {
 export interface PassiveTreeData {
   game: GameId;
   version: string;
+  isOfficialFull?: boolean;
+  bounds?: { minX: number; maxX: number; minY: number; maxY: number };
+  groups?: Record<number, { x: number; y: number }>;
   nodes: Record<number, PassiveNode>;
   classStartNodeIds: Record<string, number>;
 }

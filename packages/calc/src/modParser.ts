@@ -80,7 +80,7 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^(\d+)% more Evasion Rating$/i,
     build: (m, src) => [mkMod('Evasion', 'MORE', Number(m[1]), src)],
   },
-  // Attributes
+  // Attributes (single, dual, all, and PoE 2 "any Attribute")
   {
     pattern: /^\+(\d+) to Strength$/i,
     build: (m, src) => [mkMod('Str', 'BASE', Number(m[1]), src)],
@@ -94,7 +94,28 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [mkMod('Int', 'BASE', Number(m[1]), src)],
   },
   {
-    pattern: /^\+(\d+) to all Attributes$/i,
+    pattern: /^\+(\d+) to Strength and Dexterity$/i,
+    build: (m, src) => [
+      mkMod('Str', 'BASE', Number(m[1]), src),
+      mkMod('Dex', 'BASE', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^\+(\d+) to Strength and Intelligence$/i,
+    build: (m, src) => [
+      mkMod('Str', 'BASE', Number(m[1]), src),
+      mkMod('Int', 'BASE', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^\+(\d+) to Dexterity and Intelligence$/i,
+    build: (m, src) => [
+      mkMod('Dex', 'BASE', Number(m[1]), src),
+      mkMod('Int', 'BASE', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^\+(\d+) to (?:all Attributes|any Attribute)$/i,
     build: (m, src) => {
       const v = Number(m[1]);
       return [
@@ -103,6 +124,32 @@ const PARSER_RULES: ParserRule[] = [
         mkMod('Int', 'BASE', v, src),
       ];
     },
+  },
+  // Hybrid Defences common on official PoE 1 & PoE 2 trees
+  {
+    pattern: /^(\d+)% increased Armour and Energy Shield$/i,
+    build: (m, src) => [
+      mkMod('Armour', 'INC', Number(m[1]), src),
+      mkMod('EnergyShield', 'INC', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^(\d+)% increased Evasion and Energy Shield$/i,
+    build: (m, src) => [
+      mkMod('Evasion', 'INC', Number(m[1]), src),
+      mkMod('EnergyShield', 'INC', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^(\d+)% increased Armour and Evasion$/i,
+    build: (m, src) => [
+      mkMod('Armour', 'INC', Number(m[1]), src),
+      mkMod('Evasion', 'INC', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^(\d+)% increased Mana Regeneration Rate$/i,
+    build: (m, src) => [mkMod('ManaRegen', 'INC', Number(m[1]), src)],
   },
   // Resistances
   {
@@ -253,7 +300,7 @@ const PARSER_RULES: ParserRule[] = [
       return [mkMod('Damage', type, val, src)];
     },
   },
-  // Speed
+  // Speed (including element-specific Cast/Attack speed on official trees)
   {
     pattern: /^(\d+)% (increased|more|less) Attack and Cast Speed$/i,
     build: (m, src) => {
@@ -266,7 +313,7 @@ const PARSER_RULES: ParserRule[] = [
     },
   },
   {
-    pattern: /^(\d+)% (increased|more|less) Attack Speed$/i,
+    pattern: /^(\d+)% (increased|more|less) Attack Speed(?: with .+)?$/i,
     build: (m, src) => {
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
       const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
@@ -274,24 +321,45 @@ const PARSER_RULES: ParserRule[] = [
     },
   },
   {
-    pattern: /^(\d+)% (increased|more|less) Cast Speed$/i,
+    pattern: /^(\d+)% (increased|more|less) Cast Speed(?: with (Fire|Cold|Lightning|Chaos|Physical) Skills)?$/i,
     build: (m, src) => {
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
       const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
-      return [mkMod('Speed', type, val, src, ModFlag.Spell)];
+      const el = m[3];
+      const kw =
+        el === 'Fire'
+          ? KeywordFlag.Fire
+          : el === 'Cold'
+            ? KeywordFlag.Cold
+            : el === 'Lightning'
+              ? KeywordFlag.Lightning
+              : el === 'Chaos'
+                ? KeywordFlag.Chaos
+                : el === 'Physical'
+                  ? KeywordFlag.Physical
+                  : 0;
+      return [mkMod('Speed', type, val, src, ModFlag.Spell, kw)];
     },
   },
-  // Critical Strikes
+  // Critical Strikes (PoE 1 & PoE 2 terminology)
   {
-    pattern: /^(\d+)% increased Critical Strike Chance for Spells$/i,
+    pattern: /^(\d+)% increased (?:Critical Strike|Critical Hit) Chance for Spells$/i,
     build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src, ModFlag.Spell)],
   },
   {
-    pattern: /^(\d+)% increased Critical Strike Chance$/i,
+    pattern: /^(\d+)% increased Spell Critical (?:Strike|Hit) Chance$/i,
+    build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src, ModFlag.Spell)],
+  },
+  {
+    pattern: /^(\d+)% increased (?:Global )?(?:Critical Strike|Critical Hit) Chance$/i,
     build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src)],
   },
   {
-    pattern: /^\+(\d+)% to (?:Global )?Critical Strike Multiplier$/i,
+    pattern: /^\+(\d+)% to (?:Global )?(?:Critical Strike Multiplier|Critical Damage Bonus)$/i,
+    build: (m, src) => [mkMod('CritMultiplier', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased (?:Critical Damage Bonus|Critical Strike Multiplier)(?: for Spells)?$/i,
     build: (m, src) => [mkMod('CritMultiplier', 'BASE', Number(m[1]), src)],
   },
   // Penetration

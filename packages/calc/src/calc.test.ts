@@ -1,5 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createSamplePoe1Build, createSamplePoe2Build } from '@webpob/data';
+import {
+  createSamplePoe1Build,
+  createSamplePoe2Build,
+  hydrateCompactTree,
+  registerTreeData,
+  type CompactTreePayload,
+} from '@webpob/data';
 import { calculateBuild, computeNodePower } from './index.js';
 
 describe('@webpob/calc', () => {
@@ -78,5 +86,30 @@ describe('@webpob/calc', () => {
     expect(delta.isAllocated).toBe(false);
     expect(delta.dpsDelta).toBeGreaterThan(0);
     expect(delta.dpsDeltaPct).toBeGreaterThan(0);
+  });
+
+  it('hydrates and calculates official full PoE 1 (3.30) & PoE 2 (0.5) passive trees', () => {
+    const poe1Path = path.resolve(process.cwd(), 'apps/web/public/data/poe1-tree-3_30.json');
+    const poe2Path = path.resolve(process.cwd(), 'apps/web/public/data/poe2-tree-0_5.json');
+
+    const poe1Tree = hydrateCompactTree(JSON.parse(fs.readFileSync(poe1Path, 'utf-8')) as CompactTreePayload);
+    const poe2Tree = hydrateCompactTree(JSON.parse(fs.readFileSync(poe2Path, 'utf-8')) as CompactTreePayload);
+
+    expect(Object.keys(poe1Tree.nodes).length).toBeGreaterThan(2500);
+    expect(Object.keys(poe2Tree.nodes).length).toBeGreaterThan(4000);
+
+    registerTreeData(poe1Tree);
+    registerTreeData(poe2Tree);
+
+    const officialPoe1 = createSamplePoe1Build();
+    const officialPoe2 = createSamplePoe2Build();
+    expect(officialPoe1.tree.treeVersion).toBe('3_30');
+    expect(officialPoe2.tree.treeVersion).toBe('0_5');
+
+    const out1 = calculateBuild(officialPoe1);
+    const out2 = calculateBuild(officialPoe2);
+    expect(out1.offence.totalDps).toBeGreaterThan(15000);
+    expect(out2.offence.totalDps).toBeGreaterThan(25000);
+    expect(out1.allocatedPoints).toBe(officialPoe1.tree.allocatedNodeIds.length - 1);
   });
 });

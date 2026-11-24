@@ -153,6 +153,14 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parseModLines(node.stats, `Tree: ${node.name.en}`));
   }
 
+  // Mastery effects chosen on PoE 1 mastery nodes
+  for (const [nodeIdStr, statText] of Object.entries(build.tree.masteryEffects ?? {})) {
+    if (!statText) continue;
+    const node = tree.nodes[Number(nodeIdStr)];
+    const label = node ? node.name.en : `Mastery ${nodeIdStr}`;
+    db.addMods(parseModLines(statText.split('\n'), `Mastery: ${label}`));
+  }
+
   // 3. Equipped Items
   const equippedItems = getActiveEquippedItems(build);
   for (const { slot, item } of equippedItems) {

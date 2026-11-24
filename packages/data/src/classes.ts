@@ -95,6 +95,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Stormweaver', name: { en: 'Stormweaver', zh: '风暴编织者' }, summary: { en: 'Double shock, elemental storms & arcane surge', zh: '双层感电、元素风暴与秘术涌动' } },
       { id: 'Chronomancer', name: { en: 'Chronomancer', zh: '时空法师' }, summary: { en: 'Time freeze, cooldown resets & temporal rift', zh: '时间冻结、冷却重置与时空裂隙' } },
+      { id: 'Disciple of Varashta', name: { en: 'Disciple of Varashta', zh: '瓦拉什塔门徒' }, summary: { en: 'Elemental invocations & arcane mastery', zh: '元素祈唤与奥术专精' } },
     ],
   },
   {
@@ -106,6 +107,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Invoker', name: { en: 'Invoker', zh: '祈求者' }, summary: { en: 'Spirit scaling, unbound avatar & elemental crits', zh: '精魂加成、无拘化身与元素暴击' } },
       { id: 'Acolyte of Chayula', name: { en: 'Acolyte of Chayula', zh: '夏乌拉侍僧' }, summary: { en: 'Darkness, chaos damage & mana leech', zh: '黑暗护盾、混沌增伤与魔力偷取' } },
+      { id: 'Martial Artist', name: { en: 'Martial Artist', zh: '武术家' }, summary: { en: 'Combo strikes & unarmed precision', zh: '连击招式与徒手专精' } },
     ],
   },
   {
@@ -128,6 +130,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Titan', name: { en: 'Titan', zh: '泰坦' }, summary: { en: 'Heavy stun, slam aftershocks & hulking form', zh: '重度眩晕、猛击余震与巨像形态' } },
       { id: 'Warbringer', name: { en: 'Warbringer', zh: '战争使者' }, summary: { en: 'Armour break, warcry totems & block', zh: '破甲、战吼图腾与格挡' } },
+      { id: 'Smith of Kitava', name: { en: 'Smith of Kitava', zh: '奇塔弗铁匠' }, summary: { en: 'Forged armour, fire resists & tempering', zh: '锻造护甲、火抗转化与淬火' } },
     ],
   },
   {
@@ -139,6 +142,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Witchhunter', name: { en: 'Witchhunter', zh: '猎巫人' }, summary: { en: 'Weapon set passives, sorcery ward & culling', zh: '武器组天赋专精、巫术结界与终结' } },
       { id: 'Gemling Legionnaire', name: { en: 'Gemling Legionnaire', zh: '宝石军团' }, summary: { en: 'Extra skill slots, gem quality & attribute stacking', zh: '额外技能槽、宝石品质与全属性堆叠' } },
+      { id: 'Tactician', name: { en: 'Tactician', zh: '战术家' }, summary: { en: 'Pinning shots, banners & reservation efficiency', zh: '定身射击、战旗与保留效率' } },
     ],
   },
   {
@@ -150,6 +154,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Infernalist', name: { en: 'Infernalist', zh: '炼狱师' }, summary: { en: 'Demon form, hellhound & spirit from life', zh: '恶魔形态、地狱犬与生命转精魂' } },
       { id: 'Blood Mage', name: { en: 'Blood Mage', zh: '血法师' }, summary: { en: 'Life remnants, spell crit & life overflow', zh: '生命残片、法术暴击与生命溢出' } },
+      { id: 'Lich', name: { en: 'Lich', zh: '巫妖' }, summary: { en: 'Unholy might, phylactery & eternal life', zh: '邪恶之力、命匣与不朽生命' } },
     ],
   },
   {
@@ -161,6 +166,17 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Amazon', name: { en: 'Amazon', zh: '亚马逊' }, summary: { en: 'Accuracy to crit & elemental infusion', zh: '命中转暴击与元素灌注' } },
       { id: 'Ritualist', name: { en: 'Ritualist', zh: '仪式师' }, summary: { en: 'Extra ring slot & blood boil', zh: '额外戒指槽与沸血仪式' } },
+    ],
+  },
+  {
+    id: 'Druid',
+    name: { en: 'Druid', zh: '德鲁伊' },
+    baseStr: 11,
+    baseDex: 7,
+    baseInt: 11,
+    ascendancies: [
+      { id: 'Oracle', name: { en: 'Oracle', zh: '神谕者' }, summary: { en: 'Foresight, elemental harmony & spirit', zh: '先见、元素和谐与精魂' } },
+      { id: 'Shaman', name: { en: 'Shaman', zh: '萨满' }, summary: { en: 'Totems, storm fury & shapeshift', zh: '图腾、风暴之怒与变形' } },
     ],
   },
 ];
