@@ -211,6 +211,19 @@ export interface GemDefinition {
   /** Canonical stat lines granted by this gem (or support gem) to supported skill / player. */
   stats: string[];
   statsZh?: string[];
+  /** Official per-quality stat lines (substituted with Math.trunc(quality * perQuality)). */
+  qualityStats?: Array<{ template: string; perQuality: number }>;
+  /** Exact per-level scaling table (1..30) synced from official PoB Lua data when available. */
+  levelScaling?: Record<
+    number,
+    {
+      baseDamage?: Partial<Record<DamageType, [number, number]>>;
+      attackDamageMultiplierPct?: number;
+      damageEffectivenessPct?: number;
+      manaCost?: number;
+      stats?: string[];
+    }
+  >;
   /** Whether stats apply globally (auras/buffs) vs only to the skill group. */
   isAuraOrBuff?: boolean;
 }
@@ -334,10 +347,16 @@ export interface GameRuleset {
   maxLevel: number;
   baseLife: number;
   lifePerLevel: number;
+  campaignLifeFlat: number;
+  campaignLifeIncPct: number;
   baseMana: number;
   manaPerLevel: number;
+  campaignManaIncPct: number;
   /** PoE 2 has Spirit; PoE 1 = 0. */
   baseSpirit: number;
+  baseEvasion: number;
+  accuracyPerLevel: number;
+  maxBlockChance: number;
   supportsSpirit: boolean;
   supportsWeaponSetPassives: boolean;
   supportsSpellSuppression: boolean;
@@ -355,10 +374,12 @@ export interface GameRuleset {
   esPctPerIntelligence: number;
   /** Default resistance cap (75). */
   defaultMaxResist: number;
-  /** Endgame campaign resistance penalty (-60 in PoE 1, -40 in PoE 2). */
+  /** Endgame campaign resistance penalty (-60 in PoE 1, -50 in PoE 2). */
   endgameResistPenalty: number;
   /** Chaos resistance penalty (-60 in PoE 1, 0 in PoE 2). */
   endgameChaosResistPenalty: number;
+  /** Default non-boss enemy elemental resistance (0 in PoE 1, 50 in PoE 2). */
+  defaultEnemyEleResist: number;
   /** Armour mitigation denominator multiplier (5 in PoE 1, 12 in PoE 2). */
   armourFormulaFactor: number;
   /** Default critical strike multiplier percentage (150 in PoE 1, 200 in PoE 2). */

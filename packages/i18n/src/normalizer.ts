@@ -375,6 +375,8 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
 export function normalizeStatLineToEn(rawLine: string): string {
   const cleaned = rawLine
     .trim()
+    .replace(/^\{[^}]+\}\s*/g, '')
+    .replace(/\{[^}]+\}/g, '')
     .replace(/（[^）]*）/g, '')
     .replace(/\((?:implicit|crafted|enchant|fractured)\)/gi, '')
     .replace(/\s+/g, ' ')

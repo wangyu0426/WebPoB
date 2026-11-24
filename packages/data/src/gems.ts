@@ -1,7 +1,7 @@
 import { KeywordFlag, ModFlag, type GameId, type GemDefinition } from '@webpob/core';
 
 export const POE1_GEMS: GemDefinition[] = [
-  // Active Spells
+  // Active Spells (Synced from official PoB 3.30 Lv.20 values)
   {
     id: 'poe1_arc',
     name: { en: 'Arc', zh: '电弧' },
@@ -11,12 +11,14 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Spell', 'Lightning', 'Chaining'],
     modFlags: ModFlag.Spell | ModFlag.Hit,
     keywordFlags: KeywordFlag.Spell | KeywordFlag.Lightning | KeywordFlag.Hit,
-    baseDamage: { Lightning: [158, 896] },
+    baseDamage: { Lightning: [198, 1122] },
     damageEffectivenessPct: 120,
-    castTime: 0.7,
+    castTime: 0.6,
     baseCritChance: 6,
-    manaCost: 23,
-    stats: ['15% more Damage'],
+    manaCost: 29,
+    // 7 remaining chains * 15% more Damage per remaining chain at Lv.20
+    stats: ['105% more Damage'],
+    qualityStats: [],
   },
   {
     id: 'poe1_fireball',
@@ -27,12 +29,13 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Spell', 'Fire', 'Projectile', 'Area'],
     modFlags: ModFlag.Spell | ModFlag.Hit | ModFlag.Projectile | ModFlag.Area,
     keywordFlags: KeywordFlag.Spell | KeywordFlag.Fire | KeywordFlag.Hit | KeywordFlag.Ignite,
-    baseDamage: { Fire: [1095, 1643] },
-    damageEffectivenessPct: 240,
+    baseDamage: { Fire: [1883, 2825] },
+    damageEffectivenessPct: 480,
     castTime: 0.75,
-    baseCritChance: 6,
-    manaCost: 25,
-    stats: ['10% increased Fire Damage'],
+    baseCritChance: 5,
+    manaCost: 20,
+    stats: [],
+    qualityStats: [],
   },
   {
     id: 'poe1_ice_nova',
@@ -43,14 +46,15 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Spell', 'Cold', 'Area'],
     modFlags: ModFlag.Spell | ModFlag.Hit | ModFlag.Area,
     keywordFlags: KeywordFlag.Spell | KeywordFlag.Cold | KeywordFlag.Hit,
-    baseDamage: { Cold: [612, 918] },
-    damageEffectivenessPct: 140,
+    baseDamage: { Cold: [590, 885] },
+    damageEffectivenessPct: 130,
     castTime: 0.7,
-    baseCritChance: 6,
-    manaCost: 24,
-    stats: ['20% more Area Damage'],
+    baseCritChance: 7.5,
+    manaCost: 23,
+    stats: [],
+    qualityStats: [],
   },
-  // Active Attacks
+  // Active Attacks (Synced from official PoB 3.30 Lv.20 values)
   {
     id: 'poe1_lightning_arrow',
     name: { en: 'Lightning Arrow', zh: '闪电箭矢' },
@@ -60,11 +64,12 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Attack', 'Projectile', 'Lightning', 'Bow'],
     modFlags: ModFlag.Attack | ModFlag.Hit | ModFlag.Projectile | ModFlag.Bow,
     keywordFlags: KeywordFlag.Attack | KeywordFlag.Lightning | KeywordFlag.Hit,
-    attackDamageMultiplierPct: 154,
-    damageEffectivenessPct: 154,
+    attackDamageMultiplierPct: 177.1,
+    damageEffectivenessPct: 177.1,
     attackSpeedMultiplier: 1.0,
     manaCost: 10,
-    stats: ['50% of Physical Damage Converted to Lightning Damage', 'Adds 19 to 360 Lightning Damage to Attacks'],
+    stats: ['50% of Physical Damage Converted to Lightning Damage'],
+    qualityStats: [],
   },
   {
     id: 'poe1_cyclone',
@@ -75,13 +80,14 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Attack', 'Melee', 'Area', 'Physical', 'Channelling'],
     modFlags: ModFlag.Attack | ModFlag.Hit | ModFlag.Melee | ModFlag.Area,
     keywordFlags: KeywordFlag.Attack | KeywordFlag.Physical | KeywordFlag.Hit,
-    attackDamageMultiplierPct: 68,
-    damageEffectivenessPct: 68,
+    attackDamageMultiplierPct: 150,
+    damageEffectivenessPct: 150,
     attackSpeedMultiplier: 3.0,
-    manaCost: 2,
-    stats: ['Adds 37 to 56 Physical Damage to Attacks'],
+    manaCost: 3,
+    stats: [],
+    qualityStats: [],
   },
-  // Auras (PoE 1 Mana Reservation)
+  // Auras (PoE 1 3.30 Lv.20)
   {
     id: 'poe1_wrath',
     name: { en: 'Wrath', zh: '雷霆' },
@@ -119,7 +125,7 @@ export const POE1_GEMS: GemDefinition[] = [
     keywordFlags: KeywordFlag.Aura,
     manaReservationPct: 50,
     isAuraOrBuff: true,
-    stats: ['+1400 to Evasion Rating', '29% more Evasion Rating'],
+    stats: ['+1545 to Evasion Rating', '29% more Evasion Rating'],
   },
   {
     id: 'poe1_discipline',
@@ -134,7 +140,7 @@ export const POE1_GEMS: GemDefinition[] = [
     isAuraOrBuff: true,
     stats: ['+217 to maximum Energy Shield'],
   },
-  // Supports
+  // Supports (PoE 1 3.30 Lv.20)
   {
     id: 'poe1_sup_spell_echo',
     name: { en: 'Spell Echo Support', zh: '法术回响（辅）' },
@@ -144,7 +150,8 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Support', 'Spell'],
     modFlags: ModFlag.Spell,
     keywordFlags: KeywordFlag.Spell,
-    stats: ['54% more Cast Speed', '10% less Damage'],
+    stats: ['54% more Cast Speed'],
+    qualityStats: [{ template: '{v}% increased Spell Damage', perQuality: 0.5 }],
   },
   {
     id: 'poe1_sup_lightning_pen',
@@ -156,6 +163,7 @@ export const POE1_GEMS: GemDefinition[] = [
     modFlags: ModFlag.Hit,
     keywordFlags: KeywordFlag.Lightning,
     stats: ['Damage Penetrates 34% Lightning Resistance'],
+    qualityStats: [{ template: '{v}% increased Lightning Damage', perQuality: 0.5 }],
   },
   {
     id: 'poe1_sup_controlled_destruction',
@@ -166,7 +174,8 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Support', 'Spell'],
     modFlags: ModFlag.Spell,
     keywordFlags: KeywordFlag.Spell,
-    stats: ['39% more Spell Damage'],
+    stats: ['39% more Spell Damage', '80% less Critical Strike Chance'],
+    qualityStats: [{ template: '{v}% increased Spell Damage', perQuality: 0.5 }],
   },
   {
     id: 'poe1_sup_inspiration',
@@ -178,6 +187,7 @@ export const POE1_GEMS: GemDefinition[] = [
     modFlags: ModFlag.None,
     keywordFlags: KeywordFlag.None,
     stats: ['25% more Elemental Damage', '40% increased Critical Strike Chance'],
+    qualityStats: [],
   },
   {
     id: 'poe1_sup_increased_crit_damage',
@@ -188,7 +198,8 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Support'],
     modFlags: ModFlag.None,
     keywordFlags: KeywordFlag.None,
-    stats: ['+115% to Critical Strike Multiplier'],
+    stats: ['+138% to Critical Strike Multiplier'],
+    qualityStats: [{ template: '+{v}% to Critical Strike Multiplier', perQuality: 0.75 }],
   },
   {
     id: 'poe1_sup_wed',
@@ -200,6 +211,7 @@ export const POE1_GEMS: GemDefinition[] = [
     modFlags: ModFlag.Attack,
     keywordFlags: KeywordFlag.Attack,
     stats: ['34% more Elemental Damage'],
+    qualityStats: [{ template: '{v}% increased Elemental Damage with Attack Skills', perQuality: 0.5 }],
   },
   {
     id: 'poe1_sup_brutality',
@@ -210,7 +222,8 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Support', 'Physical'],
     modFlags: ModFlag.None,
     keywordFlags: KeywordFlag.Physical,
-    stats: ['39% more Physical Damage'],
+    stats: ['39% more Physical Damage', 'Deal no Elemental Damage', 'Deal no Chaos Damage'],
+    qualityStats: [{ template: '{v}% increased Physical Damage', perQuality: 0.5 }],
   },
   {
     id: 'poe1_sup_faster_attacks',
@@ -222,11 +235,12 @@ export const POE1_GEMS: GemDefinition[] = [
     modFlags: ModFlag.Attack,
     keywordFlags: KeywordFlag.Attack,
     stats: ['44% increased Attack Speed'],
+    qualityStats: [{ template: '{v}% increased Attack Speed', perQuality: 0.5 }],
   },
 ];
 
 export const POE2_GEMS: GemDefinition[] = [
-  // Active Spells (PoE 2)
+  // Active Spells (Synced from official PoB-PoE2 0.5 Lv.20 values)
   {
     id: 'poe2_spark',
     name: { en: 'Spark', zh: '电球' },
@@ -236,12 +250,12 @@ export const POE2_GEMS: GemDefinition[] = [
     tags: ['Spell', 'Lightning', 'Projectile'],
     modFlags: ModFlag.Spell | ModFlag.Hit | ModFlag.Projectile,
     keywordFlags: KeywordFlag.Spell | KeywordFlag.Lightning | KeywordFlag.Hit,
-    baseDamage: { Lightning: [142, 1280] },
+    baseDamage: { Lightning: [11, 216] },
     damageEffectivenessPct: 100,
-    castTime: 0.65,
+    castTime: 0.7,
     baseCritChance: 9,
-    manaCost: 42,
-    stats: ['15% increased Projectile Damage'],
+    manaCost: 56,
+    stats: [],
   },
   {
     id: 'poe2_comet',

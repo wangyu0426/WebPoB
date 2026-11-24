@@ -1,6 +1,6 @@
 import { deflate, inflate } from 'pako';
 import type { Build, EquipmentSlotId, GameId, GemInstance, Item, SkillGroup, WeaponSetId } from '@webpob/core';
-import { createDefaultConfig, getClassesForGame, getGemsForGame, getTreeForGame } from '@webpob/data';
+import { createDefaultConfig, getClassesForGame, getGemsForGame, getRuleset, getTreeForGame } from '@webpob/data';
 import { formatItemToPobText, parseItemText } from './itemParser.js';
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -65,6 +65,27 @@ function parseAttributes(tagHeader: string): Record<string, string> {
   return attrs;
 }
 
+const POE1_CLASS_TO_NUM: Record<string, number> = {
+  Scion: 0,
+  Marauder: 1,
+  Ranger: 2,
+  Witch: 3,
+  Duelist: 4,
+  Templar: 5,
+  Shadow: 6,
+};
+
+const POE2_CLASS_TO_NUM: Record<string, number> = {
+  Witch: 1,
+  Ranger: 2,
+  Warrior: 6,
+  Sorceress: 7,
+  Huntress: 8,
+  Mercenary: 9,
+  Monk: 10,
+  Druid: 11,
+};
+
 /**
  * Serializes a WebPoB `Build` into official Path of Building XML format
  * (`<PathOfBuilding>` for PoE 1, `<PathOfBuilding2>` for PoE 2).
@@ -75,6 +96,11 @@ export function buildToPobXml(build: Build): string {
     1,
     build.skills.findIndex((s) => s.id === build.mainSkillGroupId) + 1,
   );
+  const classNum =
+    build.game === 'poe2'
+      ? (POE2_CLASS_TO_NUM[build.classId] ?? 6)
+      : (POE1_CLASS_TO_NUM[build.classId] ?? 3);
+  const gemsCatalog = getGemsForGame(build.game);
 
   const lines: string[] = [];
   lines.push(`<?xml version="1.0" encoding="UTF-8"?>`);
@@ -82,7 +108,7 @@ export function buildToPobXml(build: Build): string {
 
   // <Build>
   lines.push(
-    `  <Build level="${build.level}" className="${escapeXml(build.classId)}" ascendancyName="${escapeXml(build.ascendancyId)}" mainSocketGroup="${mainIdx}" activeWeaponSet="${build.activeWeaponSet}" bandit="${escapeXml(build.bandit ?? 'None')}" buildName="${escapeXml(build.name)}" />`,
+    `  <Build level="${build.level}" targetVersion="3_0" className="${escapeXml(build.classId)}" ascendClassName="${escapeXml(build.ascendancyId)}" ascendancyName="${escapeXml(build.ascendancyId)}" mainSocketGroup="${mainIdx}" activeWeaponSet="${build.activeWeaponSet}" bandit="${escapeXml(build.bandit ?? 'None')}" buildName="${escapeXml(build.name)}" />`,
   );
 
   // <Tree>
@@ -95,12 +121,12 @@ export function buildToPobXml(build: Build): string {
       : '';
   lines.push(`  <Tree activeSpec="1">`);
   lines.push(
-    `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" nodes="${nodesStr}"${wsAttrs} />`,
+    `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs} />`,
   );
   lines.push(`  </Tree>`);
 
   // <Skills>
-  lines.push(`  <Skills activeSkillSet="1">`);
+  lines.push(`  <Skills activeSkillSet="1" defaultGemQuality="0">`);
   lines.push(`    <SkillSet id="1">`);
   for (const group of build.skills) {
     const slotAttr = group.slot ? ` slot="${escapeXml(group.slot)}"` : '';
@@ -109,11 +135,13 @@ export function buildToPobXml(build: Build): string {
         ? ` weaponSets="${group.weaponSets.join(',')}"`
         : '';
     lines.push(
-      `      <Skill enabled="${group.enabled}" label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
+      `      <Skill enabled="${group.enabled}" mainActiveSkill="1" mainActiveSkillCalcs="1" label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
     );
     for (const gem of group.gems) {
+      const def = gemsCatalog.find((g) => g.id === gem.gemId);
+      const nameSpec = def ? def.name.en.replace(/\s+Support$/i, '') : gem.gemId;
       lines.push(
-        `        <Gem gemId="${escapeXml(gem.gemId)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}" />`,
+        `        <Gem gemId="${escapeXml(gem.gemId)}" nameSpec="${escapeXml(nameSpec)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}" />`,
       );
     }
     lines.push(`      </Skill>`);
@@ -195,21 +223,34 @@ function parseNodeList(raw: string | undefined): number[] {
     .filter((n) => Number.isFinite(n) && n > 0);
 }
 
-function matchGemId(game: GameId, rawGemId?: string, rawNameSpec?: string): string | null {
+function matchGemId(game: GameId, rawGemId?: string, rawNameSpec?: string, rawSkillId?: string): string | null {
   const gems = getGemsForGame(game);
   if (rawGemId) {
     const exact = gems.find((g) => g.id === rawGemId);
     if (exact) return exact.id;
   }
-  const needle = (rawNameSpec ?? rawGemId ?? '').toLowerCase();
-  if (!needle) return null;
-  const fuzzy = gems.find(
-    (g) =>
-      g.name.en.toLowerCase() === needle ||
-      g.name.zh.toLowerCase() === needle ||
-      needle.includes(g.name.en.toLowerCase()),
-  );
-  return fuzzy?.id ?? null;
+  const candidates = [rawNameSpec, rawSkillId, rawGemId]
+    .filter((s): s is string => Boolean(s))
+    .map((s) => s.toLowerCase().trim());
+
+  for (const needle of candidates) {
+    const exactName = gems.find(
+      (g) =>
+        g.name.en.toLowerCase() === needle ||
+        g.name.en.toLowerCase() === `${needle} support` ||
+        g.name.zh.toLowerCase() === needle,
+    );
+    if (exactName) return exactName.id;
+  }
+  for (const needle of candidates) {
+    const fuzzy = gems.find(
+      (g) =>
+        needle.includes(g.name.en.toLowerCase()) ||
+        g.name.en.toLowerCase().replace(/\s+support$/i, '') === needle,
+    );
+    if (fuzzy) return fuzzy.id;
+  }
+  return null;
 }
 
 /**
@@ -218,7 +259,7 @@ function matchGemId(game: GameId, rawGemId?: string, rawNameSpec?: string): stri
 export function xmlToBuild(xml: string): Build {
   const isPoe2 =
     /<PathOfBuilding2\b/i.test(xml) ||
-    /className="(?:Sorceress|Monk|Warrior|Mercenary|Huntress)"/i.test(xml) ||
+    /className="(?:Sorceress|Monk|Warrior|Mercenary|Huntress|Druid)"/i.test(xml) ||
     /weaponSet1Nodes="/i.test(xml);
   const game: GameId = isPoe2 ? 'poe2' : 'poe1';
 
@@ -230,7 +271,7 @@ export function xmlToBuild(xml: string): Build {
     classes.find((c) => c.id.toLowerCase() === (buildAttrs.className ?? '').toLowerCase()) ??
     classes[0]!;
   const level = Math.max(1, Math.min(100, Number(buildAttrs.level ?? 90) || 90));
-  const ascendancyId = buildAttrs.ascendancyName ?? '';
+  const ascendancyId = buildAttrs.ascendClassName || buildAttrs.ascendancyName || '';
   const activeWeaponSet: WeaponSetId = buildAttrs.activeWeaponSet === '2' ? 2 : 1;
   const mainSocketGroupIdx = Math.max(1, Number(buildAttrs.mainSocketGroup ?? 1) || 1);
 
@@ -260,7 +301,7 @@ export function xmlToBuild(xml: string): Build {
     let gemCounter = 1;
     while ((gemMatch = gemRegex.exec(inner)) !== null) {
       const gAttrs = parseAttributes(gemMatch[1]!);
-      const matchedId = matchGemId(game, gAttrs.gemId, gAttrs.nameSpec);
+      const matchedId = matchGemId(game, gAttrs.gemId, gAttrs.nameSpec, gAttrs.skillId);
       if (matchedId) {
         gems.push({
           instanceId: `imp_g_${groupCounter}_${gemCounter++}`,
@@ -334,13 +375,37 @@ export function xmlToBuild(xml: string): Build {
     }
   }
 
-  // Parse <Config> inputs
-  const config = createDefaultConfig();
+  // Parse <Config> inputs using clean official PoB defaults (all optional buffs OFF unless specified in XML)
+  const ruleset = getRuleset(game);
+  const config: Build['config'] = {
+    ...createDefaultConfig(),
+    enemyLevel: 84,
+    enemyIsBoss: 'None',
+    enemyFireResist: ruleset.defaultEnemyEleResist,
+    enemyColdResist: ruleset.defaultEnemyEleResist,
+    enemyLightningResist: ruleset.defaultEnemyEleResist,
+    enemyChaosResist: game === 'poe1' ? 30 : 0,
+    enemyArmour: game === 'poe1' ? 61989 : 0,
+    enemyEvasion: game === 'poe1' ? 10143 : 1800,
+    usePowerCharges: false,
+    useFrenzyCharges: false,
+    useEnduranceCharges: false,
+    onslaught: false,
+    enemyShocked: false,
+    shockValue: 0,
+    enemyChilled: false,
+  };
+  let banditFromConfig: Build['bandit'] | undefined;
   const inputRegex = /<(?:Input|Placeholder)\b([^>]*)\/?>/gi;
   let inputMatch: RegExpExecArray | null;
   while ((inputMatch = inputRegex.exec(xml)) !== null) {
     const attrs = parseAttributes(inputMatch[1]!);
     const key = attrs.name;
+    if (key === 'bandit' && attrs.string) {
+      if (attrs.string === 'None' || attrs.string === 'Alira' || attrs.string === 'Kraityn' || attrs.string === 'Oak') {
+        banditFromConfig = attrs.string;
+      }
+    }
     if (key === 'enemyLevel' && attrs.number) config.enemyLevel = Number(attrs.number);
     if (key === 'enemyIsBoss' && attrs.string) {
       if (attrs.string === 'None' || attrs.string === 'Guardian' || attrs.string === 'Pinnacle') {
@@ -371,7 +436,7 @@ export function xmlToBuild(xml: string): Build {
     classId: classDef.id,
     ascendancyId,
     activeWeaponSet,
-    bandit: (buildAttrs.bandit as Build['bandit']) ?? 'None',
+    bandit: banditFromConfig ?? (buildAttrs.bandit as Build['bandit']) ?? 'None',
     tree: {
       title: specAttrs.title || 'Imported Tree',
       treeVersion: specAttrs.treeVersion || tree.version,

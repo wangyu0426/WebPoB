@@ -200,6 +200,10 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^\+(\d+) to Accuracy Rating$/i,
     build: (m, src) => [mkMod('Accuracy', 'BASE', Number(m[1]), src)],
   },
+  {
+    pattern: /^(\d+)% increased Accuracy Rating$/i,
+    build: (m, src) => [mkMod('Accuracy', 'INC', Number(m[1]), src)],
+  },
   // Added Damage (Global, Spell, Attack)
   {
     pattern: /^Adds (\d+) to (\d+) (Physical|Fire|Cold|Lightning|Chaos) Damage to Spells$/i,
@@ -277,6 +281,14 @@ const PARSER_RULES: ParserRule[] = [
     },
   },
   {
+    pattern: /^(\d+)% (increased|more|less) Melee Physical Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('PhysicalDamage', type, val, src, ModFlag.Melee)];
+    },
+  },
+  {
     pattern: /^(\d+)% (increased|more|less) Melee Damage$/i,
     build: (m, src) => {
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
@@ -343,6 +355,12 @@ const PARSER_RULES: ParserRule[] = [
   },
   // Critical Strikes (PoE 1 & PoE 2 terminology)
   {
+    pattern: /^(\d+)% (more|less) Critical Strike Chance$/i,
+    build: (m, src) => [
+      mkMod('CritChance', 'MORE', m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]), src),
+    ],
+  },
+  {
     pattern: /^(\d+)% increased (?:Critical Strike|Critical Hit) Chance for Spells$/i,
     build: (m, src) => [mkMod('CritChance', 'INC', Number(m[1]), src, ModFlag.Spell)],
   },
@@ -361,6 +379,14 @@ const PARSER_RULES: ParserRule[] = [
   {
     pattern: /^(\d+)% increased (?:Critical Damage Bonus|Critical Strike Multiplier)(?: for Spells)?$/i,
     build: (m, src) => [mkMod('CritMultiplier', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Deal no Elemental Damage$/i,
+    build: (_, src) => [mkMod('DealNoElemental', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Deal no Chaos Damage$/i,
+    build: (_, src) => [mkMod('DealNoChaos', 'FLAG', true, src)],
   },
   // Penetration
   {
@@ -417,8 +443,13 @@ export function parseModLine(rawLine: string, source: string): Mod[] {
 
 export function parseModLines(lines: readonly string[], source: string): Mod[] {
   const result: Mod[] = [];
-  for (const line of lines) {
-    result.push(...parseModLine(line, source));
+  for (const rawEntry of lines) {
+    // Official PoB passive tree nodes often pack multiple stat lines separated by `\n` (e.g. Resolute Technique)
+    for (const line of rawEntry.split(/\r?\n/)) {
+      if (line.trim()) {
+        result.push(...parseModLine(line, source));
+      }
+    }
   }
   return result;
 }

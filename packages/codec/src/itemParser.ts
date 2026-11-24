@@ -1,4 +1,5 @@
 import type { ArmourBaseStats, EquipmentSlotId, Item, ItemRarity, WeaponBaseStats } from '@webpob/core';
+import { getBaseItemStats } from '@webpob/data';
 import { normalizeStatLineToEn } from '@webpob/i18n';
 
 const RARITY_MAP: Record<string, ItemRarity> = {
@@ -117,23 +118,54 @@ export function parseItemText(rawText: string, idOverride?: string): Item | null
   // Extract header info (Section 0)
   const headerLines = sections[0] ?? [];
   const nameCandidates: string[] = [];
+  let bodyStartIdxInFlatLines = 0;
 
-  for (const line of headerLines) {
-    const classMatch = line.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
-    if (classMatch) {
-      itemClassHint = classMatch[1]!.trim();
-      continue;
+  if (hasSeparators) {
+    for (const line of headerLines) {
+      const classMatch = line.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
+      if (classMatch) {
+        itemClassHint = classMatch[1]!.trim();
+        continue;
+      }
+      const rarityMatch = line.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
+      if (rarityMatch) {
+        const key = rarityMatch[1]!.trim().toLowerCase();
+        rarity = RARITY_MAP[key] ?? RARITY_MAP[rarityMatch[1]!.trim()] ?? 'RARE';
+        continue;
+      }
+      nameCandidates.push(line);
     }
-    const rarityMatch = line.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
-    if (rarityMatch) {
-      const key = rarityMatch[1]!.trim().toLowerCase();
-      rarity = RARITY_MAP[key] ?? RARITY_MAP[rarityMatch[1]!.trim()] ?? 'RARE';
-      continue;
+  } else {
+    // Standard Path of Building XML <Item> text format (no "--------" separators):
+    // Rarity: RARE -> Line 1: Name -> Line 2: BaseName (for RARE/UNIQUE) -> remaining lines are properties & mods
+    let idx = 0;
+    while (idx < lines.length) {
+      const line = lines[idx]!;
+      const classMatch = line.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
+      if (classMatch) {
+        itemClassHint = classMatch[1]!.trim();
+        idx++;
+        continue;
+      }
+      const rarityMatch = line.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
+      if (rarityMatch) {
+        const key = rarityMatch[1]!.trim().toLowerCase();
+        rarity = RARITY_MAP[key] ?? RARITY_MAP[rarityMatch[1]!.trim()] ?? 'RARE';
+        idx++;
+        continue;
+      }
+      break;
     }
-    if (!hasSeparators && /^(?:Quality|Sockets|LevelReq|Implicits|Armour|Evasion|Energy Shield|Item Level)\s*[:：]/i.test(line)) {
-      continue;
+    const expectedHeaderLines = rarity === 'NORMAL' || rarity === 'MAGIC' ? 1 : 2;
+    for (let k = 0; k < expectedHeaderLines && idx < lines.length; k++) {
+      const candidate = lines[idx]!;
+      if (/^(?:Unique ID|Item Level|Quality|Sockets|LevelReq|Implicits|Armour|Evasion|Energy Shield|Physical Damage)\s*[:：]/i.test(candidate)) {
+        break;
+      }
+      nameCandidates.push(candidate);
+      idx++;
     }
-    nameCandidates.push(line);
+    bodyStartIdxInFlatLines = idx;
   }
 
   let name = nameCandidates[0] ?? 'Custom Item';
@@ -147,7 +179,9 @@ export function parseItemText(rawText: string, idOverride?: string): Item | null
   const explicits: string[] = [];
 
   // Process all lines for property metadata & stat lines
-  const bodyLines = hasSeparators ? sections.slice(1).flatMap((sec, idx) => (idx > 0 ? ['__SEC__', ...sec] : sec)) : lines.slice(nameCandidates.length + 1);
+  const bodyLines = hasSeparators
+    ? sections.slice(1).flatMap((sec, idx) => (idx > 0 ? ['__SEC__', ...sec] : sec))
+    : lines.slice(bodyStartIdxInFlatLines);
 
   let afterImplicitsMarker = false;
   const collectedSections: string[][] = [[]];
@@ -186,7 +220,7 @@ export function parseItemText(rawText: string, idOverride?: string): Item | null
       continue;
     }
 
-    if (/^(?:Requirements|需求|Item Level|物品等级|Requires|需求等级|Corrupted|已腐化|Unidentified|未鉴定|Note|备注)/i.test(line)) {
+    if (/^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Corrupted|已腐化|Unidentified|未鉴定|Note|备注|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile)/i.test(line)) {
       continue;
     }
 
@@ -289,17 +323,27 @@ export function parseItemText(rawText: string, idOverride?: string): Item | null
   }
 
   const inferred = inferSlotAndWeapon(`${itemClassHint} ${baseName} ${name}`);
+  const officialBase = getBaseItemStats(baseName, quality);
+
   let weaponStats: WeaponBaseStats | undefined;
   if (physDamage || aps !== null || critChance !== null) {
     weaponStats = {
-      physicalMin: physDamage?.[0] ?? 10,
-      physicalMax: physDamage?.[1] ?? 20,
+      physicalMin: physDamage?.[0] ?? officialBase?.weapon?.physicalMin ?? 10,
+      physicalMax: physDamage?.[1] ?? officialBase?.weapon?.physicalMax ?? 20,
       elementalDamage: Object.keys(eleDamage).length > 0 ? eleDamage : undefined,
-      attacksPerSecond: aps ?? 1.2,
-      critChance: critChance ?? 6,
-      weaponType: inferred.weaponType ?? 'Sword',
-      twoHanded: inferred.twoHanded ?? false,
+      attacksPerSecond: aps ?? officialBase?.weapon?.attacksPerSecond ?? 1.2,
+      critChance: critChance ?? officialBase?.weapon?.critChance ?? 6,
+      weaponType: inferred.weaponType ?? officialBase?.weapon?.weaponType ?? 'Sword',
+      twoHanded: inferred.twoHanded ?? officialBase?.weapon?.twoHanded ?? false,
     };
+  } else if (officialBase?.weapon) {
+    weaponStats = { ...officialBase.weapon };
+  }
+
+  // Merge official base armour/evasion/ES stats if item text omitted explicit defense lines
+  if (!hasArmourStats && officialBase?.armour) {
+    Object.assign(armourStats, officialBase.armour);
+    hasArmourStats = true;
   }
 
   const isChineseName = /[\u4e00-\u9fff]/.test(name);

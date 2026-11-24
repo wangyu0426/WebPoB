@@ -84,15 +84,51 @@ export function calculateBuild(build: Build): CalcOutput {
   db.addMod({
     name: 'Life',
     type: 'BASE',
-    value: ruleset.baseLife + (build.level - 1) * ruleset.lifePerLevel,
+    value: ruleset.baseLife + build.level * ruleset.lifePerLevel + ruleset.campaignLifeFlat,
     flags: 0,
     keywordFlags: 0,
     source: `Level ${build.level}`,
   });
+  if (ruleset.campaignLifeIncPct > 0) {
+    db.addMod({
+      name: 'Life',
+      type: 'INC',
+      value: ruleset.campaignLifeIncPct,
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Campaign Quest Bonus',
+    });
+  }
   db.addMod({
     name: 'Mana',
     type: 'BASE',
-    value: ruleset.baseMana + (build.level - 1) * ruleset.manaPerLevel,
+    value: ruleset.baseMana + build.level * ruleset.manaPerLevel,
+    flags: 0,
+    keywordFlags: 0,
+    source: `Level ${build.level}`,
+  });
+  if (ruleset.campaignManaIncPct > 0) {
+    db.addMod({
+      name: 'Mana',
+      type: 'INC',
+      value: ruleset.campaignManaIncPct,
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Campaign Quest Bonus',
+    });
+  }
+  db.addMod({
+    name: 'Evasion',
+    type: 'BASE',
+    value: ruleset.baseEvasion,
+    flags: 0,
+    keywordFlags: 0,
+    source: 'Base',
+  });
+  db.addMod({
+    name: 'Accuracy',
+    type: 'BASE',
+    value: build.level * ruleset.accuracyPerLevel,
     flags: 0,
     keywordFlags: 0,
     source: `Level ${build.level}`,
@@ -345,8 +381,8 @@ export function calculateBuild(build: Build): CalcOutput {
       ? Math.min(95, Math.max(0, Math.round((1 - (1.25 * enemyAcc) / (enemyAcc + Math.pow(evasion / 5, 0.9))) * 100)))
       : 0;
 
-  const blockChance = Math.min(75, Math.round(db.sum('BASE', 'BlockChance')));
-  const spellBlockChance = Math.min(75, Math.round(db.sum('BASE', 'SpellBlockChance')));
+  const blockChance = Math.min(ruleset.maxBlockChance, Math.round(db.sum('BASE', 'BlockChance')));
+  const spellBlockChance = Math.min(ruleset.maxBlockChance, Math.round(db.sum('BASE', 'SpellBlockChance')));
   const spellSuppressionChance = ruleset.supportsSpellSuppression
     ? Math.min(100, Math.round(db.sum('BASE', 'SpellSuppressionChance')))
     : 0;
@@ -483,17 +519,70 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   let activeQuality = 0;
   const skillDb = globalDb.clone();
 
+  // PoE 1 3.30 Matching Socket Quality Bonus (+10% quality when gem color matches socket color of slot item)
+  let slotDefaultSocketColor: 'red' | 'green' | 'blue' | undefined;
+  if (build.game === 'poe1' && mainGroup.slot) {
+    const slotItemId = build.equipped[mainGroup.slot];
+    const slotItem = slotItemId ? build.items[slotItemId] : undefined;
+    if (slotItem?.armourStats) {
+      const a = slotItem.armourStats.armour ?? 0;
+      const e = slotItem.armourStats.evasion ?? 0;
+      const es = slotItem.armourStats.energyShield ?? 0;
+      if (es > 0 && a === 0 && e === 0) slotDefaultSocketColor = 'blue';
+      else if (a > 0 && e === 0 && es === 0) slotDefaultSocketColor = 'red';
+      else if (e > 0 && a === 0 && es === 0) slotDefaultSocketColor = 'green';
+    } else if (slotItem?.weaponStats) {
+      const wt = slotItem.weaponStats.weaponType;
+      if (wt === 'Wand' || wt === 'Staff') slotDefaultSocketColor = 'blue';
+      else if (wt === 'Bow' || wt === 'Claw' || wt === 'Dagger') slotDefaultSocketColor = 'green';
+      else if (wt === 'Axe' || wt === 'Mace') slotDefaultSocketColor = 'red';
+    }
+  }
+
+  const applyGemQualityStats = (def: GemDefinition, rawQuality: number, sourcePrefix: string) => {
+    const socketBonus =
+      build.game === 'poe1' && slotDefaultSocketColor && def.color === slotDefaultSocketColor ? 10 : 0;
+    const effectiveQuality = rawQuality + socketBonus;
+    if (effectiveQuality <= 0) return effectiveQuality;
+    if (def.qualityStats) {
+      for (const qs of def.qualityStats) {
+        const val = Math.trunc(effectiveQuality * qs.perQuality);
+        if (val !== 0) {
+          const line = qs.template.replace('{v}', String(val));
+          skillDb.addMods(parseModLines([line], `${sourcePrefix}: ${def.name.en} (Q${effectiveQuality})`));
+        }
+      }
+    } else if (def.category === 'active' && rawQuality > 0) {
+      // Fallback for uncurated active gems without explicit qualityStats
+      const val = Math.trunc(rawQuality * 0.5);
+      if (val > 0) {
+        skillDb.addMod({
+          name: 'Damage',
+          type: 'INC',
+          value: val,
+          flags: 0,
+          keywordFlags: 0,
+          source: `${def.name.en} Quality`,
+        });
+      }
+    }
+    return effectiveQuality;
+  };
+
   for (const gemInst of mainGroup.gems) {
     if (!gemInst.enabled) continue;
     const def = getGemById(build.game, gemInst.gemId);
     if (!def) continue;
+    const levelEntry = def.levelScaling?.[gemInst.level];
+    const effectiveStats = levelEntry?.stats ?? def.stats;
     if (def.category === 'active' && !def.isAuraOrBuff && !activeDef) {
       activeDef = def;
       activeLevel = gemInst.level;
-      activeQuality = gemInst.quality;
-      skillDb.addMods(parseModLines(def.stats, `Skill: ${def.name.en}`));
+      activeQuality = applyGemQualityStats(def, gemInst.quality, 'Skill');
+      skillDb.addMods(parseModLines(effectiveStats, `Skill: ${def.name.en}`));
     } else if (def.category === 'support') {
-      skillDb.addMods(parseModLines(def.stats, `Support: ${def.name.en}`));
+      skillDb.addMods(parseModLines(effectiveStats, `Support: ${def.name.en}`));
+      applyGemQualityStats(def, gemInst.quality, 'Support');
     }
   }
 
@@ -521,13 +610,12 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const isAttack = (activeDef.modFlags & ModFlag.Attack) !== 0;
   const flags = activeDef.modFlags;
   const kwFlags = activeDef.keywordFlags;
-  const levelFactor = getLevelScalingFactor(activeLevel);
-  const qualityIncDamage = activeQuality * 0.5; // Simple baseline quality bonus (+10% inc at 20Q)
-  if (qualityIncDamage > 0) {
-    skillDb.addMod({ name: 'Damage', type: 'INC', value: qualityIncDamage, flags: 0, keywordFlags: 0, source: `${activeDef.name.en} Quality` });
-  }
+  const activeLevelEntry = activeDef.levelScaling?.[activeLevel];
+  const levelFactor = activeLevelEntry ? 1 : getLevelScalingFactor(activeLevel);
+  void activeQuality;
 
-  const effectiveness = (activeDef.damageEffectivenessPct ?? 100) / 100;
+  const effectiveness =
+    ((activeLevelEntry?.damageEffectivenessPct ?? activeDef.damageEffectivenessPct ?? 100) / 100);
   const weapon = getActiveWeapon(build);
 
   // Step A: Base Min/Max per DamageType before conversion
@@ -535,7 +623,8 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const baseMax: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
 
   if (isAttack) {
-    const atkMult = ((activeDef.attackDamageMultiplierPct ?? 100) / 100) * Math.pow(1.03, activeLevel - 20);
+    const baseAtkPct = activeLevelEntry?.attackDamageMultiplierPct ?? activeDef.attackDamageMultiplierPct ?? 100;
+    const atkMult = activeLevelEntry ? baseAtkPct / 100 : (baseAtkPct / 100) * Math.pow(1.03, activeLevel - 20);
     const wMin = weapon?.weaponStats?.physicalMin ?? 15;
     const wMax = weapon?.weaponStats?.physicalMax ?? 30;
     baseMin.Physical += wMin * atkMult;
@@ -548,9 +637,10 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
         baseMax[dt] += range[1] * atkMult;
       }
     }
-  } else if (activeDef.baseDamage) {
+  } else if (activeLevelEntry?.baseDamage ?? activeDef.baseDamage) {
+    const srcDmg = activeLevelEntry?.baseDamage ?? activeDef.baseDamage!;
     for (const dt of DAMAGE_TYPES) {
-      const range = activeDef.baseDamage[dt];
+      const range = srcDmg[dt];
       if (range) {
         baseMin[dt] += range[0] * levelFactor;
         baseMax[dt] += range[1] * levelFactor;
@@ -621,19 +711,37 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
 
   const shockMult = build.config.enemyShocked ? 1 + Math.max(0, Math.min(100, build.config.shockValue)) / 100 : 1;
 
+  const ruleset = getRuleset(build.game);
   const damageByType: Record<DamageType, DamageRange> = { ...emptyRanges };
+  const dealNoEle = skillDb.flag('DealNoElemental', flags, kwFlags);
+  const dealNoChaos = skillDb.flag('DealNoChaos', flags, kwFlags);
   let totalAvgHit = 0;
 
   for (const dt of DAMAGE_TYPES) {
     const isEle = dt === 'Fire' || dt === 'Cold' || dt === 'Lightning';
+    if ((isEle && dealNoEle) || (dt === 'Chaos' && dealNoChaos)) {
+      damageByType[dt] = { min: 0, max: 0, average: 0 };
+      continue;
+    }
     const statNames = isEle ? ['Damage', 'ElementalDamage', `${dt}Damage`] : ['Damage', `${dt}Damage`];
 
     const inc = skillDb.sum('INC', statNames, flags, kwFlags);
     const more = skillDb.more(statNames, flags, kwFlags);
 
-    // Enemy mitigation
+    const preMitMult = (1 + inc / 100) * more;
+    const rawMin = finalBaseMin[dt] * preMitMult;
+    const rawMax = finalBaseMax[dt] * preMitMult;
+    const rawAvg = (rawMin + rawMax) / 2;
+
+    // Enemy mitigation (Resistances + Penetration for Ele/Chaos; Enemy Armour PDR capped at 75% for Physical)
     let enemyFactor = 1;
-    if (dt === 'Fire') {
+    if (dt === 'Physical') {
+      const eArm = Math.max(0, build.config.enemyArmour);
+      if (eArm > 0 && rawAvg > 0) {
+        const pdr = Math.min(0.75, eArm / (eArm + ruleset.armourFormulaFactor * rawAvg));
+        enemyFactor = 1 - pdr;
+      }
+    } else if (dt === 'Fire') {
       const effRes = Math.min(75, build.config.enemyFireResist + enemyBossResistBonus) - skillDb.sum('BASE', 'FirePenetration', flags, kwFlags);
       enemyFactor = 1 - effRes / 100;
     } else if (dt === 'Cold') {
@@ -647,50 +755,56 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
       enemyFactor = 1 - effRes / 100;
     }
 
-    const mult = (1 + inc / 100) * more * Math.max(0.05, enemyFactor) * shockMult;
-    const min = Math.round(finalBaseMin[dt] * mult);
-    const max = Math.round(finalBaseMax[dt] * mult);
-    const average = Math.round((min + max) / 2);
-    damageByType[dt] = { min, max, average };
+    const finalMult = Math.max(0.05, enemyFactor) * shockMult;
+    const min = rawMin * finalMult;
+    const max = rawMax * finalMult;
+    const average = (min + max) / 2;
+    damageByType[dt] = { min: Math.round(min), max: Math.round(max), average: Math.round(average * 100) / 100 };
     totalAvgHit += average;
   }
 
-  // Step D: Crit Chance & Crit Multiplier
+  // Step D: Accuracy / Hit Chance first (exact PoB formula: acc / (acc + (eva/5)^0.9) * 125)
+  let hitChance = 100;
+  if (isAttack && !skillDb.flag('HitsCantBeEvaded', flags, kwFlags)) {
+    const accuracy = Math.max(1, skillDb.calcStat('Accuracy', flags, kwFlags).total);
+    const enemyEva = Math.max(1, build.config.enemyEvasion);
+    hitChance = Math.min(
+      100,
+      Math.max(5, Math.round((accuracy / (accuracy + Math.pow(enemyEva / 5, 0.9))) * 125)),
+    );
+  }
+
+  // Step E: Crit Chance & Crit Multiplier (including Attack crit confirmation roll = crit * hitChance)
   const neverCrit = skillDb.flag('NeverCrit', flags, kwFlags);
   const baseCrit = isAttack ? (weapon?.weaponStats?.critChance ?? 5) : (activeDef.baseCritChance ?? 6);
   const critInc = skillDb.sum('INC', 'CritChance', flags, kwFlags);
-  const critChance = neverCrit ? 0 : Math.min(100, Math.round(baseCrit * (1 + critInc / 100) * 100) / 100);
-  const critMultiplier = Math.round(skillDb.sum('BASE', 'CritMultiplier', flags, kwFlags));
-  const effectiveCritMultiplier = 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
+  const critMore = skillDb.more('CritChance', flags, kwFlags);
+  const preEffectiveCrit = neverCrit ? 0 : Math.min(100, baseCrit * (1 + critInc / 100) * critMore);
+  const critChance = Math.round(preEffectiveCrit * (isAttack ? hitChance / 100 : 1) * 100) / 100;
+  const critMultiplier = neverCrit ? 0 : Math.round(skillDb.sum('BASE', 'CritMultiplier', flags, kwFlags));
+  const effectiveCritMultiplier = neverCrit
+    ? 1
+    : 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
 
-  // Step E: Attack / Cast Speed
+  // Step F: Attack / Cast Speed
   const baseRate = isAttack
     ? (weapon?.weaponStats?.attacksPerSecond ?? 1.2) * (activeDef.attackSpeedMultiplier ?? 1)
     : 1 / (activeDef.castTime ?? 0.75);
   const speedInc = skillDb.sum('INC', 'Speed', flags, kwFlags);
   const speedMore = skillDb.more('Speed', flags, kwFlags);
-  const speed = Math.round(baseRate * (1 + speedInc / 100) * speedMore * 100) / 100;
+  const speedExact = baseRate * (1 + speedInc / 100) * speedMore;
+  const speed = Math.round(speedExact * 100) / 100;
 
-  // Step F: Accuracy / Hit Chance
-  let hitChance = 100;
-  if (isAttack && !skillDb.flag('HitsCantBeEvaded', flags, kwFlags)) {
-    const accuracy = Math.max(100, skillDb.calcStat('Accuracy', flags, kwFlags).total);
-    const enemyEva = Math.max(1, build.config.enemyEvasion);
-    hitChance = Math.min(
-      100,
-      Math.max(5, Math.round(((1.25 * accuracy) / (accuracy + Math.pow(enemyEva / 5, 0.9))) * 100)),
-    );
-  }
+  const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * 100) / 100;
+  const hitDps = Math.round(avgHitWithCrit * speedExact * (hitChance / 100) * 100) / 100;
 
-  const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier);
-  const hitDps = Math.round(avgHitWithCrit * speed * (hitChance / 100));
-
-  // Simple Ailment DPS estimates (Fire -> Ignite when Fire > 0)
-  const igniteDps = damageByType.Fire.average > 0 ? Math.round(damageByType.Fire.average * 0.5 * (critChance > 0 ? 1 : 0.4)) : 0;
-  const bleedDps = isAttack && damageByType.Physical.average > 0 ? Math.round(damageByType.Physical.average * 0.35) : 0;
+  // Ailment DPS estimates (PoE 1 Ignite base = 90% of base Fire hit damage per second)
+  const hasIgnite = damageByType.Fire.average > 0 && ((kwFlags & (1 << 17)) !== 0 || critChance > 0);
+  const igniteDps = hasIgnite ? Math.round(damageByType.Fire.average * 0.9 * (critChance > 0 ? 1 : 0.9)) : 0;
+  const bleedDps = 0;
   const poisonDps = 0;
 
-  const totalDps = hitDps + igniteDps + bleedDps + poisonDps;
+  const totalDps = Math.round((hitDps + igniteDps + bleedDps + poisonDps) * 100) / 100;
   const manaCost = activeDef.manaCost ?? 15;
   const manaPerSecond = Math.round(manaCost * speed * 10) / 10;
 

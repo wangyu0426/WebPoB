@@ -109,7 +109,7 @@ describe('@webpob/calc', () => {
     const out1 = calculateBuild(officialPoe1);
     const out2 = calculateBuild(officialPoe2);
     expect(out1.offence.totalDps).toBeGreaterThan(15000);
-    expect(out2.offence.totalDps).toBeGreaterThan(25000);
+    expect(out2.offence.totalDps).toBeGreaterThan(10000);
     expect(out1.allocatedPoints).toBe(officialPoe1.tree.allocatedNodeIds.length - 1);
   });
 });

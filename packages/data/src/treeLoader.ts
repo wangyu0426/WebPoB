@@ -221,14 +221,19 @@ function synthesizeGemDefinition(
   };
 }
 
+function normalizeGemNameKey(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+support$/i, '');
+}
+
 export function registerGemsData(game: GameId, payload: CompactGemsPayload): GemDefinition[] {
   const curated = game === 'poe2' ? POE2_GEMS : POE1_GEMS;
-  const seenEn = new Set(curated.map((g) => g.name.en.toLowerCase()));
+  const seenEn = new Set(curated.map((g) => normalizeGemNameKey(g.name.en)));
   const merged = [...curated];
 
   for (const entry of payload.gems) {
-    if (seenEn.has(entry.en.toLowerCase())) continue;
-    seenEn.add(entry.en.toLowerCase());
+    const key = normalizeGemNameKey(entry.en);
+    if (seenEn.has(key)) continue;
+    seenEn.add(key);
     merged.push(synthesizeGemDefinition(game, entry));
   }
   setRegisteredGems(game, merged);

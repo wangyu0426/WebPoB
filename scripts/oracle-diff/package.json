@@ -1,0 +1,16 @@
+{
+  "name": "@webpob/oracle-diff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@webpob/calc": "workspace:*",
+    "@webpob/codec": "workspace:*",
+    "@webpob/core": "workspace:*",
+    "@webpob/data": "workspace:*"
+  },
+  "scripts": {
+    "build": "echo 'Oracle diff scripts run via tsx'",
+    "typecheck": "echo 'Oracle diff ready'"
+  }
+}

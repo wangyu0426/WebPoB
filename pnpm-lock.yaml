@@ -83,6 +83,10 @@ importers:
       '@webpob/i18n':
         specifier: workspace:*
         version: link:../i18n
+    devDependencies:
+      '@webpob/codec':
+        specifier: workspace:*
+        version: link:../codec
 
   packages/codec:
     dependencies:
@@ -116,6 +120,21 @@ importers:
       '@webpob/core':
         specifier: workspace:*
         version: link:../core
+
+  scripts/oracle-diff:
+    dependencies:
+      '@webpob/calc':
+        specifier: workspace:*
+        version: link:../../packages/calc
+      '@webpob/codec':
+        specifier: workspace:*
+        version: link:../../packages/codec
+      '@webpob/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@webpob/data':
+        specifier: workspace:*
+        version: link:../../packages/data
 
   scripts/sync-data: {}
 
