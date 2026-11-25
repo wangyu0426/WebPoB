@@ -404,7 +404,7 @@ export const POE1_GEMS: GemDefinition[] = [
     modFlags: ModFlag.None,
     keywordFlags: KeywordFlag.None,
     stats: ['+138% to Critical Strike Multiplier'],
-    qualityStats: [{ template: '+{v}% to Critical Strike Multiplier', perQuality: 0.75 }],
+    qualityStats: [{ template: '+{v}% to Critical Strike Multiplier', perQuality: 0.5 }],
   },
   {
     id: 'poe1_sup_elemental_focus',

@@ -4039,4 +4039,223 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding2>`,
   },
+  // ─── Phase 17 Benchmarks (111..115 — 3 codex-ais Orchestrated Workers): Juggernaut Unbreakable, Trickster Escape Artist/Polymath, Flat Base Crit & PoE 2 Monk Onslaught ───
+  {
+    id: 'poe1_juggernaut_unbreakable_double_body_armour',
+    title: 'PoE 1 — Lv.90 Marauder Juggernaut (Unbreakable: Body Armour Doubled) + Glorious Plate + Heavy Strike',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="Juggernaut" mainSocketGroup="1" buildName="Oracle: Juggernaut Unbreakable"/>
+  <Tree activeSpec="1">
+    <Spec title="Juggernaut" treeVersion="3_30" classId="1" ascendClassId="1" nodes="47175,17765,51998,53816"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Heavy Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeavyStrike" skillId="HeavyStrike" nameSpec="Heavy Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Titan Plate
+Glorious Plate
+Quality: 20
+Implicits: 0
++400 to Armour
+100% increased Armour
++100 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Jugg Axe
+Vaal Axe
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Weapon 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_trickster_escape_artist_evasion_es',
+    title: 'PoE 1 — Lv.90 Shadow Trickster (Escape Artist: Body Evasion -> ES & Helmet ES -> Evasion) + Ice Spear',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Shadow" ascendClassName="Trickster" mainSocketGroup="1" buildName="Oracle: Trickster Escape Artist"/>
+  <Tree activeSpec="1">
+    <Spec title="Trickster" treeVersion="3_30" classId="6" ascendClassId="2" nodes="44683,55236,19587,29825"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ice Spear">
+        <Gem gemId="Metadata/Items/Gems/SkillGemIceSpear" skillId="IceSpear" nameSpec="Ice Spear" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Shadow Garb
+Assassin's Garb
+Quality: 20
+Implicits: 0
++400 to Evasion Rating
+100% increased Evasion Rating
++90 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Phantom Circlet
+Hubris Circlet
+Quality: 20
+Implicits: 0
++80 to maximum Energy Shield
+80% increased Energy Shield
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Helmet" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_flat_base_crit_body_armour_arc',
+    title: 'PoE 1 — Lv.90 Witch Arc + Flat +2% Base Crit Chance + Spell Crit Wand',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Flat +2% Base Crit Arc"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportIncreasedCriticalDamage" skillId="SupportIncreasedCriticalDamage" nameSpec="Increased Critical Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Crit Shroud
+Vaal Regalia
+Quality: 20
+Implicits: 0
++2% to Critical Strike Chance
++90 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Spark Rod
+Prophecy Wand
+Implicits: 0
+100% increased Critical Strike Chance for Spells
++30% to Global Critical Strike Multiplier
+50% increased Spell Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Weapon 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_trickster_polymath_spark_wand',
+    title: 'PoE 1 — Lv.90 Shadow Trickster (Polymath Ascendancy) Spark + Elemental Focus + Controlled Destruction',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Shadow" ascendClassName="Trickster" mainSocketGroup="1" buildName="Oracle: Trickster Polymath Spark"/>
+  <Tree activeSpec="1">
+    <Spec title="Trickster" treeVersion="3_30" classId="6" ascendClassId="2" nodes="44683,55236,13219,55867"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Spark">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSpark" skillId="Spark" nameSpec="Spark" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportElementalFocus" skillId="SupportElementalFocus" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportControlledDestruction" skillId="SupportControlledDestruction" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Storm Wand
+Prophecy Wand
+Implicits: 0
++1 to Level of all Lightning Spell Skill Gems
+70% increased Spell Damage
+16% increased Cast Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_monk_tempest_flurry_onslaught_plus2_quarterstaff',
+    title: 'PoE 2 — Lv.90 Monk Tempest Flurry + Elemental Focus + Rapid Attacks I + +2 Melee Quarterstaff + Onslaught',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Monk" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Monk Tempest Flurry Onslaught"/>
+  <Tree activeSpec="1">
+    <Spec title="Monk" treeVersion="0_5" classId="10" classInternalId="10" ascendClassId="0" nodes="44683"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Tempest Flurry">
+        <Gem gemId="Metadata/Items/Gems/SkillGemTempestFlurry" skillId="TempestFlurryPlayer" nameSpec="Tempest Flurry" variantId="TempestFlurry" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidAttacksSupport" skillId="SupportRapidAttacksPlayer" nameSpec="Rapid Attacks I" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Gale Pillar
+Crackling Quarterstaff
+Quality: 20
+Implicits: 0
++2 to Level of all Melee Skills
+140% increased Physical Damage
+Adds 18 to 34 Physical Damage
+18% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="buffOnslaught" boolean="true"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];
