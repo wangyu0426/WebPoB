@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ClipboardPaste, Copy, ExternalLink, FlaskConical, GitCompareArrows, Hammer, Power, PowerOff, Search, Shield, Sparkles, Trash2, TrendingUp, X } from 'lucide-react';
+import { ClipboardPaste, Copy, ExternalLink, FlaskConical, GitCompareArrows, Hammer, Layers, Power, PowerOff, Search, Shield, Sparkles, Trash2, TrendingUp, X } from 'lucide-react';
 import type { EquipmentSlotId, Item } from '@webpob/core';
 import {
   getPresetItemsForGame,
@@ -14,6 +14,7 @@ import { calculateBuild, rankUniqueUpgradesForSlot, resolveItemEffectiveStats } 
 import { getSlotLabel, localizeStatLine, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { ItemCompareModal } from './ItemCompareModal';
+import { GearSummaryDrawer } from './GearSummaryDrawer';
 
 const EXAMPLE_EN_ITEM = `Item Class: Body Armours
 Rarity: Rare
@@ -160,6 +161,7 @@ export function ItemsTab() {
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<EquipmentSlotId>('Weapon 1');
   const [compareSlot, setCompareSlot] = useState<EquipmentSlotId | null>(null);
+  const [gearSummaryOpen, setGearSummaryOpen] = useState(false);
   const [uniqueSearch, setUniqueSearch] = useState('');
   const [uniqueSlotFilter, setUniqueSlotFilter] = useState<(typeof UNIQUE_SLOT_FILTERS)[number]>('ALL');
   const [advisorOpen, setAdvisorOpen] = useState(false);
@@ -359,6 +361,16 @@ export function ItemsTab() {
     };
   }, [itemSets, activeItemSetIdx, build, calc]);
 
+  const trackedSlots = ruleset.equipmentSlots.filter(
+    (slot) => !(build.game === 'poe2' && (slot === 'Weapon 1 Swap' || slot === 'Weapon 2 Swap')),
+  );
+  const equippedCount = trackedSlots.filter((slot) => {
+    if (slot.startsWith('Flask ') || slot.startsWith('Charm ')) {
+      return Boolean(build.equipped[slot]) && Boolean(build.activeFlaskSlots?.[slot]);
+    }
+    return Boolean(build.equipped[slot]);
+  }).length;
+
   const equippedFlaskSlots = ruleset.equipmentSlots.filter(
     (slot) => slot.startsWith('Flask ') && Boolean(build.equipped[slot]),
   );
@@ -382,6 +394,18 @@ export function ItemsTab() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-amber-200">{t(locale, 'items.title')}</h2>
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setGearSummaryOpen(true)}
+              title={locale === 'zh-CN' ? '查看装备汇总与市集搜索' : 'View gear stat totals & trade search'}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-200 cursor-pointer"
+            >
+              <Layers className="w-3 h-3" />
+              {locale === 'zh-CN' ? '装备汇总' : 'Gear Totals'}
+              <span className="font-mono text-[10px] text-emerald-300">
+                {equippedCount}/{trackedSlots.length}
+              </span>
+            </button>
             <select
               value={activeItemSetIdx}
               onChange={(e) => switchItemSet(Number(e.target.value))}
@@ -1092,6 +1116,13 @@ export function ItemsTab() {
           onClose={() => setCompareSlot(null)}
         />
       )}
+
+      <GearSummaryDrawer
+        open={gearSummaryOpen}
+        onClose={() => setGearSummaryOpen(false)}
+        selectedSlot={selectedSlot}
+        onSelectSlot={setSelectedSlot}
+      />
     </div>
   );
 }
