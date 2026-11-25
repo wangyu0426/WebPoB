@@ -163,6 +163,73 @@ function scaleNumericMods(
   });
 }
 
+function injectChargeScaling(db: ModDB, chargeType: 'Power' | 'Frenzy' | 'Endurance', active: number): void {
+  if (active <= 0) return;
+  const inject = (
+    statPrefix: string,
+    targetName: string,
+    modType: 'BASE' | 'INC',
+  ) => {
+    for (const [, mods] of db.entriesByPrefix(statPrefix)) {
+      for (const mod of mods) {
+        if (mod.type !== 'BASE' || typeof mod.value !== 'number') continue;
+        db.addMod({
+          name: targetName,
+          type: modType,
+          value: active * mod.value,
+          flags: mod.flags,
+          keywordFlags: mod.keywordFlags,
+          source: `${chargeType} Charge Scaling (${active})`,
+        });
+      }
+    }
+  };
+  inject(`DamagePer${chargeType}Charge`, 'Damage', 'INC');
+  inject(`CritMultiPer${chargeType}Charge`, 'CritMultiplier', 'BASE');
+  inject(`SpeedPer${chargeType}Charge`, 'Speed', 'INC');
+}
+
+function injectAttributeScaling(db: ModDB, str: number, dex: number, int: number): void {
+  const attrValue = (attr: string): number =>
+    attr === 'Strength' ? str : attr === 'Dexterity' ? dex : attr === 'Intelligence' ? int : 0;
+
+  for (const [key, mods] of db.entriesByPrefix('DamagePerAttr:')) {
+    const [, attr] = key.split(':');
+    const value = attrValue(attr ?? '');
+    if (value <= 0) continue;
+    for (const mod of mods) {
+      if (mod.type !== 'BASE' || typeof mod.value !== 'number') continue;
+      db.addMod({
+        name: 'Damage',
+        type: 'INC',
+        value: Math.floor(value * mod.value),
+        flags: mod.flags,
+        keywordFlags: mod.keywordFlags,
+        source: `Attribute Stacking (${attr} ${value})`,
+      });
+    }
+  }
+
+  for (const prefix of ['FlatMinPerAttr:', 'FlatMaxPerAttr:'] as const) {
+    for (const [key, mods] of db.entriesByPrefix(prefix)) {
+      const [, dmgType, attr] = key.split(':');
+      const value = attrValue(attr ?? '');
+      if (value <= 0 || !dmgType) continue;
+      for (const mod of mods) {
+        if (mod.type !== 'BASE' || typeof mod.value !== 'number') continue;
+        db.addMod({
+          name: `${dmgType}${prefix === 'FlatMinPerAttr:' ? 'Min' : 'Max'}`,
+          type: 'BASE',
+          value: Math.floor(value * mod.value),
+          flags: mod.flags,
+          keywordFlags: mod.keywordFlags,
+          source: `Attribute Stacking (${attr} ${value})`,
+        });
+      }
+    }
+  }
+}
+
 /**
  * Pure TypeScript Path of Building calculation engine.
  * Supports both PoE 1 and PoE 2 via `GameRuleset`, with full stat breakdowns.
@@ -473,6 +540,29 @@ export function calculateBuild(build: Build): CalcOutput {
   }
 
   // 5. Build Configuration (Charges, Onslaught, Custom Mods)
+  if (build.game === 'poe1') {
+    const pantheonMajor = cfg.pantheonMajor ?? 'None';
+    if (pantheonMajor === 'Solaris') {
+      db.addMod({ name: 'PhysDamageReduction', type: 'BASE', value: 6, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Solaris' });
+    } else if (pantheonMajor === 'Lunaris') {
+      db.addMod({ name: 'PhysDamageReduction', type: 'BASE', value: 1, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Lunaris' });
+      db.addMod({ name: 'MovementSpeed', type: 'INC', value: 1, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Lunaris' });
+    } else if (pantheonMajor === 'BrineKing') {
+      db.addMod({ name: 'ColdResist', type: 'BASE', value: 0, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of the Brine King' });
+    }
+
+    const pantheonMinor = cfg.pantheonMinor ?? 'None';
+    if (pantheonMinor === 'Shakari') {
+      db.addMod({ name: 'ChaosResist', type: 'BASE', value: 5, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Shakari' });
+    } else if (pantheonMinor === 'Gruthkul') {
+      db.addMod({ name: 'PhysDamageReduction', type: 'BASE', value: 1, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Gruthkul' });
+    } else if (pantheonMinor === 'Tukohama') {
+      db.addMod({ name: 'PhysDamageReduction', type: 'BASE', value: 3, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Tukohama' });
+    } else if (pantheonMinor === 'Garukhan') {
+      db.addMod({ name: 'MovementSpeed', type: 'INC', value: 5, flags: 0, keywordFlags: 0, source: 'Pantheon: Soul of Garukhan' });
+    }
+  }
+
   if (cfg.usePowerCharges && cfg.powerCharges > 0) {
     // PoE 1: +50% crit chance per Power Charge; PoE 2: +40%
     const perCharge = build.game === 'poe2' ? 40 : 50;
@@ -580,6 +670,13 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parsedCustomAffixMods);
   }
 
+  const activePower = cfg.usePowerCharges ? Math.max(0, Math.round(cfg.powerCharges)) : 0;
+  const activeFrenzy = cfg.useFrenzyCharges ? Math.max(0, Math.round(cfg.frenzyCharges)) : 0;
+  const activeEndurance = cfg.useEnduranceCharges ? Math.max(0, Math.round(cfg.enduranceCharges)) : 0;
+  injectChargeScaling(db, 'Power', activePower);
+  injectChargeScaling(db, 'Frenzy', activeFrenzy);
+  injectChargeScaling(db, 'Endurance', activeEndurance);
+
   // Phase 17 endgame ascendancy / defence mechanics (after tree, items & custom mods load)
   if (db.flag('BodyArmourDoubled') && bodyLocalArmour > 0) {
     db.addMod({
@@ -651,6 +748,8 @@ export function calculateBuild(build: Build): CalcOutput {
   const str = Math.round(strStat.total);
   const dex = Math.round(dexStat.total);
   const int = Math.round(intStat.total);
+
+  injectAttributeScaling(db, str, dex, int);
 
   if (ruleset.lifePerStrength > 0) {
     db.addMod({ name: 'Life', type: 'BASE', value: Math.floor(str * ruleset.lifePerStrength), flags: 0, keywordFlags: 0, source: `Strength (${str})` });
@@ -964,6 +1063,20 @@ export function calculateBuild(build: Build): CalcOutput {
 
   // 8. Compute Offence Output for Main Skill Group
   const offence = computeOffence(build, db, defence);
+
+  // Leech rates are capped by the standard PoE maximum recovery per second.
+  const lifeLeechPct = db.sum('BASE', 'LifeLeech');
+  if (lifeLeechPct > 0 && offence.hitDps > 0) {
+    const rawLifeLeech = offence.hitDps * (lifeLeechPct / 100);
+    const capLifeLeech = life * 0.2 * (1 + db.sum('INC', 'LifeMaxLeechRateInc') / 100);
+    defence.lifeLeechRate = Math.round(Math.min(rawLifeLeech, capLifeLeech));
+  }
+  const esLeechPct = db.sum('BASE', 'EsLeech');
+  if (esLeechPct > 0 && offence.hitDps > 0) {
+    const rawEsLeech = offence.hitDps * (esLeechPct / 100);
+    const capEsLeech = energyShield * 0.1 * (1 + db.sum('INC', 'EsMaxLeechRateInc') / 100);
+    defence.esLeechRate = Math.round(Math.min(rawEsLeech, capEsLeech));
+  }
 
   // 9. Build transparent Calcs Breakdown rows
   const breakdowns: StatBreakdownRow[] = [

@@ -294,6 +294,35 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `${v}% of Fire Damage Converted to Chaos Damage`,
   },
   {
+    zhPattern: /^额外物理伤害减免\s*\+?(\d+)%$/,
+    toEn: (_, v) => `+${v}% additional Physical Damage Reduction`,
+  },
+  {
+    zhPattern: /^每个(暴击|狂怒|耐力)球使(法术)?伤害提高\s*(\d+)%$/,
+    toEn: (_, charge, spell, v) => {
+      const map: Record<string, string> = { 暴击: 'Power', 狂怒: 'Frenzy', 耐力: 'Endurance' };
+      return `${v}% increased ${spell ? 'Spell ' : ''}Damage per ${map[charge] ?? charge} Charge`;
+    },
+  },
+  {
+    zhPattern: /^每个暴击球提供\s*\+?(\d+)%\s*暴击伤害加成$/,
+    toEn: (_, v) => `+${v}% to Critical Strike Multiplier per Power Charge`,
+  },
+  {
+    zhPattern: /^每\s*(\d+)\s*点(力量|敏捷|智慧)使(法术|攻击)?伤害提高\s*(\d+)%$/,
+    toEn: (_, n, attr, scope, v) => {
+      const scopeEn = scope === '法术' ? 'Spell ' : scope === '攻击' ? 'Attack ' : '';
+      return `${v}% increased ${scopeEn}Damage per ${n} ${ZH_ATTR_TO_EN[attr] ?? attr}`;
+    },
+  },
+  {
+    zhPattern: /^伤害的\s*(\d+(?:\.\d+)?)%\s*偷取为(生命|能量护盾|魔力)$/,
+    toEn: (_, v, pool) => {
+      const map: Record<string, string> = { 生命: 'Life', 能量护盾: 'Energy Shield', 魔力: 'Mana' };
+      return `${v}% of Damage Leeched as ${map[pool] ?? pool}`;
+    },
+  },
+  {
     zhPattern: /^每点怒火(?:同时)?提供\s*(\d+)%\s*攻击速度(?:提高|增加)$/,
     toEn: (_, v) => `Every Rage also grants ${v}% increased Attack Speed`,
   },
@@ -482,6 +511,35 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
   {
     enPattern: /^(\d+)% of Fire Damage Converted to Chaos Damage$/i,
     toZh: (_, v) => `${v}% 火焰伤害转化为混沌伤害`,
+  },
+  {
+    enPattern: /^\+(\d+)% additional Physical Damage Reduction$/i,
+    toZh: (_, v) => `额外物理伤害减免 +${v}%`,
+  },
+  {
+    enPattern: /^(\d+)% increased (Spell )?Damage per (Power|Frenzy|Endurance) Charge$/i,
+    toZh: (_, v, spell, charge) => {
+      const map: Record<string, string> = { Power: '暴击', Frenzy: '狂怒', Endurance: '耐力' };
+      return `每个${map[charge] ?? charge}球使${spell ? '法术' : ''}伤害提高 ${v}%`;
+    },
+  },
+  {
+    enPattern: /^\+(\d+)% to Critical Strike Multiplier per Power Charge$/i,
+    toZh: (_, v) => `每个暴击球提供 +${v}% 暴击伤害加成`,
+  },
+  {
+    enPattern: /^(\d+)% increased (Spell |Attack |)?Damage per (\d+) (Strength|Dexterity|Intelligence)$/i,
+    toZh: (_, v, scope, n, attr) => {
+      const scopeZh = scope?.trim() === 'Spell' ? '法术' : scope?.trim() === 'Attack' ? '攻击' : '';
+      return `每 ${n} 点${EN_ATTR_TO_ZH[attr] ?? attr}使${scopeZh}伤害提高 ${v}%`;
+    },
+  },
+  {
+    enPattern: /^(\d+(?:\.\d+)?)% of Damage Leeched as (Life|Energy Shield|Mana)$/i,
+    toZh: (_, v, pool) => {
+      const map: Record<string, string> = { Life: '生命', 'Energy Shield': '能量护盾', Mana: '魔力' };
+      return `伤害的 ${v}% 偷取为${map[pool] ?? pool}`;
+    },
   },
   { enPattern: /^\+(\d+) to Accuracy Rating$/i, toZh: (_, v) => `命中值 +${v}` },
   { enPattern: /^\+(\d+)% chance to Suppress Spell Damage$/i, toZh: (_, v) => `法术伤害压制率 +${v}%` },

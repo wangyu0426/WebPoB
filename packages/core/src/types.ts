@@ -350,6 +350,10 @@ export interface BuildConfig {
   enemyBlinded?: boolean;
   /** Active guard skill (PoE 1 guard gem). */
   activeGuardSkill?: 'None' | 'MoltenShell' | 'Steelskin' | 'ArcaneCloak';
+  /** PoE 1 Pantheon major god. */
+  pantheonMajor?: 'None' | 'BrineKing' | 'Lunaris' | 'Solaris' | 'Arakaali';
+  /** PoE 1 Pantheon minor god. */
+  pantheonMinor?: 'None' | 'Abberath' | 'Gruthkul' | 'Ralakesh' | 'Shakari' | 'Tukohama' | 'Garukhan';
   /** Free-form custom modifiers (supports both English and Chinese lines!). */
   customMods: string;
 }
@@ -549,6 +553,8 @@ export interface CalcDefenceOutput {
   effectiveHitPool: number;
   maxPhysHitTaken: number;
   maxEleHitTaken: number;
+  lifeLeechRate?: number;
+  esLeechRate?: number;
 }
 
 export interface CalcOutput {

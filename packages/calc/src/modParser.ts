@@ -271,6 +271,69 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^(\d+)% increased Effect of (?:your )?Curses$/i,
     build: (m, src) => [mkMod('CurseEffect', 'INC', Number(m[1]), src)],
   },
+  // Phase 19 charge scaling, attribute stacking, leech & flat PDR
+  {
+    pattern: /^\+?(\d+)% additional Physical Damage Reduction$/i,
+    build: (m, src) => [mkMod('PhysDamageReduction', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased (Spell )?Damage per (Power|Frenzy|Endurance) Charge$/i,
+    build: (m, src) => [
+      mkMod(`DamagePer${m[3]}Charge`, 'BASE', Number(m[1]), src, m[2] ? ModFlag.Spell : 0),
+    ],
+  },
+  {
+    pattern: /^\+(\d+)% to Critical Strike Multiplier per Power Charge$/i,
+    build: (m, src) => [mkMod('CritMultiPerPowerCharge', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased (Attack|Cast) Speed per (Frenzy|Power) Charge$/i,
+    build: (m, src) => [
+      mkMod(
+        `SpeedPer${m[3]}Charge`,
+        'BASE',
+        Number(m[1]),
+        src,
+        m[2]!.toLowerCase() === 'attack' ? ModFlag.Attack : ModFlag.Spell,
+      ),
+    ],
+  },
+  {
+    pattern: /^(\d+)% increased (Spell |Attack |)?Damage per (\d+) (Strength|Dexterity|Intelligence)$/i,
+    build: (m, src) => {
+      const scope = (m[2] ?? '').trim().toLowerCase() || 'all';
+      const flags =
+        scope === 'spell' ? ModFlag.Spell : scope === 'attack' ? ModFlag.Attack : 0;
+      return [
+        mkMod(
+          `DamagePerAttr:${m[4]}:${scope}`,
+          'BASE',
+          Number(m[1]) / Number(m[3]),
+          src,
+          flags,
+        ),
+      ];
+    },
+  },
+  {
+    pattern: /^Adds (\d+) to (\d+) (Fire|Cold|Lightning|Physical|Chaos) Damage (?:to Attacks )?per (\d+) (Strength|Dexterity|Intelligence)$/i,
+    build: (m, src) => [
+      mkMod(`FlatMinPerAttr:${m[3]}:${m[5]}`, 'BASE', Number(m[1]) / Number(m[4]), src),
+      mkMod(`FlatMaxPerAttr:${m[3]}:${m[5]}`, 'BASE', Number(m[2]) / Number(m[4]), src),
+    ],
+  },
+  {
+    pattern: /^(\d+(?:\.\d+)?)% of (?:Physical |Attack |Spell |Elemental |Fire |Cold |Lightning |Chaos )?Damage Leeched as (Life|Energy Shield|Mana)$/i,
+    build: (m, src) => [
+      mkMod(`${m[2] === 'Energy Shield' ? 'Es' : m[2]}Leech`, 'BASE', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^(\d+)% increased Maximum total (Life|Energy Shield) Recovery per second from Leech$/i,
+    build: (m, src) => [
+      mkMod(`${m[2] === 'Energy Shield' ? 'Es' : 'Life'}MaxLeechRateInc`, 'INC', Number(m[1]), src),
+    ],
+  },
   {
     pattern: /^Gain (\d+)% of Damage as Extra (Fire|Cold|Lightning|Chaos) Damage per (\d+) Maximum Mana$/i,
     build: (m, src) => [

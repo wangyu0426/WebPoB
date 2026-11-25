@@ -533,4 +533,161 @@ describe('@webpob/calc', () => {
       expect.objectContaining({ name: 'FireDamageConvertToChaos', type: 'BASE', value: 30 }),
     ]);
   });
+
+  it('scales damage and crit multiplier with Power Charges (EN & ZH identical)', () => {
+    const base = createSamplePoe1Build();
+    const sixCharges = { ...base.config, usePowerCharges: true, powerCharges: 6 };
+    const chargeOut = calculateBuild({
+      ...base,
+      config: {
+        ...sixCharges,
+        customMods:
+          '25% increased Spell Damage per Power Charge\n+10% to Critical Strike Multiplier per Power Charge',
+      },
+    });
+    const zhChargeOut = calculateBuild({
+      ...base,
+      config: {
+        ...sixCharges,
+        customMods: '每个暴击球使法术伤害提高 25%\n每个暴击球提供 +10% 暴击伤害加成',
+      },
+    });
+    const sixChargeBase = calculateBuild({ ...base, config: sixCharges });
+    const flatEquivalent = calculateBuild({
+      ...base,
+      config: {
+        ...sixCharges,
+        customMods: '150% increased Spell Damage\n+60% to Global Critical Strike Multiplier',
+      },
+    });
+
+    // 6 Power Charges * 25% = 150% increased Spell Damage, and 6 * 10% = +60% crit multi.
+    expect(chargeOut.offence.totalDps).toBe(flatEquivalent.offence.totalDps);
+    expect(chargeOut.offence.critMultiplier).toBe(sixChargeBase.offence.critMultiplier + 60);
+    expect(zhChargeOut.offence.totalDps).toBe(chargeOut.offence.totalDps);
+    expect(zhChargeOut.offence.critMultiplier).toBe(chargeOut.offence.critMultiplier);
+    expect(parseModLine('25% increased Spell Damage per Power Charge', 'Test')).toEqual([
+      expect.objectContaining({ name: 'DamagePerPowerCharge', type: 'BASE', value: 25, flags: 2 }),
+    ]);
+    expect(parseModLine('8% increased Attack Speed per Frenzy Charge', 'Test')).toEqual([
+      expect.objectContaining({ name: 'SpeedPerFrenzyCharge', type: 'BASE', value: 8, flags: 1 }),
+    ]);
+  });
+
+  it('injects attribute-scaling damage per Intelligence (EN & ZH identical)', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const perTenInt = Math.floor(baseOut.defence.int / 10);
+    const attrOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: '1% increased Spell Damage per 10 Intelligence' },
+    });
+    const zhAttrOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: '每 10 点智慧使法术伤害提高 1%' },
+    });
+    const flatEquivalent = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: `${perTenInt}% increased Spell Damage` },
+    });
+
+    expect(perTenInt).toBeGreaterThan(0);
+    expect(attrOut.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps);
+    expect(attrOut.offence.totalDps).toBe(flatEquivalent.offence.totalDps);
+    expect(zhAttrOut.offence.totalDps).toBe(attrOut.offence.totalDps);
+    expect(parseModLine('1% increased Spell Damage per 10 Intelligence', 'Test')).toEqual([
+      expect.objectContaining({
+        name: 'DamagePerAttr:Intelligence:spell',
+        type: 'BASE',
+        value: 0.1,
+        flags: 2,
+      }),
+    ]);
+  });
+
+  it('applies flat Physical Damage Reduction and Shakari Pantheon chaos resistance', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const pdrOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: '+8% additional Physical Damage Reduction' },
+    });
+    expect(pdrOut.defence.physDamageReduction).toBeCloseTo(baseOut.defence.physDamageReduction + 8, 1);
+    expect(pdrOut.defence.maxPhysHitTaken).toBeGreaterThan(baseOut.defence.maxPhysHitTaken);
+
+    const shakariOut = calculateBuild({
+      ...base,
+      config: { ...base.config, pantheonMinor: 'Shakari' },
+    });
+    expect(shakariOut.defence.chaosResist).toBe(baseOut.defence.chaosResist + 5);
+
+    const solarisOut = calculateBuild({
+      ...base,
+      config: { ...base.config, pantheonMajor: 'Solaris' },
+    });
+    expect(solarisOut.defence.physDamageReduction).toBeCloseTo(
+      baseOut.defence.physDamageReduction + 6,
+      1,
+    );
+
+    expect(parseModLine('+8% additional Physical Damage Reduction', 'Test')).toEqual([
+      expect.objectContaining({ name: 'PhysDamageReduction', type: 'BASE', value: 8 }),
+    ]);
+  });
+
+  it('computes realistic capped life and Energy Shield leech rates', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const leechOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: '1% of Damage Leeched as Life' },
+    });
+    const cap = baseOut.defence.life * 0.2;
+    expect(leechOut.defence.lifeLeechRate).toBe(Math.round(cap));
+    expect(leechOut.defence.lifeLeechRate).toBeLessThan(baseOut.offence.hitDps * 0.01);
+
+    const increasedCapOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods:
+          '1% of Damage Leeched as Life\n100% increased Maximum total Life Recovery per second from Leech',
+      },
+    });
+    const rawLife = increasedCapOut.offence.hitDps * 0.01;
+    const doubledCap = increasedCapOut.defence.life * 0.2 * 2;
+    expect(increasedCapOut.defence.lifeLeechRate).toBe(Math.round(Math.min(rawLife, doubledCap)));
+    expect(increasedCapOut.defence.lifeLeechRate).toBeGreaterThan(leechOut.defence.lifeLeechRate!);
+
+    const esLeechOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: '1% of Damage Leeched as Energy Shield' },
+    });
+    const rawEs = esLeechOut.offence.hitDps * 0.01;
+    const esCap = esLeechOut.defence.energyShield * 0.1;
+    expect(esLeechOut.defence.esLeechRate).toBe(Math.round(Math.min(rawEs, esCap)));
+    expect(parseModLine('1% of Damage Leeched as Life', 'Test')).toEqual([
+      expect.objectContaining({ name: 'LifeLeech', type: 'BASE', value: 1 }),
+    ]);
+  });
+
+  it('normalizes Phase 19 pantheon, charge, attribute and leech rules bidirectionally', () => {
+    const pairs: Array<[string, string]> = [
+      ['额外物理伤害减免 +8%', '+8% additional Physical Damage Reduction'],
+      ['每个暴击球使法术伤害提高 25%', '25% increased Spell Damage per Power Charge'],
+      ['每个狂怒球使伤害提高 4%', '4% increased Damage per Frenzy Charge'],
+      ['每个耐力球使伤害提高 3%', '3% increased Damage per Endurance Charge'],
+      ['每个暴击球提供 +10% 暴击伤害加成', '+10% to Critical Strike Multiplier per Power Charge'],
+      ['每 10 点智慧使法术伤害提高 1%', '1% increased Spell Damage per 10 Intelligence'],
+      ['每 10 点力量使攻击伤害提高 2%', '2% increased Attack Damage per 10 Strength'],
+      ['每 5 点敏捷使伤害提高 1%', '1% increased Damage per 5 Dexterity'],
+      ['伤害的 1% 偷取为生命', '1% of Damage Leeched as Life'],
+      ['伤害的 0.5% 偷取为能量护盾', '0.5% of Damage Leeched as Energy Shield'],
+      ['伤害的 2% 偷取为魔力', '2% of Damage Leeched as Mana'],
+    ];
+    for (const [zh, en] of pairs) {
+      expect(normalizeStatLineToEn(zh)).toBe(en);
+      expect(localizeStatLine(en, 'zh-CN')).toBe(zh);
+    }
+  });
 });
