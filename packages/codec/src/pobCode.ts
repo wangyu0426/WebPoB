@@ -119,7 +119,12 @@ export function buildToPobXml(build: Build): string {
   });
 
   // <Tree>
-  const nodesStr = build.tree.allocatedNodeIds.join(',');
+  const allNodesSet = new Set<number>(build.tree.allocatedNodeIds);
+  if (build.game === 'poe2') {
+    for (const id of build.tree.weaponSet1NodeIds) allNodesSet.add(id);
+    for (const id of build.tree.weaponSet2NodeIds) allNodesSet.add(id);
+  }
+  const nodesStr = [...allNodesSet].join(',');
   const ws1Str = build.tree.weaponSet1NodeIds.join(',');
   const ws2Str = build.tree.weaponSet2NodeIds.join(',');
   const wsAttrs =
@@ -129,17 +134,27 @@ export function buildToPobXml(build: Build): string {
   const jewelSockets = Object.entries(build.tree.socketedJewels ?? {})
     .map(([nodeId, itemId]) => ({ nodeId, numId: idToNum.get(itemId) }))
     .filter((s): s is { nodeId: string; numId: number } => Boolean(s.numId));
+  const hasWsChildren =
+    build.game === 'poe2' && (build.tree.weaponSet1NodeIds.length > 0 || build.tree.weaponSet2NodeIds.length > 0);
 
   lines.push(`  <Tree activeSpec="1">`);
-  if (jewelSockets.length > 0) {
+  if (jewelSockets.length > 0 || hasWsChildren) {
     lines.push(
       `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs}>`,
     );
-    lines.push(`      <Sockets>`);
-    for (const s of jewelSockets) {
-      lines.push(`        <Socket nodeId="${s.nodeId}" itemId="${s.numId}" />`);
+    if (build.game === 'poe2' && build.tree.weaponSet1NodeIds.length > 0) {
+      lines.push(`      <WeaponSet1 nodes="${ws1Str}" />`);
     }
-    lines.push(`      </Sockets>`);
+    if (build.game === 'poe2' && build.tree.weaponSet2NodeIds.length > 0) {
+      lines.push(`      <WeaponSet2 nodes="${ws2Str}" />`);
+    }
+    if (jewelSockets.length > 0) {
+      lines.push(`      <Sockets>`);
+      for (const s of jewelSockets) {
+        lines.push(`        <Socket nodeId="${s.nodeId}" itemId="${s.numId}" />`);
+      }
+      lines.push(`      </Sockets>`);
+    }
     lines.push(`    </Spec>`);
   } else {
     lines.push(
@@ -180,7 +195,8 @@ export function buildToPobXml(build: Build): string {
     const body = escapeXml(formatItemToPobText(item));
     lines.push(`    <Item id="${numId}">\n${body}\n    </Item>`);
   });
-  lines.push(`    <ItemSet id="1">`);
+  const itemSetWsAttr = build.game === 'poe2' && build.activeWeaponSet === 2 ? ' useSecondWeaponSet="true"' : '';
+  lines.push(`    <ItemSet id="1"${itemSetWsAttr}>`);
   for (const [slot, itemId] of Object.entries(build.equipped)) {
     if (!itemId) continue;
     const numId = idToNum.get(itemId);
@@ -306,20 +322,32 @@ export function xmlToBuild(xml: string): Build {
     classes[0]!;
   const level = Math.max(1, Math.min(100, Number(buildAttrs.level ?? 90) || 90));
   const ascendancyId = buildAttrs.ascendClassName || buildAttrs.ascendancyName || '';
-  const activeWeaponSet: WeaponSetId = buildAttrs.activeWeaponSet === '2' ? 2 : 1;
+  const itemSetTag = xml.match(/<ItemSet\b([^>]*)\/?>/i);
+  const itemSetAttrs = itemSetTag ? parseAttributes(itemSetTag[1]!) : {};
+  const activeWeaponSet: WeaponSetId =
+    buildAttrs.activeWeaponSet === '2' || itemSetAttrs.useSecondWeaponSet === 'true' ? 2 : 1;
   const mainSocketGroupIdx = Math.max(1, Number(buildAttrs.mainSocketGroup ?? 1) || 1);
 
-  // Parse <Spec>
+  // Parse <Spec> (supports both WebPoB weaponSet1Nodes attributes AND official PoB2 <WeaponSet1 nodes="..."/> children)
   const tree = getTreeForGame(game);
   const specTag = xml.match(/<Spec\b([^>]*)\/?>/i);
   const specAttrs = specTag ? parseAttributes(specTag[1]!) : {};
-  let allocatedNodeIds = parseNodeList(specAttrs.nodes).filter((id) => Boolean(tree.nodes[id]));
+  const ws1ChildMatch = xml.match(/<WeaponSet1\b[^>]*\bnodes="([^"]*)"/i);
+  const ws2ChildMatch = xml.match(/<WeaponSet2\b[^>]*\bnodes="([^"]*)"/i);
+  const weaponSet1NodeIds = parseNodeList(ws1ChildMatch?.[1] ?? specAttrs.weaponSet1Nodes).filter((id) =>
+    Boolean(tree.nodes[id]),
+  );
+  const weaponSet2NodeIds = parseNodeList(ws2ChildMatch?.[1] ?? specAttrs.weaponSet2Nodes).filter((id) =>
+    Boolean(tree.nodes[id]),
+  );
+  const wsExclusiveSet = new Set<number>([...weaponSet1NodeIds, ...weaponSet2NodeIds]);
+  let allocatedNodeIds = parseNodeList(specAttrs.nodes).filter(
+    (id) => Boolean(tree.nodes[id]) && !wsExclusiveSet.has(id),
+  );
   const startNodeId = tree.classStartNodeIds[classDef.id];
   if (startNodeId && !allocatedNodeIds.includes(startNodeId)) {
     allocatedNodeIds = [startNodeId, ...allocatedNodeIds];
   }
-  const weaponSet1NodeIds = parseNodeList(specAttrs.weaponSet1Nodes).filter((id) => Boolean(tree.nodes[id]));
-  const weaponSet2NodeIds = parseNodeList(specAttrs.weaponSet2Nodes).filter((id) => Boolean(tree.nodes[id]));
 
   // Parse <Skill> groups
   const skills: SkillGroup[] = [];

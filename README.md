@@ -26,7 +26,7 @@ WebPoB/
 │   ├── web/         # @webpob/web   - React + Vite + Tailwind web app, 60fps Canvas Tree, Web Worker & IndexedDB Library
 │   └── cors-proxy/  # Optional Cloudflare Worker CORS proxy for pobb.in / pastebin / GGG APIs
 ├── fixtures/
-│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (35 PoE 1 3.30 & PoE 2 0.5 benchmarks)
+│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (45 PoE 1 3.30 & PoE 2 0.5 benchmarks)
 └── scripts/
     ├── sync-data/   # Upstream PathOfBuilding & PoeCharm/PoeCharm2 bilingual sync + LuaJIT skill/base exporter
     └── oracle-diff/ # Automated differential verification harness against official PathOfBuilding LuaJIT
@@ -58,8 +58,8 @@ pnpm oracle:diff
 
 WebPoB's pure TypeScript calculation engine is continuously regression-tested against **official upstream [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding) (PoE 1 `3.30`)** and **[PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2) (PoE 2 `0.5`)** running headlessly in LuaJIT (`HeadlessWrapper.lua`):
 
-- **35 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, **Ward**, Armour, Evasion, Resistances, Crit Confirmation, PoE 1 & PoE 2 Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **PoE 1 Phys-conversion inheritance vs PoE 2 final-type conversion**, **Dual-Wielding**, **Minion DPS** (`Summon Raging Spirit` + `Minion Damage` + `Anger`), **Triple Offensive Auras** (`Hatred`, `Zealotry`, `Haste`), **Impale Support DPS**, **Cast On Critical Strike (CoC) 0.033s server-tick CDR breakpoints**, **Timeless Jewel Keystones** (`Corrupted Soul`, `Divine Flesh`, `Inner Conviction`), **Cluster Jewels** (308 official Notables), **Endgame Combat Buffs/Debuffs**, **Curses & Marks**, **Socketed Tree Jewels**, **Unique Items**, **Endgame Keystones** (`CI`, `RT`, `MoM`, `Iron Reflexes`, `Avatar of Fire`, `Elemental Overload`), **Spell Totem**, **Ascendancy**, **Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **5 PoE 2 `0.5` classes** (`Sorceress Spark/Comet`, `Monk Quarterstaff Ice Strike`, `Ranger Bow Lightning Arrow`, `Warrior Mace Volcanic Fissure`).
-- **0.00% – 0.18% Hit DPS error** across all 35 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
+- **45 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, **Ward**, Armour, Evasion, **Spell Suppression**, Resistances, Crit Confirmation, **Separate Non-Crit & Crit Enemy Armour Mitigation**, PoE 1 & PoE 2 Accuracy/Hit Chance (`(level - 1) * accuracyPerLevel`), **PoE 2 `ArmourRatio = 10`**, **Local Rare Weapon & Armour scaling**, **PoE 1 Phys-conversion inheritance vs PoE 2 final-type conversion**, **Dual-Wielding**, **Minion DPS** (`Summon Raging Spirit` + `Minion Damage` + `Anger`), **Auras & Heralds** (`Determination`, `Precision`, `Grace`, `Hatred`, `Zealotry`, `Haste`, `Herald of Ash`, `Herald of Ice`), **Deadly Ailments / Swift Affliction / Void Manipulation / Vicious Projectiles / Melee Physical / Cruelty / Combustion**, **Impale Support DPS**, **Cast On Critical Strike (CoC) 0.033s server-tick CDR breakpoints**, **Timeless Jewel Keystones**, **Cluster Jewels** (308 official Notables), **Endgame Combat Buffs/Debuffs**, **Curses & Marks**, **Socketed Tree Jewels**, **Unique Items**, **Endgame Keystones** (`CI`, `RT`, `MoM`, `Iron Reflexes`, `Avatar of Fire`, `Elemental Overload`), **Spell Totem**, **Ascendancy**, **Utility Flasks**, **Lv.21 Gem Scaling**, **PoE 2 `0.5` Spirit Reservation & Archmage (`4% Extra Lightning per 100 Max Mana`)**, **PoE 2 `<WeaponSet1>`/`<WeaponSet2>` Passive Tree Swap**, and **6 PoE 2 `0.5` classes** (`Sorceress Spark/Archmage/Comet/Fireball`, `Witch Bone Cage`, `Monk Quarterstaff Ice Strike`, `Ranger Bow Lightning Arrow & Poisonburst Arrow`, `Warrior Mace Volcanic Fissure`).
+- **0.00% – 0.45% Hit DPS parity** across all 45 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts` (`58/58` Vitest tests).
 
 ## Roadmap
 
@@ -110,6 +110,11 @@ WebPoB's pure TypeScript calculation engine is continuously regression-tested ag
   - **Minion Combat Engine** (`Summon Raging Spirit`, `Raise Zombie`, `Minion Damage`, 130% minion crit multi, Aura attack flat scaling) & **PoE 1 authentic Physical-conversion inheritance**
   - **Offline PWA Support** (`manifest.webmanifest` + Service Worker caching `/data/*.json` & static chunks)
   - **35/35 official LuaJIT PoB Oracle benchmarks** (`48/48` Vitest tests) passing within `<= 0.18%` Hit DPS parity (including **PoE 2 `0.5` Warrior Volcanic Fissure**)
+- [x] **Phase 9 — Top Power Notables Efficiency Report, PoE 2 Archmage & Weapon Set XML Parity, 45 Oracle Benchmarks**
+  - **Top Power Notables Efficiency Drawer** inside the Passive Tree powered by Web Worker BFS path-cost simulation (`DPS/Pt`, `Total DPS`, `EHP/Pt`, `Total EHP`), with instant jump-to-node camera panning and one-click shortest-path allocation
+  - **PoE 2 `0.5` Authentic Mechanics**: official `Archmage` (`100 Spirit`, `4% Extra Lightning per 100 Max Mana`), `ArmourRatio = 10`, `<WeaponSet1>`/`<WeaponSet2>` + `useSecondWeaponSet` official PoB2 XML round-trip & inactive weapon-set visual dimming on canvas
+  - **Deep Combat Precision**: separate Non-Crit vs Crit Physical Enemy Armour mitigation (both PoE 1 & PoE 2), full Lua DoT/Ailment/Hit/Minion flag export across all 1,794 gems (`Deadly Ailments`, `Swift Affliction`, `Melee Physical Damage`, `Vicious Projectiles`, `Heavy Strike` Double Damage), Heralds (`Ash`/`Ice`/`Thunder`), `Determination`, `Precision`, `Spell Suppression`
+  - **45/45 official LuaJIT PoB/PoB2 Oracle benchmarks** (`58/58` Vitest tests) passing within `<= 0.5%` Hit DPS parity
 
 ## License
 

@@ -5,6 +5,7 @@ import {
   Flame,
   Loader2,
   Maximize2,
+  Plus,
   RotateCcw,
   Search,
   Sparkles,
@@ -109,6 +110,8 @@ export function PassiveTreeCanvas() {
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [heatmapMap, setHeatmapMap] = useState<Map<number, NodePowerHeatItem>>(new Map());
+  const [heatmapSort, setHeatmapSort] = useState<'dpsPerPoint' | 'dps' | 'ehpPerPoint' | 'ehp'>('dpsPerPoint');
+  const [powerDrawerOpen, setPowerDrawerOpen] = useState(true);
   const dragRef = useRef<{
     active: boolean;
     moved: boolean;
@@ -523,6 +526,31 @@ export function PassiveTreeCanvas() {
     [matchedSearchList],
   );
 
+  const jumpToNodeId = useCallback(
+    (nodeId: number) => {
+      const target = tree.nodes[nodeId];
+      if (!target) return;
+      const targetZoom = isOfficialFull ? 0.22 : 1.05;
+      setCamera({ x: -target.x * targetZoom, y: -target.y * targetZoom, zoom: targetZoom });
+      setHoveredNodeId(nodeId);
+    },
+    [tree, isOfficialFull],
+  );
+
+  const topPowerNodes = useMemo(() => {
+    if (!heatmapEnabled || heatmapMap.size === 0) return [];
+    const items = [...heatmapMap.values()]
+      .map((item) => ({ item, node: tree.nodes[item.nodeId] }))
+      .filter((x): x is { item: NodePowerHeatItem; node: PassiveNode } => Boolean(x.node));
+    items.sort((a, b) => {
+      if (heatmapSort === 'dpsPerPoint') return b.item.dpsPerPoint - a.item.dpsPerPoint || b.item.dpsDeltaPct - a.item.dpsDeltaPct;
+      if (heatmapSort === 'dps') return b.item.dpsDeltaPct - a.item.dpsDeltaPct;
+      if (heatmapSort === 'ehpPerPoint') return b.item.ehpPerPoint - a.item.ehpPerPoint || b.item.ehpDeltaPct - a.item.ehpDeltaPct;
+      return b.item.ehpDeltaPct - a.item.ehpDeltaPct;
+    });
+    return items.slice(0, 12);
+  }, [heatmapEnabled, heatmapMap, heatmapSort, tree]);
+
   const jumpToSearchMatch = (nextIndex: number) => {
     if (matchedSearchList.length === 0) return;
     const idx = ((nextIndex % matchedSearchList.length) + matchedSearchList.length) % matchedSearchList.length;
@@ -685,11 +713,21 @@ export function PassiveTreeCanvas() {
         continue;
       }
       if (isSet1Edge) {
-        activeEdges.push({ edge, color: '#22d3ee', dashed: false });
+        const active = build.activeWeaponSet !== 2;
+        activeEdges.push({
+          edge,
+          color: active ? '#22d3ee' : 'rgba(34, 211, 238, 0.32)',
+          dashed: !active,
+        });
         continue;
       }
       if (isSet2Edge) {
-        activeEdges.push({ edge, color: '#e879f9', dashed: false });
+        const active = build.activeWeaponSet === 2;
+        activeEdges.push({
+          edge,
+          color: active ? '#e879f9' : 'rgba(232, 121, 249, 0.32)',
+          dashed: !active,
+        });
         continue;
       }
       if (isPreviewEdge) {
@@ -805,13 +843,15 @@ export function PassiveTreeCanvas() {
         ctx.strokeStyle = isMasteryChosen ? '#38bdf8' : '#f3cc82';
         ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
       } else if (isSet1) {
-        ctx.fillStyle = '#0e3a4c';
-        ctx.strokeStyle = '#22d3ee';
-        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
+        const active = build.activeWeaponSet !== 2;
+        ctx.fillStyle = active ? '#0e3a4c' : 'rgba(14, 58, 76, 0.4)';
+        ctx.strokeStyle = active ? '#22d3ee' : 'rgba(34, 211, 238, 0.35)';
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, (active ? 2.4 : 1.5) * invZoom);
       } else if (isSet2) {
-        ctx.fillStyle = '#4a124f';
-        ctx.strokeStyle = '#e879f9';
-        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
+        const active = build.activeWeaponSet === 2;
+        ctx.fillStyle = active ? '#4a124f' : 'rgba(74, 18, 79, 0.4)';
+        ctx.strokeStyle = active ? '#e879f9' : 'rgba(232, 121, 249, 0.35)';
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, (active ? 2.4 : 1.5) * invZoom);
       } else if (isPreview) {
         ctx.fillStyle = '#332812';
         ctx.strokeStyle = '#fbbf24';
@@ -994,6 +1034,7 @@ export function PassiveTreeCanvas() {
     hoveredNodeId,
     matchedSearchIds,
     build.game,
+    build.activeWeaponSet,
     build.tree.masteryEffects,
     build.tree.socketedJewels,
     locale,
@@ -1343,6 +1384,124 @@ export function PassiveTreeCanvas() {
       <div className="absolute bottom-3 left-3 pointer-events-none rounded bg-[#0d1018]/85 border border-[#252b3d] px-3 py-1 text-[11px] text-zinc-400">
         {t(locale, 'tree.hint')}
       </div>
+
+      {/* Floating Top Power Nodes Efficiency Drawer (when Heatmap is active) */}
+      {heatmapEnabled && (
+        <div className="absolute top-16 right-3 z-20 w-72 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-orange-500/40 shadow-2xl overflow-hidden pointer-events-auto">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-orange-300">
+              <Flame className="w-3.5 h-3.5" />
+              {locale === 'zh-CN' ? '高收益天赋大点排行' : 'Top Power Notables'}
+              {heatmapLoading && <Loader2 className="w-3 h-3 animate-spin text-amber-300" />}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPowerDrawerOpen((v) => !v)}
+              className="text-[10px] text-zinc-400 hover:text-zinc-200 cursor-pointer px-1"
+            >
+              {powerDrawerOpen
+                ? locale === 'zh-CN'
+                  ? '收起'
+                  : 'Hide'
+                : locale === 'zh-CN'
+                  ? '展开'
+                  : 'Show'}
+            </button>
+          </div>
+          {powerDrawerOpen && (
+            <>
+              <div className="grid grid-cols-4 gap-1 p-1.5 bg-[#0a0d14] border-b border-[#1e2436] text-[10px]">
+                {(
+                  [
+                    ['dpsPerPoint', locale === 'zh-CN' ? 'DPS/点' : 'DPS/Pt'],
+                    ['dps', locale === 'zh-CN' ? '总 DPS' : 'Total DPS'],
+                    ['ehpPerPoint', locale === 'zh-CN' ? 'EHP/点' : 'EHP/Pt'],
+                    ['ehp', locale === 'zh-CN' ? '总 EHP' : 'Total EHP'],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setHeatmapSort(mode)}
+                    className={`py-1 rounded font-semibold cursor-pointer transition ${
+                      heatmapSort === mode
+                        ? mode.startsWith('dps')
+                          ? 'bg-orange-500/25 text-orange-200 border border-orange-400/50'
+                          : 'bg-sky-500/25 text-sky-200 border border-sky-400/50'
+                        : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="overflow-y-auto divide-y divide-[#1b2030]">
+                {heatmapLoading && topPowerNodes.length === 0 ? (
+                  <div className="p-4 text-center text-[11px] text-zinc-400">
+                    {locale === 'zh-CN'
+                      ? '后台 Web Worker 正在模拟 300 个周边大点...'
+                      : 'Web Worker simulating 300 nearby notables...'}
+                  </div>
+                ) : topPowerNodes.length === 0 ? (
+                  <div className="p-4 text-center text-[11px] text-zinc-500">
+                    {locale === 'zh-CN' ? '未发现正收益大点' : 'No positive power notables found.'}
+                  </div>
+                ) : (
+                  topPowerNodes.map(({ item, node }, idx) => {
+                    const isDpsMode = heatmapSort === 'dps' || heatmapSort === 'dpsPerPoint';
+                    const primaryPct = isDpsMode ? item.dpsDeltaPct : item.ehpDeltaPct;
+                    const perPt = isDpsMode ? item.dpsPerPoint : item.ehpPerPoint;
+                    return (
+                      <div
+                        key={node.id}
+                        className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 hover:bg-[#161c2c] transition"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => jumpToNodeId(node.id)}
+                          className="min-w-0 flex-1 text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono text-zinc-500 w-4 shrink-0">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-xs font-semibold text-zinc-100 truncate">
+                              {localizeText(node.name, locale)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 pl-5 mt-0.5 text-[10px] font-mono">
+                            <span className={isDpsMode ? 'text-orange-300 font-semibold' : 'text-sky-300 font-semibold'}>
+                              +{primaryPct.toFixed(1)}% {isDpsMode ? 'DPS' : 'EHP'}
+                            </span>
+                            <span className="text-zinc-400">
+                              {item.pathCost} {locale === 'zh-CN' ? '点' : 'pts'}
+                            </span>
+                            <span className="text-emerald-300">
+                              (+{perPt.toFixed(1)}%/pt)
+                            </span>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePassiveNode(node.id)}
+                          title={
+                            locale === 'zh-CN'
+                              ? `一键沿最短路径分配 (${item.pathCost} 点)`
+                              : `Allocate shortest path (${item.pathCost} pts)`
+                          }
+                          className="p-1 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 shrink-0 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Jewel Socket Picker Modal */}
       {jewelModalNodeId !== null && (

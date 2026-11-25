@@ -77,6 +77,12 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
       if ((o.Ward ?? 0) > 0) {
         expectWithinPct(out.defence.ward ?? 0, o.Ward!, 0.5, 1);
       }
+      if ((o.SpiritReserved ?? 0) > 0) {
+        expect(out.defence.spiritReserved).toBe(Math.round(o.SpiritReserved!));
+      }
+      if ((o.SpellSuppressionChance ?? 0) > 0) {
+        expect(out.defence.spellSuppressionChance).toBe(Math.round(o.SpellSuppressionChance!));
+      }
       expectWithinPct(out.defence.mana, o.Mana!, 0.1, 1);
       expectWithinPct(out.defence.armour, o.Armour!, 0.5, 1);
       expectWithinPct(out.defence.evasion, o.Evasion!, 0.5, 1);

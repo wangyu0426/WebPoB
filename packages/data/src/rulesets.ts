@@ -77,7 +77,7 @@ export const POE2_RULESET: GameRuleset = {
   endgameResistPenalty: -50,
   endgameChaosResistPenalty: 0,
   defaultEnemyEleResist: 50,
-  armourFormulaFactor: 12,
+  armourFormulaFactor: 10,
   baseCritMultiplier: 200,
   equipmentSlots: [
     'Weapon 1',

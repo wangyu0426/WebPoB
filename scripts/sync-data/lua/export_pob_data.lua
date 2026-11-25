@@ -168,8 +168,10 @@ local function modToStatLine(m, val)
   local isProj = bit.band(flags, ModFlag.Projectile or 0) ~= 0
   local isArea = bit.band(flags, ModFlag.Area or 0) ~= 0
   local isHit = bit.band(flags, ModFlag.Hit or 0) ~= 0
+  local isAilment = bit.band(flags, ModFlag.Ailment or 0) ~= 0
+    or bit.band(kflags, bit.bor(KeywordFlag.Ailment or 0, KeywordFlag.Bleed or 0, KeywordFlag.Poison or 0, KeywordFlag.Ignite or 0)) ~= 0
   local isDot = bit.band(flags, ModFlag.Dot or 0) ~= 0
-  local isAilment = bit.band(flags, ModFlag.Ailment or 0) ~= 0 or bit.band(kflags, KeywordFlag.Ailment or 0) ~= 0
+    or bit.band(kflags, bit.bor(KeywordFlag.PhysicalDot or 0, KeywordFlag.ChaosDot or 0, KeywordFlag.FireDot or 0, KeywordFlag.ColdDot or 0, KeywordFlag.LightningDot or 0)) ~= 0
   local isMinion = bit.band(kflags, KeywordFlag.Minion or 0) ~= 0
   local isProxy = bit.band(kflags, bit.bor(KeywordFlag.Totem or 0, KeywordFlag.Trap or 0, KeywordFlag.Mine or 0, KeywordFlag.Brand or 0)) ~= 0
   if isProxy then return nil end
@@ -195,6 +197,7 @@ local function modToStatLine(m, val)
       local dt = name:gsub("Damage$", "")
       if isAilment then return av .. "% " .. word .. " Damage with Ailments" end
       if isDot then return av .. "% " .. word .. " Damage over Time" end
+      if isMelee and dt == "Physical" then return av .. "% " .. word .. " Melee Physical Damage" end
       if isAttack then return av .. "% " .. word .. " " .. dt .. " Damage with Attack Skills" end
       return av .. "% " .. word .. " " .. dt .. " Damage"
     elseif name == "Speed" then
@@ -255,6 +258,7 @@ local function modToStatLine(m, val)
     elseif name == "Life" and v > 0 then return "+" .. v .. " to maximum Life"
     elseif name == "Mana" and v > 0 then return "+" .. v .. " to maximum Mana"
     elseif name == "Accuracy" and v > 0 then return "+" .. v .. " to Accuracy Rating"
+    elseif name == "DoubleDamageChance" and v > 0 then return v .. "% chance to deal Double Damage"
     elseif name == "PhysicalDamageConvertToFire" then return v .. "% of Physical Damage Converted to Fire Damage"
     elseif name == "PhysicalDamageConvertToCold" then return v .. "% of Physical Damage Converted to Cold Damage"
     elseif name == "PhysicalDamageConvertToLightning" then return v .. "% of Physical Damage Converted to Lightning Damage"
@@ -292,6 +296,7 @@ local QUALITY_KEY_MAP = {
   ["base_cast_speed_+%"] = "{v}% increased Cast Speed",
   ["critical_strike_chance_+%"] = "{v}% increased Critical Strike Chance",
   ["base_critical_strike_multiplier_+"] = "+{v}% to Critical Strike Multiplier",
+  ["chance_to_deal_double_damage_%"] = "{v}% chance to deal Double Damage",
   ["attack_skills_elemental_damage_+%"] = "{v}% increased Elemental Damage with Attack Skills",
 }
 

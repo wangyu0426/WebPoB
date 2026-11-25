@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 import type { Build, GameId } from '@webpob/core';
 import {
+  findShortestPathToNode,
+  getTreeForGame,
   loadOfficialBaseItems,
   loadOfficialGems,
   loadOfficialTree,
@@ -11,6 +13,9 @@ export interface NodePowerHeatItem {
   nodeId: number;
   dpsDeltaPct: number;
   ehpDeltaPct: number;
+  pathCost: number;
+  dpsPerPoint: number;
+  ehpPerPoint: number;
 }
 
 export type CalcWorkerRequest =
@@ -54,17 +59,30 @@ self.onmessage = async (ev: MessageEvent<CalcWorkerRequest>) => {
       await ensureWorkerData(msg.build.game);
       const baseline = calculateBuild(msg.build);
       const baseEhp = Math.max(1, baseline.defence.effectiveHitPool);
+      const tree = getTreeForGame(msg.build.game);
+      const allAllocated = new Set<number>([
+        ...msg.build.tree.allocatedNodeIds,
+        ...(msg.build.game === 'poe2'
+          ? msg.build.activeWeaponSet === 2
+            ? msg.build.tree.weaponSet2NodeIds
+            : msg.build.tree.weaponSet1NodeIds
+          : []),
+      ]);
       const items: NodePowerHeatItem[] = [];
 
       for (const nodeId of msg.candidateNodeIds) {
         const delta = computeNodePower(msg.build, nodeId, baseline);
         if (delta.isAllocated) continue;
         const ehpDeltaPct = Math.round((delta.ehpDelta / baseEhp) * 1000) / 10;
-        if (delta.dpsDeltaPct > 0.5 || ehpDeltaPct > 0.5) {
+        if (delta.dpsDeltaPct > 0.3 || ehpDeltaPct > 0.3) {
+          const pathLen = Math.max(1, findShortestPathToNode(tree, allAllocated, nodeId).length);
           items.push({
             nodeId,
             dpsDeltaPct: delta.dpsDeltaPct,
             ehpDeltaPct,
+            pathCost: pathLen,
+            dpsPerPoint: Math.round((delta.dpsDeltaPct / pathLen) * 100) / 100,
+            ehpPerPoint: Math.round((ehpDeltaPct / pathLen) * 100) / 100,
           });
         }
       }

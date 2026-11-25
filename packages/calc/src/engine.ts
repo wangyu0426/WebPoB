@@ -207,7 +207,7 @@ export function calculateBuild(build: Build): CalcOutput {
   db.addMod({
     name: 'Accuracy',
     type: 'BASE',
-    value: (build.game === 'poe2' ? Math.max(0, build.level - 1) : build.level) * ruleset.accuracyPerLevel,
+    value: Math.max(0, build.level - 1) * ruleset.accuracyPerLevel,
     flags: 0,
     keywordFlags: 0,
     source: `Level ${build.level}`,
@@ -1101,6 +1101,23 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     finalBaseMax.Chaos += eleMax * (eleExtraChaos / 100);
   }
 
+  // PoE 2 Archmage: Gain X% of ALL Damage as Extra Fire/Cold/Lightning/Chaos per 100 Maximum Mana (Spells)
+  if (!isAttack && !isMinion && _defence.mana >= 100) {
+    const manaHundreds = Math.floor(_defence.mana / 100);
+    const totalPreMin =
+      finalBaseMin.Physical + finalBaseMin.Fire + finalBaseMin.Cold + finalBaseMin.Lightning + finalBaseMin.Chaos;
+    const totalPreMax =
+      finalBaseMax.Physical + finalBaseMax.Fire + finalBaseMax.Cold + finalBaseMax.Lightning + finalBaseMax.Chaos;
+    for (const target of ['Fire', 'Cold', 'Lightning', 'Chaos'] as const) {
+      const per100 = skillDb.sum('BASE', `SpellGainAs${target}PerMana100`, flags, kwFlags);
+      if (per100 > 0) {
+        const extraFrac = (per100 * manaHundreds) / 100;
+        finalBaseMin[target] += totalPreMin * extraFrac;
+        finalBaseMax[target] += totalPreMax * extraFrac;
+      }
+    }
+  }
+
   // Cold & Lightning -> Fire conversion (e.g., Avatar of Fire)
   const coldToFire = Math.min(100, skillDb.sum('BASE', 'ColdDamageConvertToFire', flags, kwFlags));
   if (coldToFire > 0) {
@@ -1133,81 +1150,8 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const curseChaosRes = skillDb.sum('BASE', 'EnemyChaosResist', flags, kwFlags);
 
   const ruleset = getRuleset(build.game);
-  const damageByType: Record<DamageType, DamageRange> = { ...emptyRanges };
-  const dealNoEle = skillDb.flag('DealNoElemental', flags, kwFlags);
-  const dealNoChaos = skillDb.flag('DealNoChaos', flags, kwFlags);
-  const dealNoNonFire = skillDb.flag('DealNoNonFire', flags, kwFlags);
-  let totalAvgHit = 0;
-
-  for (const dt of DAMAGE_TYPES) {
-    const isEle = dt === 'Fire' || dt === 'Cold' || dt === 'Lightning';
-    if ((isEle && dealNoEle) || (dt === 'Chaos' && dealNoChaos) || (dealNoNonFire && dt !== 'Fire')) {
-      damageByType[dt] = { min: 0, max: 0, average: 0 };
-      continue;
-    }
-    const statNames = isMinion
-      ? ['MinionDamage']
-      : isEle
-        ? ['Damage', 'ElementalDamage', `${dt}Damage`]
-        : ['Damage', `${dt}Damage`];
-
-    const inc = skillDb.sum('INC', statNames, flags, kwFlags);
-    const more = skillDb.more(statNames, flags, kwFlags);
-    const preMitMult = (1 + inc / 100) * more;
-
-    let rawMin = finalBaseMin[dt] * preMitMult;
-    let rawMax = finalBaseMax[dt] * preMitMult;
-    // PoE 1 authentic conversion rule: portion converted/gained from Physical also scales with PhysicalDamage
-    if (build.game === 'poe1' && !isMinion && dt !== 'Physical' && fromPhysMax[dt] > 0) {
-      const physConvStats = [...statNames, 'PhysicalDamage'];
-      const convInc = skillDb.sum('INC', physConvStats, flags, kwFlags);
-      const convMore = skillDb.more(physConvStats, flags, kwFlags);
-      const convMult = (1 + convInc / 100) * convMore;
-      const nonPhysMin = Math.max(0, finalBaseMin[dt] - fromPhysMin[dt]);
-      const nonPhysMax = Math.max(0, finalBaseMax[dt] - fromPhysMax[dt]);
-      rawMin = nonPhysMin * preMitMult + fromPhysMin[dt] * convMult;
-      rawMax = nonPhysMax * preMitMult + fromPhysMax[dt] * convMult;
-    }
-    const rawAvg = (rawMin + rawMax) / 2;
-
-    // Enemy mitigation (Resistances + Curses + Penetration; Enemy Armour PDR capped at 75%)
-    let enemyFactor = 1;
-    let typeDmgTaken = shockVal + enemyGlobalDmgTaken;
-    if (dt === 'Physical') {
-      typeDmgTaken += enemyPhysDmgTaken;
-      const eArm = Math.max(0, build.config.enemyArmour);
-      if (eArm > 0 && rawAvg > 0) {
-        const pdr = Math.min(0.75, eArm / (eArm + ruleset.armourFormulaFactor * rawAvg));
-        enemyFactor = 1 - pdr;
-      }
-    } else if (dt === 'Fire') {
-      const effRes =
-        Math.min(75, build.config.enemyFireResist + enemyBossResistBonus + curseFireRes) -
-        skillDb.sum('BASE', 'FirePenetration', flags, kwFlags);
-      enemyFactor = 1 - effRes / 100;
-    } else if (dt === 'Cold') {
-      const effRes =
-        Math.min(75, build.config.enemyColdResist + enemyBossResistBonus + curseColdRes) -
-        skillDb.sum('BASE', 'ColdPenetration', flags, kwFlags);
-      enemyFactor = 1 - effRes / 100;
-    } else if (dt === 'Lightning') {
-      const effRes =
-        Math.min(75, build.config.enemyLightningResist + enemyBossResistBonus + curseLightRes) -
-        skillDb.sum('BASE', 'LightningPenetration', flags, kwFlags);
-      enemyFactor = 1 - effRes / 100;
-    } else if (dt === 'Chaos') {
-      typeDmgTaken += enemyChaosDmgTaken;
-      const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);
-      enemyFactor = 1 - effRes / 100;
-    }
-
-    const finalMult = Math.max(0.05, enemyFactor) * (1 + typeDmgTaken / 100);
-    const min = rawMin * finalMult;
-    const max = rawMax * finalMult;
-    const average = (min + max) / 2;
-    damageByType[dt] = { min: Math.round(min), max: Math.round(max), average: Math.round(average * 100) / 100 };
-    totalAvgHit += average;
-  }
+  const doubleDamagePct = Math.min(100, Math.max(0, skillDb.sum('BASE', 'DoubleDamageChance', flags, kwFlags)));
+  const doubleDamageMult = 1 + doubleDamagePct / 100;
 
   // Step D: Accuracy / Hit Chance first (exact PoE 1 & PoE 2 PoB formulas)
   let hitChance = 100;
@@ -1246,6 +1190,94 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
         : Math.round(skillDb.sum('BASE', 'CritMultiplier', flags, kwFlags) + enemyCritMulti);
   const effectiveCritMultiplier =
     neverCrit || noCritExtra ? 1 : 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
+
+  const damageByType: Record<DamageType, DamageRange> = { ...emptyRanges };
+  const dealNoEle = skillDb.flag('DealNoElemental', flags, kwFlags);
+  const dealNoChaos = skillDb.flag('DealNoChaos', flags, kwFlags);
+  const dealNoNonFire = skillDb.flag('DealNoNonFire', flags, kwFlags);
+  let totalAvgHit = 0;
+
+  for (const dt of DAMAGE_TYPES) {
+    const isEle = dt === 'Fire' || dt === 'Cold' || dt === 'Lightning';
+    if ((isEle && dealNoEle) || (dt === 'Chaos' && dealNoChaos) || (dealNoNonFire && dt !== 'Fire')) {
+      damageByType[dt] = { min: 0, max: 0, average: 0 };
+      continue;
+    }
+    const statNames = isMinion
+      ? ['MinionDamage']
+      : isEle
+        ? ['Damage', 'ElementalDamage', `${dt}Damage`]
+        : ['Damage', `${dt}Damage`];
+
+    const inc = skillDb.sum('INC', statNames, flags, kwFlags);
+    const more = skillDb.more(statNames, flags, kwFlags);
+    const preMitMult = (1 + inc / 100) * more;
+
+    let rawMin = finalBaseMin[dt] * preMitMult;
+    let rawMax = finalBaseMax[dt] * preMitMult;
+    // PoE 1 authentic conversion rule: portion converted/gained from Physical also scales with PhysicalDamage
+    if (build.game === 'poe1' && !isMinion && dt !== 'Physical' && fromPhysMax[dt] > 0) {
+      const physConvStats = [...statNames, 'PhysicalDamage'];
+      const convInc = skillDb.sum('INC', physConvStats, flags, kwFlags);
+      const convMore = skillDb.more(physConvStats, flags, kwFlags);
+      const convMult = (1 + convInc / 100) * convMore;
+      const nonPhysMin = Math.max(0, finalBaseMin[dt] - fromPhysMin[dt]);
+      const nonPhysMax = Math.max(0, finalBaseMax[dt] - fromPhysMax[dt]);
+      rawMin = nonPhysMin * preMitMult + fromPhysMin[dt] * convMult;
+      rawMax = nonPhysMax * preMitMult + fromPhysMax[dt] * convMult;
+    }
+    const rawAvg = (rawMin + rawMax) / 2;
+
+    // Enemy mitigation (Resistances + Curses + Penetration; separate Non-Crit & Crit Enemy Armour PDR)
+    let enemyFactor = 1;
+    let typeDmgTaken = shockVal + enemyGlobalDmgTaken;
+    if (dt === 'Physical') {
+      typeDmgTaken += enemyPhysDmgTaken;
+      const eArm = Math.max(0, build.config.enemyArmour);
+      if (eArm > 0 && rawAvg > 0) {
+        const pdrCap = 0.75;
+        const pdrNonCrit = Math.min(pdrCap, eArm / (eArm + ruleset.armourFormulaFactor * rawAvg * doubleDamageMult));
+        const critFactor = neverCrit || noCritExtra ? 1 : Math.max(1, critMultiplier / 100);
+        const critFrac = neverCrit || noCritExtra ? 0 : critChance / 100;
+        if (critFrac > 0 && critFactor > 1) {
+          const pdrCrit = Math.min(
+            pdrCap,
+            eArm / (eArm + ruleset.armourFormulaFactor * rawAvg * doubleDamageMult * critFactor),
+          );
+          const weightedPhys = (1 - critFrac) * (1 - pdrNonCrit) + critFrac * critFactor * (1 - pdrCrit);
+          enemyFactor = weightedPhys / effectiveCritMultiplier;
+        } else {
+          enemyFactor = 1 - pdrNonCrit;
+        }
+      }
+    } else if (dt === 'Fire') {
+      const effRes =
+        Math.min(75, build.config.enemyFireResist + enemyBossResistBonus + curseFireRes) -
+        skillDb.sum('BASE', 'FirePenetration', flags, kwFlags);
+      enemyFactor = 1 - effRes / 100;
+    } else if (dt === 'Cold') {
+      const effRes =
+        Math.min(75, build.config.enemyColdResist + enemyBossResistBonus + curseColdRes) -
+        skillDb.sum('BASE', 'ColdPenetration', flags, kwFlags);
+      enemyFactor = 1 - effRes / 100;
+    } else if (dt === 'Lightning') {
+      const effRes =
+        Math.min(75, build.config.enemyLightningResist + enemyBossResistBonus + curseLightRes) -
+        skillDb.sum('BASE', 'LightningPenetration', flags, kwFlags);
+      enemyFactor = 1 - effRes / 100;
+    } else if (dt === 'Chaos') {
+      typeDmgTaken += enemyChaosDmgTaken;
+      const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);
+      enemyFactor = 1 - effRes / 100;
+    }
+
+    const finalMult = Math.max(0.05, enemyFactor) * (1 + typeDmgTaken / 100);
+    const min = rawMin * finalMult;
+    const max = rawMax * finalMult;
+    const average = (min + max) / 2;
+    damageByType[dt] = { min: Math.round(min), max: Math.round(max), average: Math.round(average * 100) / 100 };
+    totalAvgHit += average;
+  }
 
   // Step F: Attack / Cast Speed (with alternating Dual-Wield harmonic APS, Minion Speed & CoC Trigger Rate)
   const weaponBaseAps =
@@ -1307,8 +1339,6 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   }
   const speed = Math.round(speedExact * 100) / 100;
 
-  const doubleDamagePct = Math.min(100, Math.max(0, skillDb.sum('BASE', 'DoubleDamageChance', flags, kwFlags)));
-  const doubleDamageMult = 1 + doubleDamagePct / 100;
   const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * doubleDamageMult * 100) / 100;
   const hitDps = Math.round(avgHitWithCrit * speedExact * (hitChance / 100) * 100) / 100;
 

@@ -635,7 +635,7 @@ export const POE2_GEMS: GemDefinition[] = [
     keywordFlags: KeywordFlag.Spirit | KeywordFlag.Lightning | KeywordFlag.Spell,
     spiritReservation: 100,
     isAuraOrBuff: true,
-    stats: ['Adds 140 to 620 Lightning Damage to Spells', '25% more Lightning Damage'],
+    stats: ['Gain 4% of Damage as Extra Lightning Damage per 100 Maximum Mana'],
   },
   {
     id: 'poe2_herald_of_thunder',

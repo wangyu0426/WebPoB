@@ -232,6 +232,12 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [mkMod(`PhysicalDamageConvertTo${m[2]}`, 'BASE', Number(m[1]), src)],
   },
   {
+    pattern: /^Gain (\d+)% of Damage as Extra (Fire|Cold|Lightning|Chaos) Damage per (\d+) Maximum Mana$/i,
+    build: (m, src) => [
+      mkMod(`SpellGainAs${m[2]}PerMana100`, 'BASE', (Number(m[1]) * 100) / Math.max(1, Number(m[3])), src, ModFlag.Spell),
+    ],
+  },
+  {
     pattern: /^Gain (\d+)% of Physical Damage as Extra (Fire|Cold|Lightning|Chaos) Damage$/i,
     build: (m, src) => [mkMod(`PhysicalDamageGainAs${m[2]}`, 'BASE', Number(m[1]), src)],
   },
@@ -457,14 +463,14 @@ const PARSER_RULES: ParserRule[] = [
     },
   },
   {
-    pattern: /^(\d+)% (increased|more|less) Damage with (?:Ignite|Ignites|Ailments)$/i,
+    pattern: /^(\d+)% (increased|more|less) Damage with (?:Ignite|Ignites)$/i,
     build: (m, src) => {
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
       return [mkMod('IgniteDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
     },
   },
   {
-    pattern: /^(\d+)% (increased|more|less) (?:Damage over Time|Poison Damage|Bleeding Damage)$/i,
+    pattern: /^(\d+)% (increased|more|less) (?:Damage over Time|Damage with Ailments|Poison Damage|Bleeding Damage)$/i,
     build: (m, src) => {
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
       return [mkMod('DotDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
