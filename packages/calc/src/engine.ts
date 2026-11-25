@@ -817,7 +817,59 @@ function resolveGemLevelEntry(def: GemDefinition, level: number) {
   };
 }
 
-function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutput): CalcOffenceOutput {
+function computeOffence(build: Build, globalDb: ModDB, defence: CalcDefenceOutput): CalcOffenceOutput {
+  const mainGroup =
+    build.skills.find((g) => g.id === build.mainSkillGroupId && g.enabled) ??
+    build.skills.find((g) => g.enabled);
+
+  const mainResult = computeGroupOffence(build, globalDb, defence, mainGroup);
+
+  // PoB-compatible Full DPS aggregation across all enabled `includeInFullDps` skill groups
+  const fullDpsGroups = build.skills.filter(
+    (g) =>
+      g.enabled &&
+      g.includeInFullDps &&
+      (build.game !== 'poe2' || !g.weaponSets || g.weaponSets.includes(build.activeWeaponSet)),
+  );
+  if (fullDpsGroups.length > 0) {
+    let sumHitAndStackDps = 0;
+    let maxIgnite = 0;
+    let maxBleed = 0;
+    const breakdown: NonNullable<CalcOffenceOutput['fullDpsBreakdown']> = [];
+    for (const grp of fullDpsGroups) {
+      const res = grp === mainGroup ? mainResult : computeGroupOffence(build, globalDb, defence, grp);
+      if (res.offence.skillType === 'None') continue;
+      const count = Math.max(1, res.activeCount);
+      const groupHit = (res.offence.hitDps + (res.offence.impaleDps ?? 0) + res.offence.poisonDps) * count;
+      sumHitAndStackDps += groupHit;
+      if (res.offence.igniteDps > maxIgnite) maxIgnite = res.offence.igniteDps;
+      if (res.offence.bleedDps > maxBleed) maxBleed = res.offence.bleedDps;
+      const contribDps =
+        Math.round((groupHit + res.offence.igniteDps + res.offence.bleedDps) * 100) / 100;
+      breakdown.push({
+        groupId: grp.id,
+        label: grp.label,
+        skillName: res.offence.mainSkillName,
+        count,
+        dps: contribDps,
+      });
+    }
+    if (breakdown.length > 0) {
+      mainResult.offence.fullDps =
+        Math.round((sumHitAndStackDps + maxIgnite + maxBleed) * 100) / 100;
+      mainResult.offence.fullDpsBreakdown = breakdown;
+    }
+  }
+
+  return mainResult.offence;
+}
+
+function computeGroupOffence(
+  build: Build,
+  globalDb: ModDB,
+  _defence: CalcDefenceOutput,
+  mainGroup: Build['skills'][number] | undefined,
+): { offence: CalcOffenceOutput; activeCount: number } {
   const emptyRanges: Record<DamageType, DamageRange> = {
     Physical: { min: 0, max: 0, average: 0 },
     Lightning: { min: 0, max: 0, average: 0 },
@@ -826,34 +878,34 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     Chaos: { min: 0, max: 0, average: 0 },
   };
 
-  const mainGroup =
-    build.skills.find((g) => g.id === build.mainSkillGroupId && g.enabled) ??
-    build.skills.find((g) => g.enabled);
-
   if (!mainGroup) {
     return {
-      mainSkillName: { en: 'No Active Skill', zh: '未选择主动技能' },
-      skillType: 'None',
-      damageByType: emptyRanges,
-      averageHit: 0,
-      speed: 0,
-      critChance: 0,
-      critMultiplier: 150,
-      hitChance: 100,
-      effectiveCritMultiplier: 1,
-      hitDps: 0,
-      igniteDps: 0,
-      bleedDps: 0,
-      poisonDps: 0,
-      totalDps: 0,
-      manaCost: 0,
-      manaPerSecond: 0,
+      activeCount: 1,
+      offence: {
+        mainSkillName: { en: 'No Active Skill', zh: '未选择主动技能' },
+        skillType: 'None',
+        damageByType: emptyRanges,
+        averageHit: 0,
+        speed: 0,
+        critChance: 0,
+        critMultiplier: 150,
+        hitChance: 100,
+        effectiveCritMultiplier: 1,
+        hitDps: 0,
+        igniteDps: 0,
+        bleedDps: 0,
+        poisonDps: 0,
+        totalDps: 0,
+        manaCost: 0,
+        manaPerSecond: 0,
+      },
     };
   }
 
   let activeDef: GemDefinition | undefined;
   let activeLevel = 20;
   let activeQuality = 0;
+  let activeCount = 1;
   const skillDb = globalDb.clone();
 
   // PoE 1 3.30 Matching Socket Quality Bonus (+10% quality when gem color matches socket color of slot item)
@@ -935,6 +987,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     const chosen = activeCandidates[pickIdx]!;
     activeDef = chosen.def;
     activeLevel = chosen.inst.level;
+    activeCount = Math.max(1, chosen.inst.count ?? 1);
     activeQuality = applyGemQualityStats(chosen.def, chosen.inst.quality, 'Skill');
     skillDb.addMods(parseModLines(chosen.effectiveStats, `Skill: ${chosen.def.name.en}`));
     const companionAtk = activeCandidates.find(
@@ -945,22 +998,25 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
 
   if (!activeDef) {
     return {
-      mainSkillName: { en: 'No Active Skill', zh: '未选择主动技能' },
-      skillType: 'None',
-      damageByType: emptyRanges,
-      averageHit: 0,
-      speed: 0,
-      critChance: 0,
-      critMultiplier: 150,
-      hitChance: 100,
-      effectiveCritMultiplier: 1,
-      hitDps: 0,
-      igniteDps: 0,
-      bleedDps: 0,
-      poisonDps: 0,
-      totalDps: 0,
-      manaCost: 0,
-      manaPerSecond: 0,
+      activeCount: 1,
+      offence: {
+        mainSkillName: { en: 'No Active Skill', zh: '未选择主动技能' },
+        skillType: 'None',
+        damageByType: emptyRanges,
+        averageHit: 0,
+        speed: 0,
+        critChance: 0,
+        critMultiplier: 150,
+        hitChance: 100,
+        effectiveCritMultiplier: 1,
+        hitDps: 0,
+        igniteDps: 0,
+        bleedDps: 0,
+        poisonDps: 0,
+        totalDps: 0,
+        manaCost: 0,
+        manaPerSecond: 0,
+      },
     };
   }
 
@@ -1354,24 +1410,33 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
       Math.round(physHitDps * 0.1 * (1 + impaleEffect / 100) * maxImpaleHits * (impaleChance / 100) * 100) / 100;
   }
 
-  // Ailment DPS (Ignite / Bleed / Poison) with DoT Multiplier & Crit Ailment bonus
-  const dotMulti = skillDb.sum('BASE', 'DotMultiplier', flags, kwFlags);
-  const dotInc = skillDb.sum('INC', 'DotDamage', flags, kwFlags);
-  const dotMore = skillDb.more('DotDamage', flags, kwFlags);
+  // Ailment DPS (Ignite / Bleed / Poison) using authentic ailment base damage (no Hit/Spell/Pen/Armour scaling)
+  const ailmentFlags = (flags & ~(ModFlag.Hit | ModFlag.Spell)) | ModFlag.Ailment | ModFlag.Dot;
+  const dotMulti = skillDb.sum('BASE', 'DotMultiplier', ailmentFlags, kwFlags);
+  const dotInc = skillDb.sum('INC', 'DotDamage', ailmentFlags, kwFlags);
+  const dotMore = skillDb.more('DotDamage', ailmentFlags, kwFlags);
 
-  const igniteChance = Math.min(100, skillDb.sum('BASE', 'IgniteChance', flags, kwFlags));
+  const cannotIgnite = skillDb.flag('CannotIgnite', flags, kwFlags);
+  const igniteChance = cannotIgnite ? 0 : Math.min(100, skillDb.sum('BASE', 'IgniteChance', flags, kwFlags));
+  const rawFireBaseAvg = (finalBaseMin.Fire + finalBaseMax.Fire) / 2;
   const hasIgnite =
-    damageByType.Fire.average > 0 &&
+    !cannotIgnite &&
+    !dealNoEle &&
+    rawFireBaseAvg > 0 &&
     ((kwFlags & KeywordFlag.Ignite) !== 0 || igniteChance > 0 || critChance > 0);
   let igniteDps = 0;
   if (hasIgnite) {
-    const fireDotMulti = dotMulti + skillDb.sum('BASE', 'FireDotMultiplier', flags, kwFlags);
-    const igniteInc = dotInc + skillDb.sum('INC', 'IgniteDamage', flags, kwFlags);
-    const igniteMore = dotMore * skillDb.more('IgniteDamage', flags, kwFlags);
-    const baseIgnite = damageByType.Fire.average * 0.9 * (1 + igniteInc / 100) * igniteMore;
+    const fireDotMulti = dotMulti + skillDb.sum('BASE', 'FireDotMultiplier', ailmentFlags, kwFlags);
+    const igniteStatNames = isMinion
+      ? ['MinionDamage', 'DotDamage', 'IgniteDamage']
+      : ['Damage', 'ElementalDamage', 'FireDamage', 'DotDamage', 'IgniteDamage'];
+    const igniteInc = skillDb.sum('INC', igniteStatNames, ailmentFlags, kwFlags);
+    const igniteMore = skillDb.more(igniteStatNames, ailmentFlags, kwFlags);
+    const enemyFireResNoPen = Math.min(75, build.config.enemyFireResist + enemyBossResistBonus + curseFireRes);
+    const fireDotEnemyMult = Math.max(0.05, 1 - enemyFireResNoPen / 100) * (1 + (shockVal + enemyGlobalDmgTaken) / 100);
+    const baseIgnite = rawFireBaseAvg * 0.9 * (1 + igniteInc / 100) * igniteMore * fireDotEnemyMult;
     const noCritAilments = skillDb.flag('NoCritAilments', flags, kwFlags);
     const nonCritIgnite = baseIgnite * (1 + fireDotMulti / 100);
-    // Crits always ignite with +50% DoT Multiplier for Ailments from Critical Strikes (unless EO NoCritAilments)
     const critIgnite = noCritAilments ? nonCritIgnite : baseIgnite * (1 + (fireDotMulti + 50) / 100);
     const baseChanceFrac = Math.min(1, ((kwFlags & KeywordFlag.Ignite) !== 0 ? Math.max(25, igniteChance) : igniteChance) / 100);
     const critFrac = critChance / 100;
@@ -1379,55 +1444,80 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     const critShare = effIgniteChance > 0 ? Math.min(1, (critFrac / effIgniteChance) * 1.9) : 0;
     const igniteUptime =
       baseChanceFrac > 0 ? 1 : Math.min(1, 1 - Math.pow(1 - effIgniteChance, Math.max(1, speedExact * 4)));
-    igniteDps = Math.round((nonCritIgnite * (1 - critShare) + critIgnite * critShare) * igniteUptime);
+    igniteDps = Math.round((nonCritIgnite * (1 - critShare) + critIgnite * critShare) * igniteUptime * 100) / 100;
   }
 
   const bleedChance = Math.min(100, skillDb.sum('BASE', 'BleedChance', flags, kwFlags));
+  const rawPhysBaseAvg = (finalBaseMin.Physical + finalBaseMax.Physical) / 2;
   let bleedDps = 0;
-  if (isAttack && damageByType.Physical.average > 0 && bleedChance > 0) {
-    const physDotMulti = dotMulti + skillDb.sum('BASE', 'PhysicalDotMultiplier', flags, kwFlags);
-    bleedDps = Math.round(
-      damageByType.Physical.average * 0.7 * (1 + dotInc / 100) * dotMore * (1 + physDotMulti / 100),
-    );
+  if (isAttack && !dealNoNonFire && rawPhysBaseAvg > 0 && bleedChance > 0) {
+    const physDotMulti = dotMulti + skillDb.sum('BASE', 'PhysicalDotMultiplier', ailmentFlags, kwFlags);
+    const bleedStatNames = ['Damage', 'PhysicalDamage', 'DotDamage'];
+    const bleedInc = skillDb.sum('INC', bleedStatNames, ailmentFlags, kwFlags);
+    const bleedMore = skillDb.more(bleedStatNames, ailmentFlags, kwFlags);
+    const physDotEnemyMult = 1 + (shockVal + enemyGlobalDmgTaken + enemyPhysDmgTaken) / 100;
+    bleedDps =
+      Math.round(
+        rawPhysBaseAvg * 0.7 * (1 + bleedInc / 100) * bleedMore * (1 + physDotMulti / 100) * physDotEnemyMult * 100,
+      ) / 100;
   }
 
   const poisonChance = Math.min(100, skillDb.sum('BASE', 'PoisonChance', flags, kwFlags));
+  const rawChaosBaseAvg = dealNoChaos || dealNoNonFire ? 0 : (finalBaseMin.Chaos + finalBaseMax.Chaos) / 2;
+  const rawPhysForPoison = dealNoNonFire ? 0 : rawPhysBaseAvg;
   let poisonDps = 0;
-  if (poisonChance > 0 && damageByType.Physical.average + damageByType.Chaos.average > 0) {
-    const chaosDotMulti = dotMulti + skillDb.sum('BASE', 'ChaosDotMultiplier', flags, kwFlags);
-    const singlePoison =
-      (damageByType.Physical.average + damageByType.Chaos.average) *
-      0.3 *
-      (1 + dotInc / 100) *
-      dotMore *
-      (1 + chaosDotMulti / 100);
+  if (poisonChance > 0 && rawPhysForPoison + rawChaosBaseAvg > 0) {
+    const chaosDotMulti = dotMulti + skillDb.sum('BASE', 'ChaosDotMultiplier', ailmentFlags, kwFlags);
+    const chaosPoisonInc = skillDb.sum('INC', ['Damage', 'ChaosDamage', 'DotDamage'], ailmentFlags, kwFlags);
+    const chaosPoisonMore = skillDb.more(['Damage', 'ChaosDamage', 'DotDamage'], ailmentFlags, kwFlags);
+    const physPoisonInc =
+      build.game === 'poe1'
+        ? skillDb.sum('INC', ['Damage', 'PhysicalDamage', 'ChaosDamage', 'DotDamage'], ailmentFlags, kwFlags)
+        : chaosPoisonInc;
+    const physPoisonMore =
+      build.game === 'poe1'
+        ? skillDb.more(['Damage', 'PhysicalDamage', 'ChaosDamage', 'DotDamage'], ailmentFlags, kwFlags)
+        : chaosPoisonMore;
+    const enemyChaosRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);
+    const chaosDotEnemyMult =
+      Math.max(0.05, 1 - enemyChaosRes / 100) * (1 + (shockVal + enemyGlobalDmgTaken + enemyChaosDmgTaken) / 100);
+    const basePoisonRaw =
+      (rawChaosBaseAvg * (1 + chaosPoisonInc / 100) * chaosPoisonMore +
+        rawPhysForPoison * (1 + physPoisonInc / 100) * physPoisonMore) *
+      0.3;
+    const singlePoison = basePoisonRaw * (1 + chaosDotMulti / 100) * chaosDotEnemyMult;
     const activeStacks = speedExact * (hitChance / 100) * (poisonChance / 100) * 2.0; // 2s base duration
-    poisonDps = Math.round(singlePoison * activeStacks);
+    poisonDps = Math.round(singlePoison * activeStacks * 100) / 100;
   }
+  void dotInc;
+  void dotMore;
 
   const totalDps = Math.round((hitDps + impaleDps + igniteDps + bleedDps + poisonDps) * 100) / 100;
   const manaCost = activeDef.manaCost ?? 15;
   const manaPerSecond = Math.round(manaCost * speed * 10) / 10;
 
   return {
-    mainSkillName: activeDef.name,
-    skillType: isAttack ? 'Attack' : 'Spell',
-    damageByType,
-    averageHit: avgHitWithCrit,
-    speed,
-    critChance,
-    critMultiplier,
-    hitChance,
-    effectiveCritMultiplier: Math.round(effectiveCritMultiplier * 100) / 100,
-    hitDps,
-    ...(impaleDps > 0 ? { impaleDps } : {}),
-    igniteDps,
-    bleedDps,
-    poisonDps,
-    totalDps,
-    ...(triggerRate !== undefined ? { triggerRate } : {}),
-    manaCost,
-    manaPerSecond,
+    activeCount,
+    offence: {
+      mainSkillName: activeDef.name,
+      skillType: isAttack ? 'Attack' : 'Spell',
+      damageByType,
+      averageHit: avgHitWithCrit,
+      speed,
+      critChance,
+      critMultiplier,
+      hitChance,
+      effectiveCritMultiplier: Math.round(effectiveCritMultiplier * 100) / 100,
+      hitDps,
+      ...(impaleDps > 0 ? { impaleDps } : {}),
+      igniteDps,
+      bleedDps,
+      poisonDps,
+      totalDps,
+      ...(triggerRate !== undefined ? { triggerRate } : {}),
+      manaCost,
+      manaPerSecond,
+    },
   };
 }
 

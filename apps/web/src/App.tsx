@@ -40,6 +40,21 @@ export function App() {
     void ensureOfficialDataLoaded(build.game);
   }, [build.game, ensureOfficialDataLoaded]);
 
+  // Global keyboard shortcuts (1-7 switch PoB workspace tabs when not typing in an input)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const idx = Number(e.key) - 1;
+      if (idx >= 0 && idx < NAV_TABS.length) {
+        setActiveTab(NAV_TABS[idx]!.id);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [setActiveTab]);
+
   // Auto-load shared build from URL hash (#pob=<base64url-code>) on mount and hashchange
   useEffect(() => {
     let cancelled = false;

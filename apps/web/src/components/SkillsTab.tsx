@@ -182,6 +182,25 @@ export function SkillsTab() {
 
                   <button
                     type="button"
+                    onClick={() =>
+                      updateSkillGroup(group.id, { includeInFullDps: !group.includeInFullDps })
+                    }
+                    title={
+                      locale === 'zh-CN'
+                        ? '计入全技能总 DPS（Full DPS，适合多图腾/召唤物/多技能并联）'
+                        : 'Include this skill group in Full DPS aggregation'
+                    }
+                    className={`px-2 py-1 rounded text-xs cursor-pointer border transition ${
+                      group.includeInFullDps
+                        ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50 font-semibold'
+                        : 'bg-[#1a1f2e] text-zinc-400 hover:text-emerald-200 border-[#2a3147]'
+                    }`}
+                  >
+                    {locale === 'zh-CN' ? '计入总DPS' : 'Full DPS'}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setMainSkillGroup(group.id)}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer ${
                       isMain
@@ -253,6 +272,29 @@ export function SkillsTab() {
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {def.category === 'active' && !def.isAuraOrBuff && (
+                          <>
+                            <label
+                              className="text-[10px] text-emerald-400/90 font-mono"
+                              title={locale === 'zh-CN' ? '同时生效数量（如 20 狂灵 / 4 图腾）' : 'Active instance count for Full DPS'}
+                            >
+                              ×
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={gemInst.count ?? 1}
+                              onChange={(e) =>
+                                updateGem(group.id, gemInst.instanceId, {
+                                  count: Math.max(1, Math.min(99, Number(e.target.value) || 1)),
+                                })
+                              }
+                              title={locale === 'zh-CN' ? '同时生效数量（Full DPS 乘数）' : 'Active count multiplier'}
+                              className="pob-input rounded w-11 px-1 py-0.5 text-center font-mono text-xs text-emerald-300"
+                            />
+                          </>
+                        )}
                         <label className="text-[10px] text-zinc-400">{t(locale, 'skills.level')}</label>
                         <input
                           type="number"

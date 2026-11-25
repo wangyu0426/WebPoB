@@ -64,7 +64,6 @@ end
 local offFields = {
   CombinedDPS = true,
   TotalDPS = true,
-  FullDPS = true,
   AverageDamage = true,
   AverageHit = true,
   Speed = true,

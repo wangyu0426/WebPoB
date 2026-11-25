@@ -402,6 +402,10 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^Deal no Chaos Damage$/i,
     build: (_, src) => [mkMod('DealNoChaos', 'FLAG', true, src)],
   },
+  {
+    pattern: /^Cannot inflict Elemental Ailments$/i,
+    build: (_, src) => [mkMod('CannotIgnite', 'FLAG', true, src)],
+  },
   // Penetration
   {
     pattern: /^Damage Penetrates (\d+)% (Fire|Cold|Lightning|Elemental) Resistance$/i,

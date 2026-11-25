@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Check, FolderOpen, Globe, Link2, PlusCircle, RotateCcw, Swords } from 'lucide-react';
+import { Check, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, PlusCircle, RotateCcw, Swords } from 'lucide-react';
 import { getClassesForGame } from '@webpob/data';
 import { encodeBuildToPobCode } from '@webpob/codec';
 import { localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
+import { buildSummaryToMarkdown, downloadBuildSummaryPng } from '../utils/exportBuildCard';
 import { BuildLibraryModal } from './BuildLibraryModal';
 
 export function TopBar() {
   const {
     locale,
     build,
+    calc,
     setLocale,
     switchGame,
     setBuildMeta,
@@ -17,7 +19,9 @@ export function TopBar() {
     createNewBuild,
   } = useWebPobStore();
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [cardMenuOpen, setCardMenuOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedMd, setCopiedMd] = useState(false);
 
   const classes = getClassesForGame(build.game);
   const currentClass = classes.find((c) => c.id === build.classId) ?? classes[0]!;
@@ -192,6 +196,60 @@ export function TopBar() {
                 : 'Share'}
           </span>
         </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setCardMenuOpen((v) => !v)}
+            title={locale === 'zh-CN' ? '导出 PNG 构筑卡片 / Markdown 摘要' : 'Export Build Card (PNG / Markdown)'}
+            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 transition cursor-pointer"
+          >
+            {copiedMd ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <ImageIcon className="w-3.5 h-3.5" />}
+            <span className="hidden xl:inline">
+              {copiedMd
+                ? locale === 'zh-CN'
+                  ? '已复制MD'
+                  : 'Copied MD'
+                : locale === 'zh-CN'
+                  ? '卡片'
+                  : 'Card'}
+            </span>
+          </button>
+          {cardMenuOpen && (
+            <div className="absolute right-0 top-9 z-50 w-52 rounded-md bg-[#121623] border border-[#2d3650] shadow-2xl p-1.5 space-y-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  downloadBuildSummaryPng(build, calc, locale);
+                  setCardMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[#1d2438] text-amber-200 cursor-pointer text-left"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                {locale === 'zh-CN' ? '下载 PNG 构筑卡片' : 'Download PNG Card'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const code = encodeBuildToPobCode(build);
+                    const url = `${window.location.origin}${window.location.pathname}#pob=${code}`;
+                    const md = buildSummaryToMarkdown(build, calc, locale, url);
+                    await navigator.clipboard.writeText(md);
+                    setCopiedMd(true);
+                    setTimeout(() => setCopiedMd(false), 1800);
+                  } catch {
+                    // ignore clipboard errors
+                  }
+                  setCardMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[#1d2438] text-sky-200 cursor-pointer text-left"
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                {locale === 'zh-CN' ? '复制 Markdown 摘要' : 'Copy Markdown Summary'}
+              </button>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => loadSampleBuild(build.game)}

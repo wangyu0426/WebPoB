@@ -104,6 +104,9 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
         expectWithinPct(out.offence.impaleDps ?? 0, o.ImpaleDPS!, 0.5, 1);
         expectWithinPct(out.offence.totalDps, o.CombinedDPS!, 0.5, 1);
       }
+      if ((o.FullDPS ?? 0) > 0 && out.offence.fullDps !== undefined) {
+        expectWithinPct(out.offence.fullDps, o.FullDPS!, 0.5, 1);
+      }
     });
   }
 });

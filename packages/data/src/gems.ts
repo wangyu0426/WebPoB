@@ -415,7 +415,7 @@ export const POE1_GEMS: GemDefinition[] = [
     tags: ['Support', 'Elemental'],
     modFlags: ModFlag.None,
     keywordFlags: KeywordFlag.None,
-    stats: ['34% more Elemental Damage'],
+    stats: ['34% more Elemental Damage', 'Cannot inflict Elemental Ailments'],
     qualityStats: [{ template: '{v}% increased Elemental Damage', perQuality: 0.5 }],
   },
   {

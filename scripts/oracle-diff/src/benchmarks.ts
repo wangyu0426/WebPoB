@@ -1597,4 +1597,317 @@ Adds 18 to 36 Physical Damage
   <Notes/>
 </PathOfBuilding2>`,
   },
+  {
+    id: 'poe1_full_dps_multi_srs_20x',
+    title: 'PoE 1 — Full DPS: 20x Summon Raging Spirit Minions + Minion Damage + Anger',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: 20x SRS Full DPS"/>
+  <Tree activeSpec="1">
+    <Spec title="Minion" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57264,37569,36542,4397,11420,60554,27611"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" includeInFullDPS="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="20x SRS">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSummonRagingSpirit" skillId="SummonRagingSpirit" nameSpec="Summon Raging Spirit" level="20" quality="0" count="20" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemMinionDamage" skillId="SupportMinionDamage" nameSpec="Minion Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Anger">
+        <Gem gemId="Metadata/Items/Gems/SkillGemAnger" skillId="Anger" nameSpec="Anger" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_full_dps_spell_totems_4x',
+    title: 'PoE 1 — Full DPS: 4x Arc Spell Totems + Lightning Penetration + Controlled Destruction',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Templar" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: 4x Arc Spell Totems Full DPS"/>
+  <Tree activeSpec="1">
+    <Spec title="Templar" treeVersion="3_30" classId="5" ascendClassId="0" nodes="61525"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" includeInFullDPS="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="4x Arc Totem">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" count="4" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportSpellTotem" skillId="SupportSpellTotem" nameSpec="Spell Totem" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportLightningPenetration" skillId="SupportLightningPenetration" nameSpec="Lightning Penetration" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportControlledDestruction" skillId="SupportControlledDestruction" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_ignite_elementalist_fireball_dot',
+    title: 'PoE 1 — Elementalist Shaper of Flames Fireball + Combustion + Deadly Ailments + Swift Affliction (Hit & Ignite DPS)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Elementalist" mainSocketGroup="1" buildName="Oracle: Elementalist Ignite Fireball"/>
+  <Tree activeSpec="1">
+    <Spec title="Ignite" treeVersion="3_30" classId="3" ascendClassId="2" nodes="54447,16023,12738,53123"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ignite Fireball">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFireball" skillId="Fireball" nameSpec="Fireball" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportCombustion" skillId="SupportCombustion" nameSpec="Combustion" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportDeadlyAilments" skillId="SupportDeadlyAilments" nameSpec="Deadly Ailments" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportSwiftAffliction" skillId="SupportSwiftAffliction" nameSpec="Swift Affliction" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_bleed_lacerate_deadly_ailments',
+    title: 'PoE 1 — Duelist Lacerate + Brutality + Deadly Ailments + Chance to Bleed + Rare Jewelled Foil',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Duelist" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Bleed Lacerate"/>
+  <Tree activeSpec="1">
+    <Spec title="Duelist" treeVersion="3_30" classId="4" ascendClassId="0" nodes="50986"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Lacerate Bleed">
+        <Gem gemId="Metadata/Items/Gems/SkillGemLacerate" skillId="Lacerate" nameSpec="Lacerate" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportBrutality" skillId="SupportBrutality" nameSpec="Brutality" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportDeadlyAilments" skillId="SupportDeadlyAilments" nameSpec="Deadly Ailments" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportChancetoBleed" skillId="SupportChanceToBleed" nameSpec="Chance to Bleed" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Blood Edge
+Jewelled Foil
+Quality: 20
+Implicits: 1
++25% to Global Critical Strike Multiplier
+150% increased Physical Damage
+Adds 18 to 36 Physical Damage
+20% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_herald_of_thunder_wrath_spark',
+    title: 'PoE 1 — Spark + Spell Echo + Faster Casting + Wrath + Herald of Thunder',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Spark Wrath Herald of Thunder"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Spark">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSpark" skillId="Spark" nameSpec="Spark" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportSpellEcho" skillId="SupportSpellEcho" nameSpec="Spell Echo" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportFasterCasting" skillId="SupportFasterCasting" nameSpec="Faster Casting" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Auras &amp; Herald">
+        <Gem gemId="Metadata/Items/Gems/SkillGemWrath" skillId="Wrath" nameSpec="Wrath" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeraldOfThunder" skillId="HeraldOfThunder" nameSpec="Herald of Thunder" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_ci_discipline_high_es_gear',
+    title: 'PoE 1 — CI Witch + Discipline + Zealotry + Rare Vaal Regalia & Hubris Circlet + Arc Elemental Focus',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: CI Discipline High-ES"/>
+  <Tree activeSpec="1">
+    <Spec title="CI" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57226,21678,32210,8948,27659,37671,27415,32710,49605,60440,11455"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportElementalFocus" skillId="SupportElementalFocus" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Auras">
+        <Gem gemId="Metadata/Items/Gems/SkillGemDiscipline" skillId="Discipline" nameSpec="Discipline" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemZealotry" skillId="Zealotry" nameSpec="Zealotry" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Astral Shroud
+Vaal Regalia
+Quality: 20
+Implicits: 0
++90 to maximum Energy Shield
+95% increased Energy Shield
++40 to Intelligence
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Mind Crown
+Hubris Circlet
+Quality: 20
+Implicits: 0
++65 to maximum Energy Shield
+80% increased Energy Shield
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Helmet" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_huntress_spear_lightning_spear',
+    title: 'PoE 2 — Lv.90 Huntress Lightning Spear (343% AM, 80% Phys->Light) + Local-Mod Rare Akoyan Spear',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Huntress" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Huntress Lightning Spear"/>
+  <Tree activeSpec="1">
+    <Spec title="Huntress" treeVersion="0_5" classId="8" classInternalId="8" ascendClassId="0" nodes="50459"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Lightning Spear">
+        <Gem gemId="Metadata/Items/Gems/SkillGemLightningSpear" skillId="LightningSpearPlayer" nameSpec="Lightning Spear" variantId="LightningSpear" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Tempest Pike
+Akoyan Spear
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+Adds 16 to 32 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_druid_volcano_fire_spell',
+    title: 'PoE 2 — Lv.90 Druid Volcano (Fire Spell, 8% Base Crit) + Rare Resistance Ring',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Druid" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Druid Volcano"/>
+  <Tree activeSpec="1">
+    <Spec title="Druid" treeVersion="0_5" classId="11" classInternalId="11" ascendClassId="0" nodes="61525"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Volcano">
+        <Gem gemId="Metadata/Items/Gems/SkillGemVolcano" skillId="VolcanoPlayer" nameSpec="Volcano" variantId="Volcano" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Ember Band
+Ruby Ring
+Implicits: 1
++25% to Fire Resistance
++65 to maximum Life
++25 to Strength
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Ring 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_full_dps_dual_spell_sorc',
+    title: 'PoE 2 — Full DPS: Lv.90 Sorceress Dual-Skill Spark + Comet Multi-Skill Aggregation',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Sorceress" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Dual Spell Full DPS"/>
+  <Tree activeSpec="1">
+    <Spec title="Sorceress" treeVersion="0_5" classId="7" classInternalId="7" ascendClassId="0" nodes="54447,4739,18845"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" includeInFullDPS="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Spark">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSpark" skillId="SparkPlayer" nameSpec="Spark" variantId="Spark" level="20" quality="0" count="1" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" includeInFullDPS="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Comet">
+        <Gem gemId="Metadata/Items/Gems/SkillGemComet" skillId="CometPlayer" nameSpec="Comet" variantId="Comet" level="20" quality="0" count="1" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_witch_chaos_essence_drain',
+    title: 'PoE 2 — Lv.90 Witch Chaos Spell Essence Drain (Chaos [138, 257], 7% Base Crit)',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Witch Essence Drain"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="0_5" classId="1" classInternalId="1" ascendClassId="0" nodes="54447,4739,18845"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Essence Drain">
+        <Gem gemId="Metadata/Items/Gems/SkillGemEssenceDrain" skillId="EssenceDrainPlayer" nameSpec="Essence Drain" variantId="EssenceDrain" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

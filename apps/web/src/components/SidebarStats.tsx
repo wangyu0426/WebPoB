@@ -62,6 +62,36 @@ export function SidebarStats() {
         <div className="text-[11px] text-zinc-400 truncate mt-0.5">
           {localizeText(offence.mainSkillName, locale)}
         </div>
+        {offence.fullDps !== undefined && offence.fullDps > 0 && (
+          <div className="mt-2 pt-2 border-t border-emerald-500/30 space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[11px] font-semibold text-emerald-300">
+                {locale === 'zh-CN' ? '全技能合计 (Full DPS)' : 'Full DPS'}
+              </span>
+              <span className="text-base font-mono font-bold text-emerald-300 tabular-nums">
+                {fmtNum(offence.fullDps)}
+              </span>
+            </div>
+            {offence.fullDpsBreakdown && offence.fullDpsBreakdown.length > 0 && (
+              <div className="space-y-0.5">
+                {offence.fullDpsBreakdown.map((item) => (
+                  <div
+                    key={item.groupId}
+                    className="flex items-center justify-between gap-1 text-[10px] text-zinc-400"
+                  >
+                    <span className="truncate">
+                      {item.count > 1 ? `${item.count}× ` : ''}
+                      {localizeText(item.skillName, locale)}
+                    </span>
+                    <span className="font-mono text-emerald-200/90 shrink-0">
+                      {fmtNum(item.dps)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Offence */}

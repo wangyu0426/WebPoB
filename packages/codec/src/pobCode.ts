@@ -173,14 +173,16 @@ export function buildToPobXml(build: Build): string {
         ? ` weaponSets="${group.weaponSets.join(',')}"`
         : '';
     const mainActive = group.mainActiveSkillIndex ?? 1;
+    const fullDpsAttr = group.includeInFullDps ? ' includeInFullDPS="true"' : '';
     lines.push(
-      `      <Skill enabled="${group.enabled}" mainActiveSkill="${mainActive}" mainActiveSkillCalcs="${mainActive}" label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
+      `      <Skill enabled="${group.enabled}" mainActiveSkill="${mainActive}" mainActiveSkillCalcs="${mainActive}"${fullDpsAttr} label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
     );
     for (const gem of group.gems) {
       const def = gemsCatalog.find((g) => g.id === gem.gemId);
       const nameSpec = def ? def.name.en.replace(/\s+Support$/i, '') : gem.gemId;
+      const countAttr = gem.count && gem.count > 1 ? ` count="${gem.count}"` : '';
       lines.push(
-        `        <Gem gemId="${escapeXml(gem.gemId)}" nameSpec="${escapeXml(nameSpec)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}" />`,
+        `        <Gem gemId="${escapeXml(gem.gemId)}" nameSpec="${escapeXml(nameSpec)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}"${countAttr} />`,
       );
     }
     lines.push(`      </Skill>`);
@@ -365,12 +367,14 @@ export function xmlToBuild(xml: string): Build {
       const gAttrs = parseAttributes(gemMatch[1]!);
       const matchedId = matchGemId(game, gAttrs.gemId, gAttrs.nameSpec, gAttrs.skillId);
       if (matchedId) {
+        const parsedCount = Number(gAttrs.count ?? 1);
         gems.push({
           instanceId: `imp_g_${groupCounter}_${gemCounter++}`,
           gemId: matchedId,
           level: Number(gAttrs.level ?? 20) || 20,
           quality: Number(gAttrs.quality ?? 0) || 0,
           enabled: gAttrs.enabled !== 'false',
+          ...(Number.isFinite(parsedCount) && parsedCount > 1 ? { count: Math.round(parsedCount) } : {}),
         });
       }
     }
@@ -386,6 +390,7 @@ export function xmlToBuild(xml: string): Build {
         id: `imp_sg_${groupCounter}`,
         label: attrs.label || `Skill Group ${groupCounter}`,
         enabled: attrs.enabled !== 'false',
+        ...(attrs.includeInFullDPS === 'true' ? { includeInFullDps: true } : {}),
         slot: attrs.slot as EquipmentSlotId | undefined,
         weaponSets: weaponSets && weaponSets.length > 0 ? weaponSets : game === 'poe2' ? [1, 2] : undefined,
         ...(Number.isFinite(mainActiveRaw) && mainActiveRaw > 1 ? { mainActiveSkillIndex: mainActiveRaw } : {}),

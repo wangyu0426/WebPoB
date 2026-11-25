@@ -243,12 +243,16 @@ export interface GemInstance {
   level: number;
   quality: number;
   enabled: boolean;
+  /** Number of active instances for Full DPS (e.g. 20 SRS minions, 4 Spell Totems). Defaults to 1. */
+  count?: number;
 }
 
 export interface SkillGroup {
   id: string;
   label: string;
   enabled: boolean;
+  /** Whether this skill group is included in PoB's multi-skill Full DPS aggregation. */
+  includeInFullDps?: boolean;
   /** PoE 1: item slot holding this linked group (e.g. 'Body Armour'). PoE 2: optional/empty. */
   slot?: EquipmentSlotId;
   /** PoE 2: which weapon set(s) this skill is enabled for. */
@@ -451,6 +455,15 @@ export interface CalcOffenceOutput {
   bleedDps: number;
   poisonDps: number;
   totalDps: number;
+  /** PoB-compatible multi-skill / multi-entity Full DPS sum across all `includeInFullDps` groups. */
+  fullDps?: number;
+  fullDpsBreakdown?: Array<{
+    groupId: string;
+    label: string;
+    skillName: LocalizedText;
+    count: number;
+    dps: number;
+  }>;
   triggerRate?: number;
   manaCost: number;
   manaPerSecond: number;
