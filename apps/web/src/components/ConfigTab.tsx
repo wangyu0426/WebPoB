@@ -199,6 +199,73 @@ export function ConfigTab() {
               </select>
             </div>
           )}
+
+          {build.game === 'poe1' && (
+            <div className="space-y-2 pt-2 border-t border-[#242a3c]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-amber-200/90">
+                  {locale === 'zh-CN' ? '众神殿·主神 (Major)' : 'Pantheon Major'}
+                </span>
+                <select
+                  value={cfg.pantheonMajor ?? 'None'}
+                  onChange={(e) =>
+                    updateConfig({
+                      pantheonMajor: e.target.value as NonNullable<BuildConfig['pantheonMajor']>,
+                    })
+                  }
+                  className="pob-input rounded px-2 py-1 text-xs"
+                >
+                  <option value="None">{locale === 'zh-CN' ? '无 (None)' : 'None'}</option>
+                  <option value="BrineKing">
+                    {locale === 'zh-CN' ? '惊海之王 (Brine King)' : 'Soul of the Brine King'}
+                  </option>
+                  <option value="Lunaris">
+                    {locale === 'zh-CN' ? '月影女神 (Lunaris +1% PDR)' : 'Soul of Lunaris (+1% PDR)'}
+                  </option>
+                  <option value="Solaris">
+                    {locale === 'zh-CN' ? '日耀女神 (Solaris +6% PDR)' : 'Soul of Solaris (+6% PDR)'}
+                  </option>
+                  <option value="Arakaali">
+                    {locale === 'zh-CN' ? '暗影女皇 (Arakaali)' : 'Soul of Arakaali'}
+                  </option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-amber-200/90">
+                  {locale === 'zh-CN' ? '众神殿·次神 (Minor)' : 'Pantheon Minor'}
+                </span>
+                <select
+                  value={cfg.pantheonMinor ?? 'None'}
+                  onChange={(e) =>
+                    updateConfig({
+                      pantheonMinor: e.target.value as NonNullable<BuildConfig['pantheonMinor']>,
+                    })
+                  }
+                  className="pob-input rounded px-2 py-1 text-xs"
+                >
+                  <option value="None">{locale === 'zh-CN' ? '无 (None)' : 'None'}</option>
+                  <option value="Abberath">
+                    {locale === 'zh-CN' ? '艾贝拉斯 (Abberath)' : 'Soul of Abberath'}
+                  </option>
+                  <option value="Gruthkul">
+                    {locale === 'zh-CN' ? '格鲁斯寇 (Gruthkul +5% PDR)' : 'Soul of Gruthkul (+5% PDR)'}
+                  </option>
+                  <option value="Ralakesh">
+                    {locale === 'zh-CN' ? '芮勒盖许 (Ralakesh)' : 'Soul of Ralakesh'}
+                  </option>
+                  <option value="Shakari">
+                    {locale === 'zh-CN' ? '沙卡丽 (Shakari +5% 混沌减伤)' : 'Soul of Shakari (+5% Chaos DR)'}
+                  </option>
+                  <option value="Tukohama">
+                    {locale === 'zh-CN' ? '图克哈玛 (Tukohama +2% 回复/+3% PDR)' : 'Soul of Tukohama (+2% Regen / +3% PDR)'}
+                  </option>
+                  <option value="Garukhan">
+                    {locale === 'zh-CN' ? '绝望之母 (Garukhan +5% 移速)' : 'Soul of Garukhan (+5% Move Speed)'}
+                  </option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Enemy Parameters */}

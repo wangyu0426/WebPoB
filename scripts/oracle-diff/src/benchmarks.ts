@@ -4476,4 +4476,223 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding2>`,
   },
+  // ─── Phase 19 Benchmarks (121..125 — 125/125 MILESTONE!): Charge Scaling, Attribute Stacking, Flat PDR & PoE 2 Essence Drain ───
+  {
+    id: 'poe1_power_charge_scaling_void_battery_arc',
+    title: 'PoE 1 — Lv.90 Witch Arc + 6 Power Charges + 25% Spell Dmg & +10% Crit Multi per Power Charge',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: 6 Power Charge Scaling Arc"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Charge Sceptre
+Prophecy Wand
+Implicits: 0
++3 to Maximum Power Charges
+25% increased Spell Damage per Power Charge
++10% to Critical Strike Multiplier per Power Charge
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="usePowerCharges" boolean="true"/>
+      <Input name="powerCharges" number="6"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_int_stacking_spell_damage_witch_arc',
+    title: 'PoE 1 — Lv.90 Witch Arc + 1% increased Spell Damage per 10 Intelligence + High-Int Gear',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Int Stacking Spell Damage Arc"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Mind Rod
+Prophecy Wand
+Implicits: 0
+1% increased Spell Damage per 10 Intelligence
++50 to Intelligence
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Savants Talisman
+Lapis Amulet
+Implicits: 1
++30 to Intelligence
++80 to Intelligence
++60 to maximum Energy Shield
+    </Item>
+    <Item id="3">
+Rarity: RARE
+Scholar Garb
+Vaal Regalia
+Quality: 20
+Implicits: 0
++80 to Intelligence
++90 to maximum Energy Shield
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Amulet" itemId="2"/>
+      <Slot name="Body Armour" itemId="3"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_additional_pdr_chest_marauder',
+    title: 'PoE 1 — Lv.90 Marauder Heavy Strike + +8% additional Physical Damage Reduction Glorious Plate',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Additional PDR Glorious Plate"/>
+  <Tree activeSpec="1">
+    <Spec title="Marauder" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Heavy Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeavyStrike" skillId="HeavyStrike" nameSpec="Heavy Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Bulwark Plate
+Glorious Plate
+Quality: 20
+Implicits: 0
++8% additional Physical Damage Reduction
++100 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Iron Axe
+Vaal Axe
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Weapon 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_frenzy_charge_scaling_ranger_la',
+    title: 'PoE 1 — Lv.90 Ranger Lightning Arrow + 5 Frenzy Charges + 10% increased Damage per Frenzy Charge',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Ranger" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: 5 Frenzy Charge Scaling LA"/>
+  <Tree activeSpec="1">
+    <Spec title="Ranger" treeVersion="3_30" classId="2" ascendClassId="0" nodes="50459"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Lightning Arrow">
+        <Gem gemId="Metadata/Items/Gems/SkillGemLightningArrow" skillId="LightningArrow" nameSpec="Lightning Arrow" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportElementalDamageWithAttacks" skillId="SupportElementalDamageWithAttacks" nameSpec="Elemental Damage with Attacks" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Gale Bow
+Imperial Bow
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+16% increased Attack Speed
++2 to Maximum Frenzy Charges
+10% increased Damage per Frenzy Charge
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="useFrenzyCharges" boolean="true"/>
+      <Input name="frenzyCharges" number="5"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_witch_essence_drain_plus4_chaos_wand_supports',
+    title: 'PoE 2 — #125 Milestone: Lv.90 Witch Essence Drain + Controlled Destruction + Rapid Casting I + +4 Chaos Wand',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle #125: PoE2 Essence Drain +4 Chaos Wand"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="0_5" classId="1" classInternalId="1" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Essence Drain">
+        <Gem gemId="Metadata/Items/Gems/SkillGemEssenceDrain" skillId="EssenceDrainPlayer" nameSpec="Essence Drain" variantId="EssenceDrain" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemControlledDestructionSupport" skillId="SupportControlledDestructionPlayer" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidCastingSupport" skillId="SupportRapidCastingPlayer" nameSpec="Rapid Casting I" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Blight Rod
+Bone Wand
+Implicits: 0
++4 to Level of all Chaos Spell Skills
+70% increased Spell Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

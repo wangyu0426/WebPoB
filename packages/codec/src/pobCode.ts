@@ -304,6 +304,12 @@ export function buildToPobXml(build: Build): string {
   if (cfg.activeGuardSkill && cfg.activeGuardSkill !== 'None') {
     lines.push(`      <Input name="activeGuardSkill" string="${escapeXml(cfg.activeGuardSkill)}" />`);
   }
+  if (cfg.pantheonMajor && cfg.pantheonMajor !== 'None') {
+    lines.push(`      <Input name="pantheonMajorGod" string="${escapeXml(cfg.pantheonMajor)}" />`);
+  }
+  if (cfg.pantheonMinor && cfg.pantheonMinor !== 'None') {
+    lines.push(`      <Input name="pantheonMinorGod" string="${escapeXml(cfg.pantheonMinor)}" />`);
+  }
   if (cfg.customMods.trim()) {
     lines.push(`      <Placeholder name="customMods" string="${escapeXml(cfg.customMods)}" />`);
   }
@@ -690,6 +696,31 @@ export function xmlToBuild(xml: string): Build {
         attrs.string === 'ArcaneCloak'
       ) {
         config.activeGuardSkill = attrs.string;
+      }
+    }
+    if ((key === 'pantheonMajorGod' || key === 'pantheonMajor') && attrs.string) {
+      const normalized = attrs.string.replace(/^The/, '');
+      if (
+        normalized === 'None' ||
+        normalized === 'BrineKing' ||
+        normalized === 'Lunaris' ||
+        normalized === 'Solaris' ||
+        normalized === 'Arakaali'
+      ) {
+        config.pantheonMajor = normalized;
+      }
+    }
+    if ((key === 'pantheonMinorGod' || key === 'pantheonMinor') && attrs.string) {
+      if (
+        attrs.string === 'None' ||
+        attrs.string === 'Abberath' ||
+        attrs.string === 'Gruthkul' ||
+        attrs.string === 'Ralakesh' ||
+        attrs.string === 'Shakari' ||
+        attrs.string === 'Tukohama' ||
+        attrs.string === 'Garukhan'
+      ) {
+        config.pantheonMinor = attrs.string;
       }
     }
     if (key === 'customMods' && attrs.string) config.customMods = attrs.string;

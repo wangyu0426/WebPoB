@@ -220,7 +220,21 @@ export function SidebarStats() {
           {t(locale, 'sidebar.defence')}
         </div>
         <StatRow label={t(locale, 'sidebar.life')} value={fmtNum(defence.life)} valueClass="text-rose-400" sub={defence.lifeRegen > 0 ? `+${defence.lifeRegen}/s` : undefined} />
+        {(defence.lifeLeechRate ?? 0) > 0 && (
+          <StatRow
+            label={locale === 'zh-CN' ? '生命偷取速率' : 'Life Leech Rate'}
+            value={`+${fmtNum(defence.lifeLeechRate!)} /s`}
+            valueClass="text-rose-300"
+          />
+        )}
         <StatRow label={t(locale, 'sidebar.energyShield')} value={fmtNum(defence.energyShield)} valueClass="text-sky-400" />
+        {(defence.esLeechRate ?? 0) > 0 && (
+          <StatRow
+            label={locale === 'zh-CN' ? '护盾偷取速率' : 'ES Leech Rate'}
+            value={`+${fmtNum(defence.esLeechRate!)} /s`}
+            valueClass="text-sky-300"
+          />
+        )}
         {(defence.ward ?? 0) > 0 && (
           <StatRow
             label={locale === 'zh-CN' ? '结界 (Ward)' : 'Ward'}
