@@ -14,9 +14,11 @@ import {
   analyzeBuildDiagnostics,
   calculateBuild,
   computeNodePower,
+  parseModLine,
   rankSupportGemsForGroup,
   rankUniqueUpgradesForSlot,
 } from './index.js';
+import { localizeStatLine, normalizeStatLineToEn } from '@webpob/i18n';
 
 describe('@webpob/calc', () => {
   it('calculates PoE 1 sample Elementalist Arc build with coherent offence and defence', () => {
@@ -263,5 +265,119 @@ describe('@webpob/calc', () => {
       },
     });
     expect(iwOut.offence.totalDps).toBeGreaterThan(strOnlyOut.offence.totalDps * 1.15);
+  });
+
+  it('parses flat base critical strike chance identically from English & Chinese mods', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const enOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: 'Hits have +1.5% to Critical Strike Chance' },
+    });
+    const zhOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: '击中基础暴击率 +1.5%' },
+    });
+
+    expect(enOut.offence.critChance).toBeGreaterThan(baseOut.offence.critChance);
+    expect(zhOut.offence.critChance).toBe(enOut.offence.critChance);
+    expect(parseModLine('Hits have +1.5% to Critical Strike Chance', 'Test')).toEqual([
+      expect.objectContaining({ name: 'BaseCritChance', type: 'BASE', value: 1.5 }),
+    ]);
+    expect(parseModLine('+1.5% to Critical Strike Chance', 'Test')).toEqual([
+      expect.objectContaining({ name: 'BaseCritChance', type: 'BASE', value: 1.5 }),
+    ]);
+  });
+
+  it('applies Juggernaut Body Armour doubling and Armour-to-elemental hit mitigation', () => {
+    const base = createSamplePoe1Build();
+    const bodyItem = base.items['preset_poe1_body_inpulsa']!;
+    const armouredBody = {
+      ...bodyItem,
+      armourStats: { armour: 1000, evasion: 540, energyShield: 165 },
+    };
+    const armouredBuild = {
+      ...base,
+      items: { ...base.items, test_armoured_body: armouredBody },
+      equipped: { ...base.equipped, 'Body Armour': 'test_armoured_body' },
+    };
+    const armouredOut = calculateBuild(armouredBuild);
+    const doubledOut = calculateBuild({
+      ...armouredBuild,
+      config: { ...armouredBuild.config, customMods: 'Armour from Equipped Body Armour is doubled' },
+    });
+    const flatArmourOut = calculateBuild({
+      ...armouredBuild,
+      config: { ...armouredBuild.config, customMods: '+1000 to Armour' },
+    });
+    expect(doubledOut.defence.armour).toBe(flatArmourOut.defence.armour);
+    expect(doubledOut.defence.armour).toBeGreaterThan(armouredOut.defence.armour);
+
+    const mitigatedOut = calculateBuild({
+      ...armouredBuild,
+      config: {
+        ...armouredBuild.config,
+        customMods: '8% of Armour applies to Fire, Cold and Lightning Damage taken from Hits',
+      },
+    });
+    expect(mitigatedOut.defence.maxEleHitTaken).toBeGreaterThan(armouredOut.defence.maxEleHitTaken);
+    expect(mitigatedOut.defence.effectiveHitPool).toBeGreaterThan(armouredOut.defence.effectiveHitPool);
+  });
+
+  it('applies Trickster Polymath and Escape Artist conversions', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const masteries = { ...base.tree, masteryEffects: { 1001: '', 1002: '', 1003: '' } };
+    const noPolyOut = calculateBuild({ ...base, tree: masteries });
+    const polyOut = calculateBuild({
+      ...base,
+      tree: masteries,
+      config: {
+        ...base.config,
+        customMods: '3% more Damage for each different type of Mastery you have Allocated',
+      },
+    });
+    expect(polyOut.offence.totalDps / noPolyOut.offence.totalDps).toBeCloseTo(1.09, 2);
+
+    const escapeOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods:
+          '+1 to Maximum Energy Shield per 5 Evasion Rating on Equipped Body Armour\n+1 to Evasion Rating per 5 Maximum Energy Shield on Equipped Helmet',
+      },
+    });
+    expect(escapeOut.defence.energyShield).toBeGreaterThan(baseOut.defence.energyShield);
+    expect(escapeOut.defence.evasion).toBeGreaterThan(baseOut.defence.evasion);
+    const esRow = escapeOut.breakdowns.find((row) => row.label === 'Maximum Energy Shield');
+    const evasionRow = escapeOut.breakdowns.find((row) => row.label === 'Evasion Rating');
+    expect(esRow?.sources).toContainEqual(
+      expect.objectContaining({ source: 'Escape Artist (Body Armour Evasion)', value: 108 }),
+    );
+    expect(evasionRow?.sources).toContainEqual(
+      expect.objectContaining({ source: 'Escape Artist (Helmet Energy Shield)', value: 53 }),
+    );
+  });
+
+  it('normalizes Phase 17 bilingual endgame rules and max charge modifiers', () => {
+    const pairs: Array<[string, string]> = [
+      ['击中基础暴击率 +1.5%', 'Hits have +1.5% to Critical Strike Chance'],
+      ['装备的胸甲提供的护甲翻倍', 'Armour from Equipped Body Armour is doubled'],
+      [
+        '护甲值的 8% 同样作用于承受的火焰、冰霜和闪电击中伤害',
+        '8% of Armour applies to Fire, Cold and Lightning Damage taken from Hits',
+      ],
+      ['最大暴击球数量 +1', '+1 to Maximum Power Charges'],
+      ['最大狂怒球数量 +2', '+2 to Maximum Frenzy Charges'],
+      ['最大耐力球数量 +3', '+3 to Maximum Endurance Charges'],
+    ];
+    for (const [zh, en] of pairs) {
+      expect(normalizeStatLineToEn(zh)).toBe(en);
+      expect(localizeStatLine(en, 'zh-CN')).toBe(zh);
+    }
+    const maxCharges = parseModLine('最大暴击球数量 +1', 'Test');
+    expect(maxCharges).toEqual([
+      expect.objectContaining({ name: 'PowerChargesMax', type: 'BASE', value: 1 }),
+    ]);
   });
 });

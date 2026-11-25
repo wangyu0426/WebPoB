@@ -327,6 +327,9 @@ export function calculateBuild(build: Build): CalcOutput {
 
   // 3. Equipped Items & Active Utility Flasks (with PoB-authentic Local Armour/Weapon resolution)
   const equippedItems = getActiveEquippedItems(build);
+  let bodyLocalArmour = 0;
+  let bodyLocalEvasion = 0;
+  let helmetLocalEs = 0;
   for (const { slot, item } of equippedItems) {
     if (slot.startsWith('Flask ')) {
       if (!build.activeFlaskSlots?.[slot]) continue;
@@ -341,6 +344,12 @@ export function calculateBuild(build: Build): CalcOutput {
     }
     const src = `Item (${slot}): ${item.name}`;
     const resolved = resolveItemEffectiveStats(item, build.game);
+    if (slot === 'Body Armour') {
+      bodyLocalArmour = resolved.armourStats?.armour ?? 0;
+      bodyLocalEvasion = resolved.armourStats?.evasion ?? 0;
+    } else if (slot === 'Helmet') {
+      helmetLocalEs = resolved.armourStats?.energyShield ?? 0;
+    }
     if (resolved.armourStats?.armour) {
       db.addMod({ name: 'Armour', type: 'BASE', value: resolved.armourStats.armour, flags: 0, keywordFlags: 0, source: src });
     }
@@ -519,12 +528,61 @@ export function calculateBuild(build: Build): CalcOutput {
       });
     }
   }
+
   if (cfg.customMods.trim()) {
     const customLines = cfg.customMods
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
     db.addMods(parseModLines(customLines, 'Custom Modifiers'));
+  }
+
+  // Phase 17 endgame ascendancy / defence mechanics (after tree, items & custom mods load)
+  if (db.flag('BodyArmourDoubled') && bodyLocalArmour > 0) {
+    db.addMod({
+      name: 'Armour',
+      type: 'BASE',
+      value: bodyLocalArmour,
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Unbreakable (Body Armour doubled)',
+    });
+  }
+  const esPerBodyEvasion = db.sum('BASE', 'EsPerBodyEvasion');
+  if (esPerBodyEvasion > 0 && bodyLocalEvasion > 0) {
+    db.addMod({
+      name: 'EnergyShield',
+      type: 'BASE',
+      value: Math.floor(bodyLocalEvasion * esPerBodyEvasion),
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Escape Artist (Body Armour Evasion)',
+    });
+  }
+  const evasionPerHelmetEs = db.sum('BASE', 'EvasionPerHelmetEs');
+  if (evasionPerHelmetEs > 0 && helmetLocalEs > 0) {
+    db.addMod({
+      name: 'Evasion',
+      type: 'BASE',
+      value: Math.floor(helmetLocalEs * evasionPerHelmetEs),
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Escape Artist (Helmet Energy Shield)',
+    });
+  }
+  const moreDamagePerMastery = db.sum('BASE', 'MoreDamagePerMastery');
+  if (moreDamagePerMastery > 0) {
+    const masteryCount = Object.keys(build.tree.masteryEffects ?? {}).length;
+    if (masteryCount > 0) {
+      db.addMod({
+        name: 'Damage',
+        type: 'MORE',
+        value: masteryCount * moreDamagePerMastery,
+        flags: 0,
+        keywordFlags: 0,
+        source: `Polymath (${masteryCount} Masteries)`,
+      });
+    }
   }
   // Crave the Slaughter: Every Rage also grants X% increased Attack Speed
   if (cfg.rage && cfg.rage > 0) {
@@ -766,13 +824,21 @@ export function calculateBuild(build: Build): CalcOutput {
     0.1,
     (1 + db.sum('INC', 'DamageTaken') / 100) * db.more('DamageTaken'),
   );
-  const eleTakenFactor =
+  let eleTakenFactor =
     Math.max(
       0.1,
       (1 - eleAsChaosFrac) * (1 - avgEleRes / 100) + eleAsChaosFrac * (1 - chaosResist / 100),
     ) *
     fortifyTakenMult *
     globalTakenMult;
+  const armourAppliesToElePct = db.sum('BASE', 'ArmourAppliesToEle');
+  if (armourAppliesToElePct > 0 && armour > 0) {
+    const effectiveEleArmour = armour * (armourAppliesToElePct / 100);
+    const eleArmourMitigation =
+      effectiveEleArmour / (effectiveEleArmour + ruleset.armourFormulaFactor * 1500);
+    eleTakenFactor *= 1 - eleArmourMitigation;
+  }
+  eleTakenFactor = Math.max(0.05, eleTakenFactor);
   const physTakenFactor =
     Math.max(0.1, 1 - physDamageReduction / 100) * fortifyTakenMult * globalTakenMult;
   const avoidanceFactor = Math.max(0.15, (1 - evadeChance / 100) * (1 - blockChance / 100));
@@ -1411,6 +1477,7 @@ function computeGroupOffence(
   const neverCrit = skillDb.flag('NeverCrit', flags, kwFlags);
   const noCritExtra = skillDb.flag('NoCritExtraDamage', flags, kwFlags);
   const enemyCritBonus = skillDb.sum('BASE', 'EnemyCritChance', flags, kwFlags);
+  const flatBaseCrit = isMinion ? 0 : skillDb.sum('BASE', 'BaseCritChance', flags, kwFlags);
   const enemyCritMulti = skillDb.sum('BASE', 'EnemyCritMultiplier', flags, kwFlags);
   const weaponCritOverride = skillDb.override('WeaponBaseCritChance', flags, kwFlags);
   const rawWeaponBaseCrit =
@@ -1420,7 +1487,7 @@ function computeGroupOffence(
   const weaponBaseCrit = weaponCritOverride !== null ? weaponCritOverride : rawWeaponBaseCrit;
   const baseCrit = isMinion
     ? (activeDef.minionBase?.critChance ?? 5) + enemyCritBonus
-    : (isAttack ? weaponBaseCrit : (activeDef.baseCritChance ?? 6)) + enemyCritBonus;
+    : (isAttack ? weaponBaseCrit : (activeDef.baseCritChance ?? 6)) + enemyCritBonus + flatBaseCrit;
   const critInc = isMinion ? 0 : skillDb.sum('INC', 'CritChance', flags, kwFlags);
   const critMore = isMinion ? 1 : skillDb.more('CritChance', flags, kwFlags);
   const preEffectiveCrit = neverCrit ? 0 : Math.min(100, baseCrit * (1 + critInc / 100) * critMore);
@@ -1595,11 +1662,12 @@ function computeGroupOffence(
       atkHitChance = Math.min(100, Math.max(5, Math.round(rawHit)));
     }
     const atkNeverCrit = skillDb.flag('NeverCrit', atkFlags, atkKw);
+    const atkFlatBaseCrit = skillDb.sum('BASE', 'BaseCritChance', atkFlags, atkKw);
     const atkPreCrit = atkNeverCrit
       ? 0
       : Math.min(
           100,
-          (weaponBaseCrit + enemyCritBonus) *
+          (weaponBaseCrit + enemyCritBonus + atkFlatBaseCrit) *
             (1 + skillDb.sum('INC', 'CritChance', atkFlags, atkKw) / 100) *
             skillDb.more('CritChance', atkFlags, atkKw),
         );

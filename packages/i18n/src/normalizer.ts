@@ -255,6 +255,25 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `Base Critical Strike Chance for Attacks with Weapons is ${v}%`,
   },
   {
+    zhPattern: /^击中基础暴击率\s*\+?(\d+(?:\.\d+)?)%$/,
+    toEn: (_, v) => `Hits have +${v}% to Critical Strike Chance`,
+  },
+  {
+    zhPattern: /^装备的胸甲提供的护甲翻倍$/,
+    toEn: () => `Armour from Equipped Body Armour is doubled`,
+  },
+  {
+    zhPattern: /^护甲值的\s*(\d+)%\s*同样作用于承受的火焰、冰霜和闪电击中伤害$/,
+    toEn: (_, v) => `${v}% of Armour applies to Fire, Cold and Lightning Damage taken from Hits`,
+  },
+  {
+    zhPattern: /^最大(暴击|狂怒|耐力)球数量\s*\+?(\d+)$/,
+    toEn: (_, charge, v) => {
+      const map: Record<string, string> = { 暴击: 'Power', 狂怒: 'Frenzy', 耐力: 'Endurance' };
+      return `+${v} to Maximum ${map[charge] ?? charge} Charges`;
+    },
+  },
+  {
     zhPattern: /^每点怒火(?:同时)?提供\s*(\d+)%\s*攻击速度(?:提高|增加)$/,
     toEn: (_, v) => `Every Rage also grants ${v}% increased Attack Speed`,
   },
@@ -401,6 +420,25 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
   { enPattern: /^(\d+)% increased Critical Strike Chance$/i, toZh: (_, v) => `暴击率提高 ${v}%` },
   { enPattern: /^\+(\d+)% to Global Critical Strike Multiplier$/i, toZh: (_, v) => `全局暴击伤害加成 +${v}%` },
   { enPattern: /^\+(\d+)% to Critical Strike Multiplier$/i, toZh: (_, v) => `暴击伤害加成 +${v}%` },
+  {
+    enPattern: /^(?:Hits have )?\+(\d+(?:\.\d+)?)% to Critical Strike Chance$/i,
+    toZh: (_, v) => `击中基础暴击率 +${v}%`,
+  },
+  {
+    enPattern: /^Armour from Equipped Body Armour is doubled$/i,
+    toZh: () => `装备的胸甲提供的护甲翻倍`,
+  },
+  {
+    enPattern: /^(\d+)% of Armour applies to Fire, Cold and Lightning Damage taken from Hits$/i,
+    toZh: (_, v) => `护甲值的 ${v}% 同样作用于承受的火焰、冰霜和闪电击中伤害`,
+  },
+  {
+    enPattern: /^\+(\d+) to Maximum (Power|Frenzy|Endurance) Charges?$/i,
+    toZh: (_, v, charge) => {
+      const map: Record<string, string> = { Power: '暴击', Frenzy: '狂怒', Endurance: '耐力' };
+      return `最大${map[charge] ?? charge}球数量 +${v}`;
+    },
+  },
   { enPattern: /^\+(\d+) to Accuracy Rating$/i, toZh: (_, v) => `命中值 +${v}` },
   { enPattern: /^\+(\d+)% chance to Suppress Spell Damage$/i, toZh: (_, v) => `法术伤害压制率 +${v}%` },
   { enPattern: /^\+(\d+)% Chance to Block Attack Damage$/i, toZh: (_, v) => `攻击格挡率 +${v}%` },

@@ -410,6 +410,10 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [mkMod('CritMultiplier', 'BASE', Number(m[1]), src)],
   },
   {
+    pattern: /^(?:Hits have )?\+(\d+(?:\.\d+)?)% to Critical Strike Chance$/i,
+    build: (m, src) => [mkMod('BaseCritChance', 'BASE', Number(m[1]), src)],
+  },
+  {
     pattern: /^(\d+)% increased (?:Critical Damage Bonus|Critical Strike Multiplier)(?: for Spells)?$/i,
     build: (m, src) => [mkMod('CritMultiplier', 'BASE', Number(m[1]), src)],
   },
@@ -780,6 +784,31 @@ const PARSER_RULES: ParserRule[] = [
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
       return [mkMod('MinionLife', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
     },
+  },
+  // Endgame ascendancy & defence mechanics (Phase 17)
+  {
+    pattern: /^Armour from Equipped Body Armour is doubled$/i,
+    build: (_, src) => [mkMod('BodyArmourDoubled', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^(\d+)% of Armour applies to Fire, Cold and Lightning Damage taken from Hits$/i,
+    build: (m, src) => [mkMod('ArmourAppliesToEle', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% more Damage for each different type of Mastery you have Allocated$/i,
+    build: (m, src) => [mkMod('MoreDamagePerMastery', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Maximum Energy Shield per (\d+) Evasion Rating on Equipped Body Armour$/i,
+    build: (m, src) => [mkMod('EsPerBodyEvasion', 'BASE', Number(m[1]) / Number(m[2]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Evasion Rating per (\d+) Maximum Energy Shield on Equipped Helmet$/i,
+    build: (m, src) => [mkMod('EvasionPerHelmetEs', 'BASE', Number(m[1]) / Number(m[2]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Maximum (Power|Frenzy|Endurance) Charges?$/i,
+    build: (m, src) => [mkMod(`${m[2]}ChargesMax`, 'BASE', Number(m[1]), src)],
   },
 ];
 
