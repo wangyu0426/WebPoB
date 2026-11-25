@@ -30,12 +30,21 @@ import {
   getTreeForGame,
   getUniquesForGame,
   instantiateUniqueItem,
+  normalizeAscendancyTreeKey,
 } from '@webpob/data';
 import { localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { computeNodePower } from '@webpob/calc';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { computeHeatmapInWorker } from '../workers/calcWorkerClient';
 import type { NodePowerHeatItem } from '../workers/calc.worker';
+import {
+  getCachedArtImage,
+  loadAscendancyArtManifest,
+  resolvePoe1SpriteRect,
+  resolvePoe2AscBgMeta,
+  resolvePoe2PortraitFile,
+  type AscendancyArtManifest,
+} from '../utils/ascendancyArt';
 
 const SPATIAL_CELL_SIZE = 320;
 
@@ -130,7 +139,20 @@ export function PassiveTreeCanvas() {
   const [allocatedCopied, setAllocatedCopied] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState<number | null>(null);
   const [compareSpecIdx, setCompareSpecIdx] = useState<number | null>(null);
+  const [artManifest, setArtManifest] = useState<AscendancyArtManifest | null>(null);
+  const [artTick, setArtTick] = useState(0);
   const cameraAnimRef = useRef<number | null>(null);
+  const prevAscRef = useRef<string>(build.ascendancyId);
+
+  useEffect(() => {
+    let alive = true;
+    void loadAscendancyArtManifest().then((m) => {
+      if (alive && m) setArtManifest(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const treeSpecs = useMemo(
     () => (build.treeSpecs && build.treeSpecs.length > 0 ? build.treeSpecs : [build.tree]),
@@ -192,13 +214,54 @@ export function PassiveTreeCanvas() {
 
   const isOfficialFull = Boolean(tree.isOfficialFull);
 
-  // Filter visible nodes: main passive tree + selected Ascendancy sub-tree
+  const ascTreeKey = useMemo(
+    () => normalizeAscendancyTreeKey(build.ascendancyId),
+    [build.ascendancyId],
+  );
+
+  // In PoE 2, project the active Ascendancy sub-tree directly into the center (0, 0) medallion (matching in-game PoE 2!)
+  const ascOffset = useMemo(() => {
+    if (build.game !== 'poe2' || !isOfficialFull || !ascTreeKey) {
+      return { dx: 0, dy: 0 };
+    }
+    const bgMeta = resolvePoe2AscBgMeta(artManifest, build.ascendancyId);
+    if (bgMeta) {
+      return { dx: -bgMeta.x, dy: -bgMeta.y };
+    }
+    // Fallback centroid if manifest hasn't loaded yet
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+    for (const n of Object.values(tree.nodes)) {
+      if (n.ascendancyId && n.ascendancyId.toLowerCase() === ascTreeKey) {
+        sumX += n.x;
+        sumY += n.y;
+        count++;
+      }
+    }
+    if (count === 0) return { dx: 0, dy: 0 };
+    return { dx: -sumX / count, dy: -sumY / count };
+  }, [build.game, build.ascendancyId, isOfficialFull, ascTreeKey, artManifest, tree.nodes]);
+
+  // Filter visible nodes: main passive tree + selected Ascendancy sub-tree (projected to center in PoE 2)
   const visibleNodes = useMemo(() => {
-    const ascTarget = build.ascendancyId?.toLowerCase().trim() || '';
-    return Object.values(tree.nodes).filter(
-      (n) => !n.ascendancyId || (ascTarget && n.ascendancyId.toLowerCase() === ascTarget),
-    );
-  }, [tree, build.ascendancyId]);
+    const out: PassiveNode[] = [];
+    const shiftAsc = ascOffset.dx !== 0 || ascOffset.dy !== 0;
+    for (const n of Object.values(tree.nodes)) {
+      if (!n.ascendancyId) {
+        out.push(n);
+      } else if (ascTreeKey && n.ascendancyId.toLowerCase() === ascTreeKey) {
+        out.push(shiftAsc ? { ...n, x: n.x + ascOffset.dx, y: n.y + ascOffset.dy } : n);
+      }
+    }
+    return out;
+  }, [tree, ascTreeKey, ascOffset]);
+
+  const visibleNodeMap = useMemo(() => {
+    const map = new Map<number, PassiveNode>();
+    for (const n of visibleNodes) map.set(n.id, n);
+    return map;
+  }, [visibleNodes]);
 
   const ascStartNodeId = useMemo(
     () => getAscendancyStartNodeId(tree, build.ascendancyId),
@@ -206,10 +269,15 @@ export function PassiveTreeCanvas() {
   );
 
   const ascendancyCenter = useMemo(() => {
-    const ascTarget = build.ascendancyId?.toLowerCase().trim() || '';
-    if (!ascTarget) return null;
+    if (build.game === 'poe2' && isOfficialFull) {
+      const ascCount = ascTreeKey
+        ? visibleNodes.filter((n) => n.ascendancyId && n.ascendancyId.toLowerCase() === ascTreeKey).length
+        : 0;
+      return { x: 0, y: 0, radius: 1355, count: ascCount };
+    }
+    if (!ascTreeKey) return null;
     const ascNodes = visibleNodes.filter(
-      (n) => n.ascendancyId && n.ascendancyId.toLowerCase() === ascTarget,
+      (n) => n.ascendancyId && n.ascendancyId.toLowerCase() === ascTreeKey,
     );
     if (ascNodes.length === 0) return null;
     let sumX = 0;
@@ -225,8 +293,8 @@ export function PassiveTreeCanvas() {
       const d = Math.hypot(n.x - cx, n.y - cy);
       if (d > maxDist) maxDist = d;
     }
-    return { x: cx, y: cy, radius: maxDist + 160, count: ascNodes.length };
-  }, [visibleNodes, build.ascendancyId]);
+    return { x: cx, y: cy, radius: maxDist + 180, count: ascNodes.length };
+  }, [visibleNodes, build.game, isOfficialFull, ascTreeKey]);
 
   // Visual Cluster Jewel Sub-Graphs synthesized radially around every allocated Cluster Jewel socket
   const clusterSubGraphs = useMemo(() => {
@@ -372,20 +440,17 @@ export function PassiveTreeCanvas() {
 
   // Precompute deduplicated edge list with orbit arc geometry & AABB for viewport culling
   const edgeList = useMemo(() => {
-    const visibleSet = new Set(visibleNodes.map((n) => n.id));
     const seen = new Set<string>();
     const edges: EdgeRecord[] = [];
     const groups = tree.groups ?? {};
 
     for (const a of visibleNodes) {
       for (const bId of a.adjacent) {
-        if (!visibleSet.has(bId)) continue;
+        const b = visibleNodeMap.get(bId);
+        if (!b) continue;
         const key = a.id < bId ? `${a.id}-${bId}` : `${bId}-${a.id}`;
         if (seen.has(key)) continue;
         seen.add(key);
-
-        const b = tree.nodes[bId];
-        if (!b) continue;
 
         let sameOrbitArc = false;
         let cx: number | undefined;
@@ -405,8 +470,9 @@ export function PassiveTreeCanvas() {
           groups[a.group]
         ) {
           const g = groups[a.group]!;
-          cx = g.x;
-          cy = g.y;
+          const isAscGroup = Boolean(a.ascendancyId && b.ascendancyId);
+          cx = g.x + (isAscGroup ? ascOffset.dx : 0);
+          cy = g.y + (isAscGroup ? ascOffset.dy : 0);
           r = a.orbitRadius;
           const angA = Math.atan2(a.y - cy, a.x - cx);
           const angB = Math.atan2(b.y - cy, b.x - cx);
@@ -441,7 +507,7 @@ export function PassiveTreeCanvas() {
       }
     }
     return edges;
-  }, [visibleNodes, tree]);
+  }, [visibleNodes, visibleNodeMap, tree, ascOffset]);
 
   const sharedSet = useMemo(() => new Set(build.tree.allocatedNodeIds), [build.tree.allocatedNodeIds]);
   const set1Set = useMemo(() => new Set(build.tree.weaponSet1NodeIds), [build.tree.weaponSet1NodeIds]);
@@ -468,8 +534,11 @@ export function PassiveTreeCanvas() {
       }
     }
 
-    const defaultZoom = isOfficialFull ? (build.game === 'poe2' ? 0.095 : 0.13) : 0.62;
-    if (count > 0) {
+    const defaultZoom = isOfficialFull ? (build.game === 'poe2' ? 0.12 : 0.13) : 0.62;
+    if (build.game === 'poe2' && isOfficialFull && count <= 1) {
+      // Frame the iconic PoE 2 central Ascendancy portrait medallion & class starts ring
+      setCamera({ x: 0, y: 0, zoom: 0.14 });
+    } else if (count > 0) {
       const cx = sumX / count;
       const cy = sumY / count;
       setCamera({ x: -cx * defaultZoom, y: -cy * defaultZoom, zoom: defaultZoom });
@@ -538,7 +607,7 @@ export function PassiveTreeCanvas() {
 
   const panToNode = useCallback(
     (nodeId: number) => {
-      const target = tree.nodes[nodeId];
+      const target = visibleNodeMap.get(nodeId) ?? tree.nodes[nodeId];
       if (!target) return;
       const targetZoom = isOfficialFull ? 0.28 : 1.1;
       animateCamera({
@@ -549,7 +618,7 @@ export function PassiveTreeCanvas() {
       setHighlightedNodeId(nodeId);
       setHoveredNodeId(nodeId);
     },
-    [tree, isOfficialFull, animateCamera],
+    [visibleNodeMap, tree, isOfficialFull, animateCamera],
   );
 
   // Frame only the player's allocated passives (shared + PoE 2 weapon sets)
@@ -566,7 +635,7 @@ export function PassiveTreeCanvas() {
     let maxY = -Infinity;
     let count = 0;
     for (const id of allocatedIds) {
-      const node = tree.nodes[id];
+      const node = visibleNodeMap.get(id) ?? tree.nodes[id];
       if (!node) continue;
       minX = Math.min(minX, node.x);
       maxX = Math.max(maxX, node.x);
@@ -590,23 +659,40 @@ export function PassiveTreeCanvas() {
     const midX = (minX + maxX) / 2;
     const midY = (minY + maxY) / 2;
     animateCamera({ x: -midX * zoom, y: -midY * zoom, zoom }, 420);
-  }, [build.tree, build.game, tree, isOfficialFull, centerOnBuild, animateCamera]);
+  }, [build.tree, build.game, visibleNodeMap, tree, isOfficialFull, centerOnBuild, animateCamera]);
 
   const focusAscendancy = useCallback(() => {
     if (!ascendancyCenter) return;
-    const targetZoom = isOfficialFull ? 0.2 : 0.9;
-    setCamera({
-      x: -ascendancyCenter.x * targetZoom,
-      y: -ascendancyCenter.y * targetZoom,
-      zoom: targetZoom,
-    });
-  }, [ascendancyCenter, isOfficialFull]);
+    const container = containerRef.current;
+    const minDim = Math.min(container?.clientWidth ?? 900, container?.clientHeight ?? 700);
+    const idealZoom = isOfficialFull
+      ? Math.max(0.14, Math.min(0.28, (minDim * 0.72) / (ascendancyCenter.radius * 2)))
+      : 0.9;
+    animateCamera(
+      {
+        x: -ascendancyCenter.x * idealZoom,
+        y: -ascendancyCenter.y * idealZoom,
+        zoom: idealZoom,
+      },
+      380,
+    );
+  }, [ascendancyCenter, isOfficialFull, animateCamera]);
 
   // Auto-center whenever game or official tree loads
   useEffect(() => {
     centerOnBuild();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [build.game, treeRevision]);
+
+  // Smoothly pan to the Ascendancy medallion whenever the user switches Ascendancy
+  useEffect(() => {
+    if (prevAscRef.current !== build.ascendancyId) {
+      prevAscRef.current = build.ascendancyId;
+      if (build.ascendancyId && ascendancyCenter) {
+        focusAscendancy();
+      }
+    }
+  }, [build.ascendancyId, ascendancyCenter, focusAscendancy]);
 
   // Background Web Worker batch Node Power Heatmap when enabled
   useEffect(() => {
@@ -996,32 +1082,110 @@ export function PassiveTreeCanvas() {
     const baseLineWidth = Math.max(isOfficialFull ? 10 : 2, 1.5 * invZoom);
     const activeLineWidth = Math.max(isOfficialFull ? 18 : 4, 3.2 * invZoom);
 
-    // 0. Draw golden Ascendancy medallion backdrop when selected Ascendancy sub-tree is in view
+    // 0. Draw authentic Ascendancy / Class portrait medallion backdrop
     if (ascendancyCenter) {
+      const bumpArt = () => setArtTick((n) => n + 1);
       ctx.save();
-      const grad = ctx.createRadialGradient(
-        ascendancyCenter.x,
-        ascendancyCenter.y,
-        ascendancyCenter.radius * 0.15,
-        ascendancyCenter.x,
-        ascendancyCenter.y,
-        ascendancyCenter.radius,
-      );
-      grad.addColorStop(0, 'rgba(217, 155, 45, 0.14)');
-      grad.addColorStop(0.75, 'rgba(180, 120, 30, 0.06)');
-      grad.addColorStop(1, 'rgba(180, 120, 30, 0)');
-      ctx.beginPath();
-      ctx.arc(ascendancyCenter.x, ascendancyCenter.y, ascendancyCenter.radius, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(243, 204, 130, 0.28)';
-      ctx.lineWidth = Math.max(isOfficialFull ? 12 : 2, 1.6 * invZoom);
-      ctx.stroke();
+
+      if (build.game === 'poe2' && isOfficialFull) {
+        const r = ascendancyCenter.radius;
+        const portraitFile = resolvePoe2PortraitFile(artManifest, build.ascendancyId, build.classId);
+        const portraitImg = portraitFile ? getCachedArtImage(`/data/${portraitFile}`, bumpArt) : null;
+        const ringImg = artManifest?.poe2.ring
+          ? getCachedArtImage(`/data/${artManifest.poe2.ring}`, bumpArt)
+          : null;
+
+        // Deep obsidian circular fill + official PoE 2 circular character portrait
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#090b12';
+        ctx.fill();
+        ctx.clip();
+
+        if (portraitImg) {
+          const pad = 16;
+          ctx.drawImage(portraitImg, -(r + pad), -(r + pad), (r + pad) * 2, (r + pad) * 2);
+          // Subtle inner vignette so passive nodes & golden arcs stay razor-sharp over fiery artwork
+          const vig = ctx.createRadialGradient(0, 0, r * 0.28, 0, 0, r);
+          vig.addColorStop(0, 'rgba(6, 8, 14, 0.06)');
+          vig.addColorStop(0.72, 'rgba(6, 8, 14, 0.22)');
+          vig.addColorStop(1, 'rgba(6, 8, 14, 0.58)');
+          ctx.fillStyle = vig;
+          ctx.fillRect(-r, -r, r * 2, r * 2);
+        } else {
+          const fallbackGrad = ctx.createRadialGradient(0, 0, r * 0.15, 0, 0, r);
+          fallbackGrad.addColorStop(0, 'rgba(217, 155, 45, 0.16)');
+          fallbackGrad.addColorStop(1, 'rgba(12, 15, 24, 0.85)');
+          ctx.fillStyle = fallbackGrad;
+          ctx.fillRect(-r, -r, r * 2, r * 2);
+        }
+        ctx.restore();
+
+        // Official 6-clasp ornate gothic ring frame (aligned with the 6 class starts at radius ~1465)
+        if (ringImg) {
+          const ringHalf = 1805;
+          ctx.drawImage(ringImg, -ringHalf, -ringHalf, ringHalf * 2, ringHalf * 2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(229, 188, 114, 0.5)';
+          ctx.lineWidth = Math.max(18, 2.2 * invZoom);
+          ctx.stroke();
+        }
+      } else {
+        // PoE 1: circular Ascendancy character portrait cropped from official ascendancy-3.webp sprite sheet
+        const { x: cx, y: cy, radius: r } = ascendancyCenter;
+        const rect = resolvePoe1SpriteRect(artManifest, build.ascendancyId);
+        const sheetImg =
+          rect && artManifest?.poe1.sheet
+            ? getCachedArtImage(`/data/${artManifest.poe1.sheet}`, bumpArt)
+            : null;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#0b0e17';
+        ctx.fill();
+        ctx.clip();
+
+        if (sheetImg && rect) {
+          ctx.drawImage(sheetImg, rect.x, rect.y, rect.w, rect.h, cx - r, cy - r, r * 2, r * 2);
+          const vig = ctx.createRadialGradient(cx, cy, r * 0.25, cx, cy, r);
+          vig.addColorStop(0, 'rgba(8, 10, 16, 0.08)');
+          vig.addColorStop(0.75, 'rgba(8, 10, 16, 0.28)');
+          vig.addColorStop(1, 'rgba(8, 10, 16, 0.65)');
+          ctx.fillStyle = vig;
+          ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        } else {
+          const fallbackGrad = ctx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r);
+          fallbackGrad.addColorStop(0, 'rgba(217, 155, 45, 0.16)');
+          fallbackGrad.addColorStop(0.75, 'rgba(180, 120, 30, 0.08)');
+          fallbackGrad.addColorStop(1, 'rgba(180, 120, 30, 0)');
+          ctx.fillStyle = fallbackGrad;
+          ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        }
+        ctx.restore();
+
+        // Ornamental double golden bezel around PoE 1 Ascendancy portrait
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(229, 188, 114, 0.55)';
+        ctx.lineWidth = Math.max(isOfficialFull ? 18 : 2.5, 2.2 * invZoom);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + (isOfficialFull ? 28 : 5), 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(180, 134, 62, 0.28)';
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 1.5, 1.2 * invZoom);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
     // 1. Draw visible edges (inactive first, active/highlighted second for crisp layering)
     const activeEdges: Array<{ edge: EdgeRecord; color: string; dashed: boolean }> = [];
+    const inactiveAscEdges: EdgeRecord[] = [];
 
     ctx.beginPath();
     ctx.strokeStyle = '#252c40';
@@ -1081,6 +1245,10 @@ export function PassiveTreeCanvas() {
         activeEdges.push({ edge, color: '#fbbf24', dashed: true });
         continue;
       }
+      if (edge.a.ascendancyId && edge.b.ascendancyId) {
+        inactiveAscEdges.push(edge);
+        continue;
+      }
 
       if (edge.sameOrbitArc && edge.cx !== undefined && edge.cy !== undefined && edge.r !== undefined) {
         ctx.moveTo(edge.a.x, edge.a.y);
@@ -1091,6 +1259,23 @@ export function PassiveTreeCanvas() {
       }
     }
     ctx.stroke();
+
+    // Draw inactive Ascendancy edges in warm antique gold so paths stay crisp over character artwork
+    if (inactiveAscEdges.length > 0) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(229, 198, 134, 0.56)';
+      ctx.lineWidth = Math.max(baseLineWidth * 1.15, 1.8 * invZoom);
+      for (const edge of inactiveAscEdges) {
+        if (edge.sameOrbitArc && edge.cx !== undefined && edge.cy !== undefined && edge.r !== undefined) {
+          ctx.moveTo(edge.a.x, edge.a.y);
+          ctx.arc(edge.cx, edge.cy, edge.r, edge.startAngle!, edge.endAngle!, edge.counterclockwise);
+        } else {
+          ctx.moveTo(edge.a.x, edge.a.y);
+          ctx.lineTo(edge.b.x, edge.b.y);
+        }
+      }
+      ctx.stroke();
+    }
 
     // Draw highlighted / allocated edges on top
     for (const { edge, color, dashed } of activeEdges) {
@@ -1424,12 +1609,16 @@ export function PassiveTreeCanvas() {
     hoveredNodeId,
     matchedSearchIds,
     build.game,
+    build.classId,
+    build.ascendancyId,
     build.activeWeaponSet,
     build.tree.masteryEffects,
     build.tree.socketedJewels,
     locale,
     isOfficialFull,
     ascendancyCenter,
+    artManifest,
+    artTick,
     clusterSubGraphs,
     heatmapEnabled,
     heatmapMap,

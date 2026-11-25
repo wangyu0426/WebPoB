@@ -1,0 +1,360 @@
+{
+  "poe1": {
+    "sheet": "poe1-ascendancy.webp",
+    "sprites": {
+      "Reliquarian": {
+        "x": 0,
+        "y": 0,
+        "w": 587,
+        "h": 587
+      },
+      "Luminary": {
+        "x": 587,
+        "y": 0,
+        "w": 587,
+        "h": 587
+      },
+      "Ascendant": {
+        "x": 0,
+        "y": 587,
+        "w": 587,
+        "h": 587
+      },
+      "Trickster": {
+        "x": 587,
+        "y": 587,
+        "w": 498,
+        "h": 498
+      },
+      "Slayer": {
+        "x": 1174,
+        "y": 0,
+        "w": 498,
+        "h": 498
+      },
+      "Saboteur": {
+        "x": 1174,
+        "y": 498,
+        "w": 498,
+        "h": 498
+      },
+      "Raider": {
+        "x": 0,
+        "y": 1174,
+        "w": 498,
+        "h": 498
+      },
+      "Pathfinder": {
+        "x": 498,
+        "y": 1174,
+        "w": 498,
+        "h": 498
+      },
+      "Occultist": {
+        "x": 996,
+        "y": 1174,
+        "w": 498,
+        "h": 498
+      },
+      "Necromancer": {
+        "x": 1672,
+        "y": 0,
+        "w": 498,
+        "h": 498
+      },
+      "Juggernaut": {
+        "x": 1672,
+        "y": 498,
+        "w": 498,
+        "h": 498
+      },
+      "Inquisitor": {
+        "x": 1672,
+        "y": 996,
+        "w": 498,
+        "h": 498
+      },
+      "Hierophant": {
+        "x": 0,
+        "y": 1672,
+        "w": 498,
+        "h": 498
+      },
+      "Guardian": {
+        "x": 498,
+        "y": 1672,
+        "w": 498,
+        "h": 498
+      },
+      "Gladiator": {
+        "x": 996,
+        "y": 1672,
+        "w": 498,
+        "h": 498
+      },
+      "Elementalist": {
+        "x": 1494,
+        "y": 1672,
+        "w": 498,
+        "h": 498
+      },
+      "Deadeye": {
+        "x": 2170,
+        "y": 0,
+        "w": 498,
+        "h": 498
+      },
+      "Chieftain": {
+        "x": 2170,
+        "y": 498,
+        "w": 498,
+        "h": 498
+      },
+      "Champion": {
+        "x": 2170,
+        "y": 996,
+        "w": 498,
+        "h": 498
+      },
+      "Berserker": {
+        "x": 2170,
+        "y": 1494,
+        "w": 498,
+        "h": 498
+      },
+      "Assassin": {
+        "x": 0,
+        "y": 2170,
+        "w": 498,
+        "h": 498
+      },
+      "Alternate": {
+        "x": 498,
+        "y": 2170,
+        "w": 498,
+        "h": 498
+      },
+      "Warlock": {
+        "x": 0,
+        "y": 0,
+        "w": 567,
+        "h": 537
+      },
+      "Warden": {
+        "x": 567,
+        "y": 0,
+        "w": 567,
+        "h": 537
+      },
+      "Primalist": {
+        "x": 567,
+        "y": 537,
+        "w": 567,
+        "h": 537
+      }
+    }
+  },
+  "poe2": {
+    "ring": "poe2-asc/bg-ring.png",
+    "portraits": {
+      "Abyssal Lich": "poe2-asc/abyssal-lich.jpg",
+      "Acolyte of Chayula": "poe2-asc/acolyte-of-chayula.jpg",
+      "Amazon": "poe2-asc/amazon.jpg",
+      "Blood Mage": "poe2-asc/blood-mage.jpg",
+      "Chronomancer": "poe2-asc/chronomancer.jpg",
+      "Deadeye": "poe2-asc/deadeye.jpg",
+      "Disciple of Varashta": "poe2-asc/disciple-of-varashta.jpg",
+      "Druid": "poe2-asc/druid.jpg",
+      "Duelist": "poe2-asc/duelist.jpg",
+      "Gemling Legionnaire": "poe2-asc/gemling-legionnaire.jpg",
+      "Huntress": "poe2-asc/huntress.jpg",
+      "Infernalist": "poe2-asc/infernalist.jpg",
+      "Invoker": "poe2-asc/invoker.jpg",
+      "Lich": "poe2-asc/lich.jpg",
+      "Marauder": "poe2-asc/marauder.jpg",
+      "Martial Artist": "poe2-asc/martial-artist.jpg",
+      "Mercenary": "poe2-asc/mercenary.jpg",
+      "Monk": "poe2-asc/monk.jpg",
+      "Oracle": "poe2-asc/oracle.jpg",
+      "Pathfinder": "poe2-asc/pathfinder.jpg",
+      "Ranger": "poe2-asc/ranger.jpg",
+      "Ritualist": "poe2-asc/ritualist.jpg",
+      "Shadow": "poe2-asc/shadow.jpg",
+      "Shaman": "poe2-asc/shaman.jpg",
+      "Smith of Kitava": "poe2-asc/smith-of-kitava.jpg",
+      "Sorceress": "poe2-asc/sorceress.jpg",
+      "Spirit Walker": "poe2-asc/spirit-walker.jpg",
+      "Stormweaver": "poe2-asc/stormweaver.jpg",
+      "Tactician": "poe2-asc/tactician.jpg",
+      "Templar": "poe2-asc/templar.jpg",
+      "Titan": "poe2-asc/titan.jpg",
+      "Warbringer": "poe2-asc/warbringer.jpg",
+      "Warrior": "poe2-asc/warrior.jpg",
+      "Witch": "poe2-asc/witch.jpg",
+      "Witchhunter": "poe2-asc/witchhunter.jpg"
+    },
+    "ascendancies": {
+      "Deadeye": {
+        "x": 15451.7,
+        "y": 1623.2,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/deadeye.jpg"
+      },
+      "Pathfinder": {
+        "x": 14776.6,
+        "y": 4800.4,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/pathfinder.jpg"
+      },
+      "Amazon": {
+        "x": 13455.6,
+        "y": 7767.7,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/amazon.jpg"
+      },
+      "Spirit Walker": {
+        "x": 11546.6,
+        "y": 10395.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/spirit-walker.jpg"
+      },
+      "Ritualist": {
+        "x": 9132.9,
+        "y": 12569,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/ritualist.jpg"
+      },
+      "Titan": {
+        "x": -11551.1,
+        "y": 10390.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/titan.jpg"
+      },
+      "Warbringer": {
+        "x": -13459,
+        "y": 7761.9,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/warbringer.jpg"
+      },
+      "Smith of Kitava": {
+        "x": -14778.7,
+        "y": 4794,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/smith-of-kitava.jpg"
+      },
+      "Tactician": {
+        "x": 3250.4,
+        "y": 15193,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/tactician.jpg"
+      },
+      "Witchhunter": {
+        "x": 20.6,
+        "y": 15536.8,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/witchhunter.jpg"
+      },
+      "Gemling Legionnaire": {
+        "x": -3210.1,
+        "y": 15201.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/gemling-legionnaire.jpg"
+      },
+      "Oracle": {
+        "x": -14155.4,
+        "y": -6404.4,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/oracle.jpg"
+      },
+      "Shaman": {
+        "x": -12514.5,
+        "y": -9207.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/shaman.jpg"
+      },
+      "Infernalist": {
+        "x": -9132.3,
+        "y": -12569.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/infernalist.jpg"
+      },
+      "Blood Mage": {
+        "x": -6319.4,
+        "y": -14193.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/blood-mage.jpg"
+      },
+      "Lich": {
+        "x": -3230.3,
+        "y": -15197.2,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/lich.jpg"
+      },
+      "Abyssal Lich": {
+        "x": -3230.3,
+        "y": -15197.2,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/abyssal-lich.jpg"
+      },
+      "Stormweaver": {
+        "x": 0,
+        "y": -15536.8,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/stormweaver.jpg"
+      },
+      "Chronomancer": {
+        "x": 3230.3,
+        "y": -15197.2,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/chronomancer.jpg"
+      },
+      "Disciple of Varashta": {
+        "x": 6319.4,
+        "y": -14193.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/disciple-of-varashta.jpg"
+      },
+      "Martial Artist": {
+        "x": 11574.6,
+        "y": -10364.4,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/martial-artist.jpg"
+      },
+      "Invoker": {
+        "x": 13476.5,
+        "y": -7731.4,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/invoker.jpg"
+      },
+      "Acolyte of Chayula": {
+        "x": 14789.5,
+        "y": -4760.5,
+        "width": 1500,
+        "height": 1500,
+        "file": "poe2-asc/acolyte-of-chayula.jpg"
+      }
+    }
+  }
+}

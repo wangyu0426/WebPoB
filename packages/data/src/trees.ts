@@ -374,25 +374,42 @@ export function findShortestPathToNode(
 }
 
 /**
- * Finds the start node ID of an Ascendancy sub-tree (e.g. 'Elementalist', 'Stormweaver').
+ * Maps display ascendancy names to the canonical internal `ascendancyId` key used in GGG's
+ * official tree JSON (e.g. PoE 1 3.30 Ranger's "Warden" still uses internal key "Raider",
+ * and PoE 2 0.5 Witch's "Abyssal Lich" shares "Lich" passive nodes).
+ */
+export function normalizeAscendancyTreeKey(ascendancyId?: string): string {
+  const target = ascendancyId?.toLowerCase().trim() ?? '';
+  if (!target || target === 'none') return '';
+  if (target === 'warden') return 'raider';
+  if (target === 'abyssal lich') return 'lich';
+  return target;
+}
+
+/**
+ * Finds the start node ID of an Ascendancy sub-tree (e.g. 'Elementalist', 'Warden', 'Stormweaver').
  */
 export function getAscendancyStartNodeId(
   tree: PassiveTreeData,
   ascendancyId?: string,
 ): number | undefined {
   if (!ascendancyId) return undefined;
-  const target = ascendancyId.toLowerCase().trim();
-  if (!target || target === 'none') return undefined;
+  const rawTarget = ascendancyId.toLowerCase().trim();
+  const treeKey = normalizeAscendancyTreeKey(ascendancyId);
+  if (!treeKey) return undefined;
+
+  let fallbackCandidate: number | undefined;
   for (const node of Object.values(tree.nodes)) {
-    if (
-      node.ascendancyId &&
-      node.ascendancyId.toLowerCase() === target &&
-      node.name.en.toLowerCase() === target
-    ) {
+    if (!node.ascendancyId || node.ascendancyId.toLowerCase() !== treeKey) continue;
+    const enLower = node.name.en.toLowerCase();
+    if (enLower === rawTarget || enLower === treeKey) {
       return node.id;
     }
+    if (fallbackCandidate === undefined && node.stats.length === 0 && node.adjacent.length >= 2) {
+      fallbackCandidate = node.id;
+    }
   }
-  return undefined;
+  return fallbackCandidate;
 }
 
 /**

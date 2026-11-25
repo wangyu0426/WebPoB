@@ -81,6 +81,8 @@ export const POE1_CLASSES: CharacterClassDef[] = [
     baseInt: 20,
     ascendancies: [
       { id: 'Ascendant', name: { en: 'Ascendant', zh: '升华使徒' }, summary: { en: 'Combines two ascendancy paths', zh: '融合双升华之力' } },
+      { id: 'Reliquarian', name: { en: 'Reliquarian', zh: '圣物师' }, summary: { en: 'Unique relic powers & forbidden synergies', zh: '传奇圣物之力与跨系协同' } },
+      { id: 'Luminary', name: { en: 'Luminary', zh: '辉光使者' }, summary: { en: 'Radiant shrines, elemental light & auras', zh: '圣辉神龛、元素光耀与光环' } },
     ],
   },
 ];
@@ -155,6 +157,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
       { id: 'Infernalist', name: { en: 'Infernalist', zh: '炼狱师' }, summary: { en: 'Demon form, hellhound & spirit from life', zh: '恶魔形态、地狱犬与生命转精魂' } },
       { id: 'Blood Mage', name: { en: 'Blood Mage', zh: '血法师' }, summary: { en: 'Life remnants, spell crit & life overflow', zh: '生命残片、法术暴击与生命溢出' } },
       { id: 'Lich', name: { en: 'Lich', zh: '巫妖' }, summary: { en: 'Unholy might, phylactery & eternal life', zh: '邪恶之力、命匣与不朽生命' } },
+      { id: 'Abyssal Lich', name: { en: 'Abyssal Lich', zh: '深渊巫妖' }, summary: { en: 'Abyssal curses, chaos power & dark phylactery', zh: '深渊诅咒、混沌之力与暗黑命匣' } },
     ],
   },
   {
@@ -166,6 +169,7 @@ export const POE2_CLASSES: CharacterClassDef[] = [
     ascendancies: [
       { id: 'Amazon', name: { en: 'Amazon', zh: '亚马逊' }, summary: { en: 'Accuracy to crit & elemental infusion', zh: '命中转暴击与元素灌注' } },
       { id: 'Ritualist', name: { en: 'Ritualist', zh: '仪式师' }, summary: { en: 'Extra ring slot & blood boil', zh: '额外戒指槽与沸血仪式' } },
+      { id: 'Spirit Walker', name: { en: 'Spirit Walker', zh: '灵魂行者' }, summary: { en: 'Ancestral spirits, agility & spectral strikes', zh: '先祖之灵、灵动闪避与幽魂打击' } },
     ],
   },
   {
