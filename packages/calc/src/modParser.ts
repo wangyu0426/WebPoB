@@ -553,6 +553,10 @@ const PARSER_RULES: ParserRule[] = [
     build: (_, src) => [mkMod('NoCritExtraDamage', 'FLAG', true, src)],
   },
   {
+    pattern: /^Ailments never count as being from Critical Strikes$/i,
+    build: (_, src) => [mkMod('NoCritAilments', 'FLAG', true, src)],
+  },
+  {
     pattern: /^Skills that have dealt a Critical Strike in the past 8 seconds deal (\d+)% more Elemental Damage/i,
     build: (m, src) => [mkMod('ElementalDamage', 'MORE', Number(m[1]), src)],
   },
@@ -576,6 +580,13 @@ const PARSER_RULES: ParserRule[] = [
   {
     pattern: /^(\d+)% chance to deal Double Damage$/i,
     build: (m, src) => [mkMod('DoubleDamageChance', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Minion Damage$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('MinionDamage', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
   },
   {
     pattern: /^Minions deal (\d+)% (increased|more|less) Damage$/i,

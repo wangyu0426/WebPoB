@@ -226,6 +226,15 @@ export interface GemDefinition {
   >;
   /** Whether stats apply globally (auras/buffs) vs only to the skill group. */
   isAuraOrBuff?: boolean;
+  /** Optional Lv.20 Minion combat profile for Minion-summoning active skills (SRS / Skeletons / Zombies). */
+  minionBase?: {
+    physicalMin: number;
+    physicalMax: number;
+    attacksPerSecond: number;
+    critChance: number;
+    critMultiplier: number;
+    moreAttackSpeedPct?: number;
+  };
 }
 
 export interface GemInstance {

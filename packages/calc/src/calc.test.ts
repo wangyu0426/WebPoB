@@ -8,7 +8,7 @@ import {
   registerTreeData,
   type CompactTreePayload,
 } from '@webpob/data';
-import { calculateBuild, computeNodePower } from './index.js';
+import { calculateBuild, computeNodePower, rankSupportGemsForGroup } from './index.js';
 
 describe('@webpob/calc', () => {
   it('calculates PoE 1 sample Elementalist Arc build with coherent offence and defence', () => {
@@ -111,5 +111,16 @@ describe('@webpob/calc', () => {
     expect(out1.offence.totalDps).toBeGreaterThan(15000);
     expect(out2.offence.totalDps).toBeGreaterThan(10000);
     expect(out1.allocatedPoints).toBe(officialPoe1.tree.allocatedNodeIds.length - 1);
+  });
+
+  it('ranks compatible Support Gems by descending Total DPS gain for a Skill Group', () => {
+    const build = createSamplePoe1Build();
+    const ranked = rankSupportGemsForGroup(build, build.mainSkillGroupId, 5);
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked[0]!.dpsDelta).toBeGreaterThan(0);
+    expect(ranked[0]!.dpsDeltaPct).toBeGreaterThan(0);
+    for (let i = 1; i < ranked.length; i++) {
+      expect(ranked[i - 1]!.dpsDelta).toBeGreaterThanOrEqual(ranked[i]!.dpsDelta);
+    }
   });
 });

@@ -49,6 +49,10 @@ loadBuildFromXML(xmlText, "OracleBenchmark")
 runCallback("OnFrame")
 
 local out = build and build.calcsTab and build.calcsTab.mainOutput or {}
+local offOut = out
+if (out.TotalDPS == nil or out.TotalDPS == 0) and out.Minion and (out.Minion.TotalDPS or 0) > 0 then
+  offOut = out.Minion
+end
 
 local function num(v)
   if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
@@ -56,6 +60,23 @@ local function num(v)
   end
   return v
 end
+
+local offFields = {
+  CombinedDPS = true,
+  TotalDPS = true,
+  FullDPS = true,
+  AverageDamage = true,
+  AverageHit = true,
+  Speed = true,
+  CritChance = true,
+  CritMultiplier = true,
+  HitChance = true,
+  IgniteDPS = true,
+  BleedDPS = true,
+  TotalPoisonDPS = true,
+  ImpaleDPS = true,
+  SkillTriggerRate = true,
+}
 
 local fields = {
   "CombinedDPS",
@@ -126,7 +147,8 @@ local fields = {
 
 local pairsOut = {}
 for _, key in ipairs(fields) do
-  pairsOut[#pairsOut + 1] = string.format('"%s": %.6f', key, num(out[key]))
+  local src = offFields[key] and offOut or out
+  pairsOut[#pairsOut + 1] = string.format('"%s": %.6f', key, num(src[key]))
 end
 
 -- Emit clean JSON bounded by markers so TS runner parses cleanly even if Lua logged warnings

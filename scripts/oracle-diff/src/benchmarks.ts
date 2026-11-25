@@ -1077,4 +1077,154 @@ Adds 12 to 24 Physical Damage
   <Notes/>
 </PathOfBuilding2>`,
   },
+  {
+    id: 'poe1_minion_srs_necromancer',
+    title: 'PoE 1 — Minion Summon Raging Spirit Lv.20 + Minion Damage + Lord of the Dead + Anger',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: SRS Minion"/>
+  <Tree activeSpec="1">
+    <Spec title="Minion" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57264,37569,36542,4397,11420,60554,27611"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="SRS">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSummonRagingSpirit" skillId="SummonRagingSpirit" nameSpec="Summon Raging Spirit" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemMinionDamage" skillId="SupportMinionDamage" nameSpec="Minion Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Anger">
+        <Gem gemId="Metadata/Items/Gems/SkillGemAnger" skillId="Anger" nameSpec="Anger" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_auras_hatred_zealotry_haste',
+    title: 'PoE 1 — Ethereal Knives Phys Spell + Hatred (39% Extra Cold) + Zealotry (15% More) + Haste',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: EK Triple Auras"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ethereal Knives">
+        <Gem gemId="Metadata/Items/Gems/SkillGemEtherealKnives" skillId="EtherealKnives" nameSpec="Ethereal Knives" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Auras">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHatred" skillId="Hatred" nameSpec="Hatred" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemZealotry" skillId="Zealotry" nameSpec="Zealotry" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemHaste" skillId="Haste" nameSpec="Haste" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_elemental_overload_fireball',
+    title: 'PoE 1 — Elemental Overload Keystone (40% more Ele, No Crit Extra) + Fireball Lv.20',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Elemental Overload"/>
+  <Tree activeSpec="1">
+    <Spec title="EO" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57264,37569,36542,4397,7938,14021,55332,22088"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Fireball">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFireball" skillId="Fireball" nameSpec="Fireball" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_viper_strike_chaos_claw',
+    title: 'PoE 1 — Viper Strike (60% Phys->Chaos) + Local-Mod Imperial Claw + Despair',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Shadow" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Viper Strike Chaos"/>
+  <Tree activeSpec="1">
+    <Spec title="Shadow" treeVersion="3_30" classId="6" ascendClassId="0" nodes="44683"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Viper Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemViperStrike" skillId="ViperStrike" nameSpec="Viper Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Curse">
+        <Gem gemId="Metadata/Items/Gems/SkillGemDespair" skillId="Despair" nameSpec="Despair" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Venom Talon
+Imperial Claw
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+Adds 18 to 34 Physical Damage
+20% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_warrior_mace_volcanic_fissure',
+    title: 'PoE 2 — Lv.90 Warrior w/ 0.5 Tree + Local-Mod Aberrant Sledge + Volcanic Fissure Lv.20',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Warrior" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Warrior Volcanic Fissure"/>
+  <Tree activeSpec="1">
+    <Spec title="Warrior" treeVersion="0_5" classId="6" classInternalId="6" ascendClassId="0" nodes="47175,3936,38646,46325,1913,39581,33556"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Volcanic Fissure">
+        <Gem gemId="Metadata/Items/Gems/SkillGemVolcanicFissure" skillId="VolcanicFissurePlayer" nameSpec="Volcanic Fissure" variantId="VolcanicFissure" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Magma Crusher
+Aberrant Sledge
+Quality: 20
+Implicits: 0
+130% increased Physical Damage
+Adds 20 to 40 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];
