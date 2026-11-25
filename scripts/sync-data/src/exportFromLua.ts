@@ -15,6 +15,7 @@ interface ExportedGemData {
   en: string;
   sup: number;
   ct?: number;
+  cd?: number;
   cc?: number;
   asm?: number;
   mrp?: number;
@@ -225,6 +226,7 @@ async function runGameExport(game: 'poe1' | 'poe2') {
       tags: entry.tags,
     };
     if (lua.ct !== undefined) enriched.ct = lua.ct;
+    if (lua.cd !== undefined) enriched.cd = lua.cd;
     if (lua.cc !== undefined) enriched.cc = lua.cc;
     if (lua.asm !== undefined) enriched.asm = lua.asm;
     if (lua.mrp !== undefined) enriched.mrp = lua.mrp;

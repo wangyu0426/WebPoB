@@ -1162,6 +1162,109 @@ export function PassiveTreeCanvas() {
     }
   };
 
+  const touchRef = useRef<{
+    mode: 'none' | 'pan' | 'pinch';
+    moved: boolean;
+    startX: number;
+    startY: number;
+    camX: number;
+    camY: number;
+    pinchDist: number;
+    pinchZoom: number;
+    pinchMidX: number;
+    pinchMidY: number;
+  }>({
+    mode: 'none',
+    moved: false,
+    startX: 0,
+    startY: 0,
+    camX: 0,
+    camY: 0,
+    pinchDist: 0,
+    pinchZoom: 0.08,
+    pinchMidX: 0,
+    pinchMidY: 0,
+  });
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 1) {
+      const t0 = e.touches[0]!;
+      touchRef.current = {
+        ...touchRef.current,
+        mode: 'pan',
+        moved: false,
+        startX: t0.clientX,
+        startY: t0.clientY,
+        camX: camera.x,
+        camY: camera.y,
+      };
+    } else if (e.touches.length === 2) {
+      const t0 = e.touches[0]!;
+      const t1 = e.touches[1]!;
+      const rect = e.currentTarget.getBoundingClientRect();
+      touchRef.current = {
+        mode: 'pinch',
+        moved: true,
+        startX: 0,
+        startY: 0,
+        camX: camera.x,
+        camY: camera.y,
+        pinchDist: Math.max(1, Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)),
+        pinchZoom: camera.zoom,
+        pinchMidX: (t0.clientX + t1.clientX) / 2 - rect.left - rect.width / 2,
+        pinchMidY: (t0.clientY + t1.clientY) / 2 - rect.top - rect.height / 2,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (touchRef.current.mode === 'pan' && e.touches.length === 1) {
+      const t0 = e.touches[0]!;
+      const dx = t0.clientX - touchRef.current.startX;
+      const dy = t0.clientY - touchRef.current.startY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        touchRef.current.moved = true;
+      }
+      setCamera((c) => ({ ...c, x: touchRef.current.camX + dx, y: touchRef.current.camY + dy }));
+    } else if (touchRef.current.mode === 'pinch' && e.touches.length === 2) {
+      const t0 = e.touches[0]!;
+      const t1 = e.touches[1]!;
+      const dist = Math.max(1, Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY));
+      const scale = dist / touchRef.current.pinchDist;
+      const minZ = isOfficialFull ? 0.025 : 0.3;
+      const maxZ = isOfficialFull ? 0.75 : 2.2;
+      const nextZoom = Math.min(maxZ, Math.max(minZ, touchRef.current.pinchZoom * scale));
+      const ratio = nextZoom / touchRef.current.pinchZoom;
+      setCamera({
+        zoom: nextZoom,
+        x: touchRef.current.pinchMidX - (touchRef.current.pinchMidX - touchRef.current.camX) * ratio,
+        y: touchRef.current.pinchMidY - (touchRef.current.pinchMidY - touchRef.current.camY) * ratio,
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (touchRef.current.mode === 'pan' && !touchRef.current.moved && e.changedTouches.length > 0) {
+      const t0 = e.changedTouches[0]!;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const tappedId = hitTestNode(t0.clientX - rect.left, t0.clientY - rect.top);
+      if (tappedId !== null) {
+        const tappedNode = tree.nodes[tappedId];
+        if (tappedNode?.kind === 'mastery' && tappedNode.masteryEffects?.length) {
+          setMasteryModalNodeId(tappedId);
+        } else if (tappedNode?.kind === 'jewel' && sharedSet.has(tappedId)) {
+          setJewelModalNodeId(tappedId);
+          setJewelSearch('');
+        } else {
+          togglePassiveNode(tappedId);
+        }
+      }
+    }
+    if (e.touches.length === 0) {
+      touchRef.current.mode = 'none';
+    }
+  };
+
   // Cursor-centered smooth zoom
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -1206,7 +1309,10 @@ export function PassiveTreeCanvas() {
           setHoveredNodeId(null);
         }}
         onWheel={handleWheel}
-        className="w-full h-full block cursor-grab active:cursor-grabbing"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className="w-full h-full block touch-none cursor-grab active:cursor-grabbing"
       />
 
       {/* Top Overlay Controls */}
@@ -1244,7 +1350,7 @@ export function PassiveTreeCanvas() {
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           )}
-          <span className="rounded bg-[#111521]/90 border border-[#252c40] px-2 py-1 text-[10px] font-mono text-zinc-400">
+          <span className="hidden sm:inline-block rounded bg-[#111521]/90 border border-[#252c40] px-2 py-1 text-[10px] font-mono text-zinc-400 whitespace-nowrap">
             {dataLoading ? (
               <span className="inline-flex items-center gap-1 text-amber-300">
                 <Loader2 className="w-3 h-3 animate-spin" /> Loading official tree...
@@ -1298,14 +1404,14 @@ export function PassiveTreeCanvas() {
         )}
 
         {/* Zoom & Framing Controls */}
-        <div className="pointer-events-auto flex items-center gap-1.5">
+        <div className="pointer-events-auto flex items-center gap-1.5 max-w-full overflow-x-auto">
           <button
             type="button"
             onClick={() =>
               setCamera((c) => ({ ...c, zoom: Math.min(isOfficialFull ? 0.75 : 2.2, c.zoom * 1.25) }))
             }
             title={t(locale, 'tree.zoomIn')}
-            className="p-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-zinc-300 hover:text-amber-200 cursor-pointer"
+            className="p-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-zinc-300 hover:text-amber-200 cursor-pointer shrink-0"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
@@ -1315,7 +1421,7 @@ export function PassiveTreeCanvas() {
               setCamera((c) => ({ ...c, zoom: Math.max(isOfficialFull ? 0.025 : 0.3, c.zoom * 0.8) }))
             }
             title={t(locale, 'tree.zoomOut')}
-            className="p-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-zinc-300 hover:text-amber-200 cursor-pointer"
+            className="p-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-zinc-300 hover:text-amber-200 cursor-pointer shrink-0"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
@@ -1323,7 +1429,7 @@ export function PassiveTreeCanvas() {
             type="button"
             onClick={centerOnBuild}
             title="Center on Build"
-            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Crosshair className="w-3.5 h-3.5" />
             {locale === 'zh-CN' ? '定位BD' : 'Focus'}
@@ -1333,7 +1439,7 @@ export function PassiveTreeCanvas() {
               type="button"
               onClick={focusAscendancy}
               title={build.ascendancyId}
-              className="flex items-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 hover:bg-amber-500/25 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5" />
               {locale === 'zh-CN' ? `升华 (${calc.ascendancyPoints ?? 0}/8)` : `Asc (${calc.ascendancyPoints ?? 0}/8)`}
@@ -1347,7 +1453,7 @@ export function PassiveTreeCanvas() {
                 ? '后台 Web Worker 计算高收益大点热力图（橙=DPS / 蓝=EHP）'
                 : 'Background Web Worker Node Power Heatmap (Orange=DPS / Blue=EHP)'
             }
-            className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition ${
+            className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition whitespace-nowrap shrink-0 ${
               heatmapEnabled
                 ? 'bg-orange-500/25 border-orange-400/60 text-orange-200'
                 : 'bg-[#141824]/90 border-[#2a3147] text-zinc-300 hover:text-orange-200'
@@ -1364,7 +1470,7 @@ export function PassiveTreeCanvas() {
             type="button"
             onClick={fitWholeTree}
             title={t(locale, 'tree.resetView')}
-            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Maximize2 className="w-3.5 h-3.5" />
             {locale === 'zh-CN' ? '全景' : 'Fit All'}
@@ -1372,7 +1478,7 @@ export function PassiveTreeCanvas() {
           <button
             type="button"
             onClick={resetPassiveTree}
-            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-rose-500/30 text-xs text-rose-300 hover:bg-rose-950/40 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-rose-500/30 text-xs text-rose-300 hover:bg-rose-950/40 cursor-pointer whitespace-nowrap shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             {t(locale, 'tree.resetTree')}

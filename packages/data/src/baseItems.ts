@@ -16,6 +16,8 @@ export interface CompactBaseItemsPayload {
       a?: [number, number, number, number] | [number, number, number, number, number];
       /** [physMin, physMax, aps, crit, weaponType, twoHanded] */
       w?: [number, number, number, number, WeaponBaseStats['weaponType'], number];
+      /** Native weapon base elemental/chaos damage ranges (e.g. Crackling Quarterstaff LightningMin/Max) */
+      we?: Partial<Record<'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>>;
       /** Default base implicit text */
       i?: string;
     }
@@ -81,6 +83,7 @@ export function registerBaseItems(payload: CompactBaseItemsPayload): number {
       entry.weapon = {
         physicalMin: pMin,
         physicalMax: pMax,
+        ...(compact.we ? { elementalDamage: compact.we } : {}),
         attacksPerSecond: aps,
         critChance: crit,
         weaponType: wt,

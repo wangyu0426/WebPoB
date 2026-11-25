@@ -283,11 +283,20 @@ export function resolveItemEffectiveStats(item: Item, game: GameId): ResolvedIte
   const attacksPerSecond = Math.round(rawBase.attacksPerSecond * (1 + acc.incAttackSpeed / 100) * 100) / 100;
   const critChance = Math.round((rawBase.critChance + acc.flatCrit) * (1 + acc.incCrit / 100) * 100) / 100;
 
+  const mergedEle: Partial<Record<'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>> = {};
+  for (const dt of ['Fire', 'Cold', 'Lightning', 'Chaos'] as const) {
+    const baseR = rawBase.elementalDamage?.[dt];
+    const addR = acc.eleDamage[dt];
+    if (baseR || addR) {
+      mergedEle[dt] = [(baseR?.[0] ?? 0) + (addR?.[0] ?? 0), (baseR?.[1] ?? 0) + (addR?.[1] ?? 0)];
+    }
+  }
+
   const computedWeapon: WeaponBaseStats = {
     ...rawBase,
     physicalMin: physMin,
     physicalMax: physMax,
-    elementalDamage: Object.keys(acc.eleDamage).length > 0 ? acc.eleDamage : rawBase.elementalDamage,
+    elementalDamage: Object.keys(mergedEle).length > 0 ? mergedEle : undefined,
     attacksPerSecond,
     critChance,
   };

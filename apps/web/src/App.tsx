@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Activity,
   Calculator,
   FileText,
   GitBranch,
@@ -7,6 +8,7 @@ import {
   Shield,
   Sliders,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { decodePobCodeToXml, importBuildFromCode } from '@webpob/codec';
 import { t, type MessageKey } from '@webpob/i18n';
@@ -32,9 +34,10 @@ const NAV_TABS: Array<{ id: ActiveTab; labelKey: MessageKey; icon: typeof GitBra
 ];
 
 export function App() {
-  const { locale, activeTab, setActiveTab, build, ensureOfficialDataLoaded, replaceBuild } =
+  const { locale, activeTab, setActiveTab, build, calc, ensureOfficialDataLoaded, replaceBuild } =
     useWebPobStore();
   const [hashToast, setHashToast] = useState<string | null>(null);
+  const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
 
   useEffect(() => {
     void ensureOfficialDataLoaded(build.game);
@@ -92,12 +95,44 @@ export function App() {
     <div className="h-screen w-screen flex flex-col bg-[#0b0d12] text-zinc-100 overflow-hidden">
       <TopBar />
 
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        <SidebarStats />
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {/* Desktop fixed sidebar */}
+        <div className="hidden md:flex shrink-0 h-full">
+          <SidebarStats />
+        </div>
+
+        {/* Mobile slide-over stats drawer */}
+        {mobileStatsOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex">
+            <div className="relative z-10 h-full shadow-2xl">
+              <button
+                type="button"
+                onClick={() => setMobileStatsOpen(false)}
+                className="absolute top-2 right-2 z-20 p-1 rounded bg-[#181e2f] border border-[#2d354d] text-zinc-300 cursor-pointer"
+                aria-label="Close stats drawer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <SidebarStats />
+            </div>
+            <div
+              className="flex-1 bg-black/60 backdrop-blur-[1px]"
+              onClick={() => setMobileStatsOpen(false)}
+            />
+          </div>
+        )}
 
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* PoB Navigation Tab Strip */}
           <nav className="h-10 shrink-0 border-b border-[#232838] bg-[#10131c] px-3 flex items-center gap-1 overflow-x-auto select-none">
+            <button
+              type="button"
+              onClick={() => setMobileStatsOpen(true)}
+              className="md:hidden flex items-center gap-1.5 px-2.5 py-1 mr-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-mono font-semibold shrink-0 cursor-pointer"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>{Math.round(calc.offence.fullDps ?? calc.offence.totalDps).toLocaleString()}</span>
+            </button>
             {NAV_TABS.map(({ id, labelKey, icon: Icon }) => {
               const active = activeTab === id;
               return (

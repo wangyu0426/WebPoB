@@ -49,6 +49,7 @@ export interface CompactGemsPayload {
     color: 'red' | 'green' | 'blue' | 'white';
     tags: string[];
     ct?: number;
+    cd?: number;
     cc?: number;
     asm?: number;
     mrp?: number;
@@ -254,6 +255,7 @@ function synthesizeGemDefinition(
     modFlags,
     keywordFlags: kwFlags,
     isAuraOrBuff: isAura,
+    ...(entry.cd && entry.cd > 0 ? { cooldown: entry.cd } : {}),
     ...(qualityStats ? { qualityStats } : {}),
     ...(levelScaling ? { levelScaling } : {}),
     ...(isAura

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ClipboardPaste, ExternalLink, Hammer, Search, Shield, Sparkles, X } from 'lucide-react';
+import { ClipboardPaste, ExternalLink, Hammer, Search, Shield, Sparkles, TrendingUp, X } from 'lucide-react';
 import type { EquipmentSlotId, Item } from '@webpob/core';
 import {
   getPresetItemsForGame,
@@ -10,7 +10,7 @@ import {
   type CompactUniqueEntry,
 } from '@webpob/data';
 import { parseItemText } from '@webpob/codec';
-import { calculateBuild, resolveItemEffectiveStats } from '@webpob/calc';
+import { calculateBuild, rankUniqueUpgradesForSlot, resolveItemEffectiveStats } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
@@ -151,6 +151,8 @@ export function ItemsTab() {
   const [selectedSlot, setSelectedSlot] = useState<EquipmentSlotId>('Weapon 1');
   const [uniqueSearch, setUniqueSearch] = useState('');
   const [uniqueSlotFilter, setUniqueSlotFilter] = useState<(typeof UNIQUE_SLOT_FILTERS)[number]>('ALL');
+  const [advisorOpen, setAdvisorOpen] = useState(false);
+  const [advisorSort, setAdvisorSort] = useState<'dps' | 'ehp'>('dps');
 
   // Rare Item Crafting Bench state
   const [craftOpen, setCraftOpen] = useState(false);
@@ -313,6 +315,12 @@ export function ItemsTab() {
       ehpDelta: nextCalc.defence.effectiveHitPool - calc.defence.effectiveHitPool,
     };
   }, [craftedDraftItem, build, selectedSlot, calc]);
+
+  const rankedUniqueUpgrades = useMemo(() => {
+    void treeRevision;
+    if (!advisorOpen) return [];
+    return rankUniqueUpgradesForSlot(build, selectedSlot, advisorSort, 8);
+  }, [advisorOpen, build, selectedSlot, advisorSort, treeRevision]);
 
   return (
     <div className="h-full overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -605,6 +613,132 @@ export function ItemsTab() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+
+        {/* Smart Unique Upgrade Advisor (live DPS/EHP ranking for selected slot) */}
+        <div className="pob-panel rounded-lg p-4 space-y-3 border-emerald-500/30">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4" />
+              {locale === 'zh-CN'
+                ? `暗金升级推荐 — ${getSlotLabel(locale, selectedSlot)}`
+                : `Unique Upgrade Advisor — ${getSlotLabel(locale, selectedSlot)}`}
+            </h3>
+            <div className="flex items-center gap-1.5">
+              {advisorOpen && (
+                <div className="flex items-center rounded bg-[#0c0f18] border border-[#252c40] p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setAdvisorSort('dps')}
+                    className={`px-2 py-0.5 rounded cursor-pointer ${
+                      advisorSort === 'dps'
+                        ? 'bg-orange-500/25 text-orange-200 font-semibold'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {locale === 'zh-CN' ? '按 DPS' : 'By DPS'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdvisorSort('ehp')}
+                    className={`px-2 py-0.5 rounded cursor-pointer ${
+                      advisorSort === 'ehp'
+                        ? 'bg-sky-500/25 text-sky-200 font-semibold'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {locale === 'zh-CN' ? '按 EHP' : 'By EHP'}
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setAdvisorOpen((v) => !v)}
+                className={`px-2.5 py-1 rounded text-xs font-semibold border cursor-pointer transition ${
+                  advisorOpen
+                    ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200'
+                    : 'bg-[#161c2b] hover:bg-[#1e263a] border-emerald-500/40 text-emerald-300'
+                }`}
+              >
+                {advisorOpen
+                  ? locale === 'zh-CN'
+                    ? '收起推荐'
+                    : 'Hide Advisor'
+                  : locale === 'zh-CN'
+                    ? '计算最优暗金'
+                    : 'Rank Best Uniques'}
+              </button>
+            </div>
+          </div>
+
+          {advisorOpen && (
+            rankedUniqueUpgrades.length === 0 ? (
+              <div className="text-xs text-zinc-500 py-2">
+                {locale === 'zh-CN'
+                  ? '当前部位暂未发现更高收益的官方传奇暗金（或该部位当前已装备毕业装）。'
+                  : 'No higher-value official Unique found for this slot.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {rankedUniqueUpgrades.map((rec) => (
+                  <div
+                    key={rec.unique.en}
+                    className="rounded border border-emerald-500/30 bg-[#0c0e15] p-2.5 flex flex-col justify-between gap-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-orange-300 truncate">
+                          {locale === 'zh-CN' && rec.unique.zh ? rec.unique.zh : rec.unique.en}
+                        </div>
+                        <div className="text-[10px] text-zinc-400 truncate">
+                          {locale === 'zh-CN' && rec.unique.bz ? rec.unique.bz : rec.unique.b}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fresh = instantiateUniqueItem(build.game, rec.unique);
+                          addItem(fresh, selectedSlot);
+                          equipItem(selectedSlot, fresh.id);
+                          if (selectedSlot.startsWith('Flask ') && !build.activeFlaskSlots?.[selectedSlot]) {
+                            toggleFlaskActive(selectedSlot);
+                          }
+                          setStatusMsg({
+                            ok: true,
+                            text:
+                              locale === 'zh-CN'
+                                ? `已穿戴推荐暗金 ${fresh.nameZh ?? fresh.name} → ${getSlotLabel(locale, selectedSlot)}`
+                                : `Equipped ${fresh.name} → ${getSlotLabel(locale, selectedSlot)}`,
+                          });
+                        }}
+                        className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/50 shrink-0 cursor-pointer"
+                      >
+                        {locale === 'zh-CN' ? '立即穿戴' : 'Equip'}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
+                      <span className={rec.dpsDelta >= 0 ? 'text-orange-300 font-bold' : 'text-rose-400'}>
+                        ΔDPS {rec.dpsDeltaPct >= 0 ? '+' : ''}{rec.dpsDeltaPct.toFixed(1)}%
+                      </span>
+                      <span className={rec.ehpDelta >= 0 ? 'text-sky-300 font-bold' : 'text-rose-400'}>
+                        ΔEHP {rec.ehpDeltaPct >= 0 ? '+' : ''}{rec.ehpDeltaPct.toFixed(1)}%
+                      </span>
+                      {rec.lifeDelta !== 0 && (
+                        <span className={rec.lifeDelta > 0 ? 'text-emerald-300' : 'text-rose-400'}>
+                          Life {rec.lifeDelta > 0 ? '+' : ''}{rec.lifeDelta}
+                        </span>
+                      )}
+                      {rec.esDelta !== 0 && (
+                        <span className={rec.esDelta > 0 ? 'text-sky-300' : 'text-rose-400'}>
+                          ES {rec.esDelta > 0 ? '+' : ''}{rec.esDelta}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
 

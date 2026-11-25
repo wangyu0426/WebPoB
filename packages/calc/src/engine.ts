@@ -1335,16 +1335,34 @@ function computeGroupOffence(
     totalAvgHit += average;
   }
 
-  // Step F: Attack / Cast Speed (with alternating Dual-Wield harmonic APS, Minion Speed & CoC Trigger Rate)
+  // Step F: Attack / Cast Speed (with Dual-Wield harmonic APS, Minion Speed, Trap/Mine throw times, Cooldowns & CoC)
+  const isTrapSkill =
+    activeDef.tags.some((t) => t.toLowerCase() === 'trap') ||
+    mainGroup.gems.some((gi) => {
+      if (!gi.enabled) return false;
+      const d = getGemById(build.game, gi.gemId);
+      return Boolean(d && d.category === 'support' && d.tags.some((t) => t.toLowerCase() === 'trap'));
+    });
+  const isMineSkill =
+    activeDef.tags.some((t) => t.toLowerCase() === 'mine') ||
+    mainGroup.gems.some((gi) => {
+      if (!gi.enabled) return false;
+      const d = getGemById(build.game, gi.gemId);
+      return Boolean(d && d.category === 'support' && d.tags.some((t) => t.toLowerCase() === 'mine'));
+    });
   const weaponBaseAps =
     isDualWield && mainWeaponStats && offWeaponStats
       ? 2 / (1 / Math.max(0.1, mainWeaponStats.attacksPerSecond) + 1 / Math.max(0.1, offWeaponStats.attacksPerSecond))
       : (weaponStats?.attacksPerSecond ?? 1.2);
   const baseRate = isMinion && activeDef.minionBase
     ? activeDef.minionBase.attacksPerSecond * (1 + (activeDef.minionBase.moreAttackSpeedPct ?? 0) / 100)
-    : isAttack
-      ? weaponBaseAps * (activeDef.attackSpeedMultiplier ?? 1)
-      : 1 / (activeDef.castTime ?? 0.75);
+    : isMineSkill
+      ? 1 / 0.3
+      : isTrapSkill
+        ? 1 / 0.6
+        : isAttack
+          ? weaponBaseAps * (activeDef.attackSpeedMultiplier ?? 1)
+          : 1 / (activeDef.castTime ?? 0.75);
   const speedInc = isMinion
     ? skillDb.sum('INC', 'MinionSpeed', flags, kwFlags)
     : skillDb.sum('INC', 'Speed', flags, kwFlags);
@@ -1352,6 +1370,11 @@ function computeGroupOffence(
     ? skillDb.more('MinionSpeed', flags, kwFlags)
     : skillDb.more('Speed', flags, kwFlags);
   let speedExact = baseRate * (1 + speedInc / 100) * speedMore;
+  if (activeDef.cooldown && activeDef.cooldown > 0) {
+    const cdr = Math.max(0, skillDb.sum('INC', 'CooldownRecovery', flags, kwFlags));
+    const cdRate = (1 + cdr / 100) / activeDef.cooldown;
+    speedExact = Math.min(speedExact, cdRate);
+  }
   let triggerRate: number | undefined;
 
   if (!isAttack && skillDb.flag('CastOnCrit') && triggerAttackDef) {

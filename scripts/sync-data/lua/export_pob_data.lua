@@ -113,10 +113,10 @@ for name, base in pairs(data.itemBases or {}) do
         hasUseful = true
       end
     end
-    if base.weapon and base.weapon.PhysicalMax and base.weapon.PhysicalMax > 0 then
+    if base.weapon and ((base.weapon.PhysicalMax and base.weapon.PhysicalMax > 0) or (base.weapon.LightningMax and base.weapon.LightningMax > 0) or (base.weapon.FireMax and base.weapon.FireMax > 0) or (base.weapon.ColdMax and base.weapon.ColdMax > 0) or (base.weapon.ChaosMax and base.weapon.ChaosMax > 0)) then
       local wt = mapWeaponType(base.type, base.tags)
       if wt then
-        local twoH = (base.tags and (base.tags.two_hand_weapon or base.tags.twohand or base.tags.bow or base.tags.staff or base.tags.crossbow or base.tags.quarterstaff)) and 1 or 0
+        local twoH = (base.tags and (base.tags.two_hand_weapon or base.tags.twohand or base.tags.bow or base.tags.staff or base.tags.crossbow or base.tags.quarterstaff or base.tags.warstaff)) and 1 or 0
         entry.w = {
           base.weapon.PhysicalMin or 0,
           base.weapon.PhysicalMax or 0,
@@ -125,6 +125,17 @@ for name, base in pairs(data.itemBases or {}) do
           wt,
           twoH
         }
+        local we = {}
+        local hasWe = false
+        for _, dt in ipairs({ "Fire", "Cold", "Lightning", "Chaos" }) do
+          local mn = base.weapon[dt .. "Min"]
+          local mx = base.weapon[dt .. "Max"]
+          if mx and mx > 0 then
+            we[dt] = { mn or 0, mx }
+            hasWe = true
+          end
+        end
+        if hasWe then entry.we = we end
         hasUseful = true
       end
     end
@@ -420,6 +431,8 @@ for gemId, g in pairs(data.gems or {}) do
           sup = ge.support and 1 or 0,
         }
         if ge.castTime and ge.castTime > 0 then rec.ct = ge.castTime end
+        local cd = (lvl20 and lvl20.cooldown) or (ssLvl20 and ssLvl20.cooldown)
+        if cd and cd > 0 then rec.cd = cd end
         local crit = (ssLvl20 and ssLvl20.critChance) or (lvl20 and lvl20.critChance)
         if crit and crit > 0 then rec.cc = crit end
         if lvl20 and lvl20.attackSpeedMultiplier and lvl20.attackSpeedMultiplier ~= 100 then

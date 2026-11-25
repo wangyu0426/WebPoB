@@ -6,9 +6,11 @@ import {
   createSamplePoe2Build,
   hydrateCompactTree,
   registerTreeData,
+  registerUniques,
   type CompactTreePayload,
+  type CompactUniquesPayload,
 } from '@webpob/data';
-import { calculateBuild, computeNodePower, rankSupportGemsForGroup } from './index.js';
+import { calculateBuild, computeNodePower, rankSupportGemsForGroup, rankUniqueUpgradesForSlot } from './index.js';
 
 describe('@webpob/calc', () => {
   it('calculates PoE 1 sample Elementalist Arc build with coherent offence and defence', () => {
@@ -121,6 +123,22 @@ describe('@webpob/calc', () => {
     expect(ranked[0]!.dpsDeltaPct).toBeGreaterThan(0);
     for (let i = 1; i < ranked.length; i++) {
       expect(ranked[i - 1]!.dpsDelta).toBeGreaterThanOrEqual(ranked[i]!.dpsDelta);
+    }
+  });
+
+  it('ranks compatible official Unique Items by descending DPS/EHP upgrade delta', () => {
+    const dataDir = path.join(process.cwd(), 'apps/web/public/data');
+    const uniquesPayload = JSON.parse(
+      fs.readFileSync(path.join(dataDir, 'poe1-uniques.json'), 'utf-8'),
+    ) as CompactUniquesPayload;
+    registerUniques(uniquesPayload);
+    const build = createSamplePoe1Build();
+    delete build.equipped['Amulet'];
+    const rankedDps = rankUniqueUpgradesForSlot(build, 'Amulet', 'dps', 5);
+    expect(rankedDps.length).toBeGreaterThan(0);
+    expect(rankedDps[0]!.dpsDelta).toBeGreaterThan(0);
+    for (let i = 1; i < rankedDps.length; i++) {
+      expect(rankedDps[i - 1]!.dpsDelta).toBeGreaterThanOrEqual(rankedDps[i]!.dpsDelta);
     }
   });
 });

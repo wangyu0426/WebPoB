@@ -200,6 +200,8 @@ export interface GemDefinition {
   /** Base cast time in seconds (for spells) or attack speed multiplier (for attacks). */
   castTime?: number;
   attackSpeedMultiplier?: number;
+  /** Base skill cooldown in seconds (e.g., 5s for PoE 2 Explosive Grenade). */
+  cooldown?: number;
   /** Base critical strike chance percentage (e.g., 6 for spells, 0 for weapon-based attacks). */
   baseCritChance?: number;
   /** Mana cost at level 20. */
