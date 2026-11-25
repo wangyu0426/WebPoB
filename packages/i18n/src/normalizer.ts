@@ -323,6 +323,29 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     },
   },
   {
+    zhPattern: /^获得等同于最大魔力\s*(\d+)%\s*的额外最大能量护盾$/,
+    toEn: (_, v) => `Gain ${v}% of Maximum Mana as Extra Maximum Energy Shield`,
+  },
+  {
+    zhPattern: /^周围敌人的(火焰|冰霜|闪电|混沌)抗性\s*([+-]?\d+)%$/,
+    toEn: (_, el, v) => `Nearby Enemies have ${v}% to ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Resistance`,
+  },
+  {
+    zhPattern: /^被你嘲讽的敌人承受的伤害提高\s*(\d+)%$/,
+    toEn: (_, v) => `Enemies Taunted by you take ${v}% increased Damage`,
+  },
+  {
+    zhPattern: /^闪避值和护甲提高\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Evasion Rating and Armour`,
+  },
+  {
+    zhPattern: /^最小(暴击|狂怒|耐力)球数量\s*\+?(\d+)$/,
+    toEn: (_, charge, v) => {
+      const map: Record<string, string> = { 暴击: 'Power', 狂怒: 'Frenzy', 耐力: 'Endurance' };
+      return `+${v} to Minimum ${map[charge] ?? charge} Charges`;
+    },
+  },
+  {
     zhPattern: /^每点怒火(?:同时)?提供\s*(\d+)%\s*攻击速度(?:提高|增加)$/,
     toEn: (_, v) => `Every Rage also grants ${v}% increased Attack Speed`,
   },
@@ -539,6 +562,29 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
     toZh: (_, v, pool) => {
       const map: Record<string, string> = { Life: '生命', 'Energy Shield': '能量护盾', Mana: '魔力' };
       return `伤害的 ${v}% 偷取为${map[pool] ?? pool}`;
+    },
+  },
+  {
+    enPattern: /^Gain (\d+)% of Maximum Mana as Extra Maximum Energy Shield$/i,
+    toZh: (_, v) => `获得等同于最大魔力 ${v}% 的额外最大能量护盾`,
+  },
+  {
+    enPattern: /^Nearby Enemies have ([+-]?\d+)% to (Fire|Cold|Lightning|Chaos) Resistance$/i,
+    toZh: (_, v, el) => `周围敌人的${EN_DAMAGE_TYPE_TO_ZH[el] ?? el}抗性 ${v}%`,
+  },
+  {
+    enPattern: /^Enemies Taunted by you take (\d+)% increased Damage$/i,
+    toZh: (_, v) => `被你嘲讽的敌人承受的伤害提高 ${v}%`,
+  },
+  {
+    enPattern: /^(\d+)% increased Evasion Rating and Armour$/i,
+    toZh: (_, v) => `闪避值和护甲提高 ${v}%`,
+  },
+  {
+    enPattern: /^\+(\d+) to Minimum (Power|Frenzy|Endurance) Charges?$/i,
+    toZh: (_, v, charge) => {
+      const map: Record<string, string> = { Power: '暴击', Frenzy: '狂怒', Endurance: '耐力' };
+      return `最小${map[charge] ?? charge}球数量 +${v}`;
     },
   },
   { enPattern: /^\+(\d+) to Accuracy Rating$/i, toZh: (_, v) => `命中值 +${v}` },

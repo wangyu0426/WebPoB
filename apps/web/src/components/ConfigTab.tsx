@@ -472,6 +472,18 @@ export function ConfigTab() {
               {locale === 'zh-CN' ? '敌人被致盲 (-20% 敌人命中, 提升闪避率)' : 'Enemy Blinded (-20% Enemy Accuracy)'}
             </span>
           </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyTaunted)}
+              onChange={(e) => updateConfig({ enemyTaunted: e.target.checked })}
+              className="accent-amber-400"
+            />
+            <span className="text-amber-200">
+              {locale === 'zh-CN' ? '敌人被嘲讽 (触发冠军 Worthy Foe 等增伤/必中)' : 'Enemy Taunted (Worthy Foe)'}
+            </span>
+          </label>
         </div>
       </div>
 

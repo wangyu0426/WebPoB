@@ -290,6 +290,7 @@ export function buildToPobXml(build: Build): string {
   if (cfg.enemyIntimidated) lines.push(`      <Input name="conditionEnemyIntimidated" boolean="true" />`);
   if (cfg.enemyUnnerved) lines.push(`      <Input name="conditionEnemyUnnerved" boolean="true" />`);
   if (cfg.enemyBlinded) lines.push(`      <Input name="conditionEnemyBlinded" boolean="true" />`);
+  if (cfg.enemyTaunted) lines.push(`      <Input name="conditionEnemyTaunted" boolean="true" />`);
   if (cfg.witheredStacks) lines.push(`      <Input name="multiplierWitheredStackCount" number="${cfg.witheredStacks}" />`);
   if (cfg.enemyFireExposure) lines.push(`      <Input name="conditionEnemyFireExposure" boolean="true" />`);
   if (cfg.enemyColdExposure) lines.push(`      <Input name="conditionEnemyColdExposure" boolean="true" />`);
@@ -681,6 +682,7 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'conditionEnemyIntimidated' && attrs.boolean) config.enemyIntimidated = attrs.boolean === 'true';
     if (key === 'conditionEnemyUnnerved' && attrs.boolean) config.enemyUnnerved = attrs.boolean === 'true';
     if (key === 'conditionEnemyBlinded' && attrs.boolean) config.enemyBlinded = attrs.boolean === 'true';
+    if (key === 'conditionEnemyTaunted' && attrs.boolean) config.enemyTaunted = attrs.boolean === 'true';
     if (key === 'multiplierWitheredStackCount' && attrs.number) config.witheredStacks = Number(attrs.number);
     if (key === 'conditionEnemyFireExposure' && attrs.boolean) config.enemyFireExposure = attrs.boolean === 'true';
     if (key === 'conditionEnemyColdExposure' && attrs.boolean) config.enemyColdExposure = attrs.boolean === 'true';

@@ -4695,4 +4695,198 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding2>`,
   },
+  // ─── Phase 20 Benchmarks (126..130 — 130/130 MILESTONE!): Hierophant, Occultist, Champion & PoE 2 Archmage Volcano ───
+  {
+    id: 'poe1_hierophant_sanctuary_of_thought_mana_es',
+    title: 'PoE 1 — Lv.90 Hierophant Sanctuary of Thought (20% Max Mana as Extra ES) + Divine Guidance (Transfiguration of Mind)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Templar" ascendClassName="Hierophant" mainSocketGroup="1" buildName="Oracle: Hierophant Sanctuary of Thought"/>
+  <Tree activeSpec="1">
+    <Spec title="Hierophant" treeVersion="3_30" classId="5" ascendClassId="2" nodes="61525,30940,11046,922,29994,29026"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Archon Robe
+Vaal Regalia
+Quality: 20
+Implicits: 0
++160 to maximum Mana
++80 to maximum Energy Shield
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Mind Pendant
+Lapis Amulet
+Implicits: 1
++30 to Intelligence
++120 to maximum Mana
++50 to Intelligence
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Amulet" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_hierophant_conviction_of_power_min_charges',
+    title: 'PoE 1 — Lv.90 Hierophant Conviction of Power (+4 Min Power & Endurance Charges Active Without Config Toggle)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Templar" ascendClassName="Hierophant" mainSocketGroup="1" buildName="Oracle: Hierophant Conviction of Power"/>
+  <Tree activeSpec="1">
+    <Spec title="Hierophant" treeVersion="3_30" classId="5" ascendClassId="2" nodes="61525,30940,22637,25651"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_occultist_void_beacon_profane_bloom_ice_nova',
+    title: 'PoE 1 — Lv.90 Witch Occultist Void Beacon (-20% Cold/Chaos Res) + Profane Bloom + Ice Nova + Frostbite',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Occultist" mainSocketGroup="1" buildName="Oracle: Occultist Void Beacon Frostbite"/>
+  <Tree activeSpec="1">
+    <Spec title="Occultist" treeVersion="3_30" classId="3" ascendClassId="1" nodes="54447,18378,32417,27096,31984,37127"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ice Nova">
+        <Gem gemId="Metadata/Items/Gems/SkillGemIceNova" skillId="IceNova" nameSpec="Ice Nova" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Gloves" label="Frostbite">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFrostbite" skillId="Frostbite" nameSpec="Frostbite" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_champion_inspirational_worthy_foe_determination',
+    title: 'PoE 1 — Lv.90 Duelist Champion Inspirational (35% Aura Effect) + Worthy Foe (Taunt +15% Dmg Taken & Cannot Evade) + Determination',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Duelist" ascendClassName="Champion" mainSocketGroup="1" buildName="Oracle: Champion Inspirational Worthy Foe"/>
+  <Tree activeSpec="1">
+    <Spec title="Champion" treeVersion="3_30" classId="4" ascendClassId="3" nodes="50986,24984,25111,11412,6982,56967"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Heavy Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeavyStrike" skillId="HeavyStrike" nameSpec="Heavy Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Gloves" label="Determination">
+        <Gem gemId="Metadata/Items/Gems/SkillGemDetermination" skillId="Determination" nameSpec="Determination" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Vanguard Plate
+Glorious Plate
+Quality: 20
+Implicits: 0
++90 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Steel Cleaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Weapon 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="conditionEnemyTaunted" boolean="true"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_milestone_130_druid_volcano_archmage_plus4_fire_wand',
+    title: 'PoE 2 — #130 Milestone: Lv.90 Druid Volcano + Archmage + Elemental Focus + Conc Area + Controlled Destruction + +4 Fire Wand',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Druid" ascendClassName="None" mainSocketGroup="1" buildName="Oracle #130: PoE2 Druid Archmage Volcano"/>
+  <Tree activeSpec="1">
+    <Spec title="Druid" treeVersion="0_5" classId="11" classInternalId="11" ascendClassId="0" nodes="61525"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Volcano">
+        <Gem gemId="Metadata/Items/Gems/SkillGemVolcano" skillId="VolcanoPlayer" nameSpec="Volcano" variantId="Volcano" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemConcentratedAreaSupport" skillId="SupportConcentratedAreaPlayer" nameSpec="Concentrated Area" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemControlledDestructionSupport" skillId="SupportControlledDestructionPlayer" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Archmage">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArchmage" skillId="ArchmagePlayer" nameSpec="Archmage" variantId="Archmage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Magma Rod
+Attuned Wand
+Implicits: 0
++4 to Level of all Fire Spell Skills
+80% increased Spell Damage
++150 to maximum Mana
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Archmage Vestment
+Hexer's Robe
+Implicits: 0
++200 to maximum Mana
++100 to Spirit
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Body Armour" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

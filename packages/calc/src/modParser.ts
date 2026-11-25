@@ -142,7 +142,7 @@ const PARSER_RULES: ParserRule[] = [
     ],
   },
   {
-    pattern: /^(\d+)% increased Armour and Evasion$/i,
+    pattern: /^(\d+)% increased (?:Armour and Evasion(?: Rating)?|Evasion(?: Rating)? and Armour)$/i,
     build: (m, src) => [
       mkMod('Armour', 'INC', Number(m[1]), src),
       mkMod('Evasion', 'INC', Number(m[1]), src),
@@ -760,10 +760,45 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^Trigger Supported Spells on Melee Critical Strike$/i,
     build: (_, src) => [mkMod('CastOnCrit', 'FLAG', true, src)],
   },
-  // Timeless Jewel Keystones & Life-as-Extra-ES
+  // Timeless Jewel Keystones, Life/Mana-as-Extra-ES & Phase 20 Endgame Ascendancies
   {
     pattern: /^Gain (\d+)% of Maximum Life as Extra Maximum Energy Shield$/i,
     build: (m, src) => [mkMod('LifeAsExtraES', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Gain (\d+)% of Maximum Mana as Extra Maximum Energy Shield$/i,
+    build: (m, src) => [mkMod('ManaAsExtraES', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(?:Transfiguration of Mind|Increases and Reductions to Maximum Mana also apply to Damage at 30% of their value)$/i,
+    build: (_, src) => [mkMod('TransfigurationOfMind', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^\+(\d+) to Minimum (Power|Frenzy|Endurance) Charges?$/i,
+    build: (m, src) => [mkMod(`Min${m[2]}Charges`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^\+(\d+) to Maximum Power Charges and Maximum Endurance Charges$/i,
+    build: (m, src) => [
+      mkMod('MaxPowerCharges', 'BASE', Number(m[1]), src),
+      mkMod('MaxEnduranceCharges', 'BASE', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^Nearby Enemies have ([+-]?\d+)% to (Fire|Cold|Lightning|Chaos) Resistance$/i,
+    build: (m, src) => [mkMod(`Enemy${m[2]}Resist`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Taunt on Hit$/i,
+    build: (_, src) => [mkMod('TauntOnHit', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Enemies Taunted by you take (\d+)% increased Damage$/i,
+    build: (m, src) => [mkMod('TauntedEnemyDamageTaken', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Enemies Taunted by you cannot Evade Attacks$/i,
+    build: (_, src) => [mkMod('TauntedHitsCantBeEvaded', 'FLAG', true, src)],
   },
   {
     pattern: /^Corrupted Soul$/i,

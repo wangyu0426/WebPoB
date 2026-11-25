@@ -563,29 +563,6 @@ export function calculateBuild(build: Build): CalcOutput {
     }
   }
 
-  if (cfg.usePowerCharges && cfg.powerCharges > 0) {
-    // PoE 1: +50% crit chance per Power Charge; PoE 2: +40%
-    const perCharge = build.game === 'poe2' ? 40 : 50;
-    db.addMod({
-      name: 'CritChance',
-      type: 'INC',
-      value: cfg.powerCharges * perCharge,
-      flags: 0,
-      keywordFlags: 0,
-      source: `Power Charges (${cfg.powerCharges})`,
-    });
-  }
-  if (cfg.useFrenzyCharges && cfg.frenzyCharges > 0) {
-    db.addMod({ name: 'Speed', type: 'INC', value: cfg.frenzyCharges * 4, flags: ModFlag.Attack, keywordFlags: 0, source: `Frenzy Charges (${cfg.frenzyCharges})` });
-    db.addMod({ name: 'Speed', type: 'INC', value: cfg.frenzyCharges * 4, flags: ModFlag.Spell, keywordFlags: 0, source: `Frenzy Charges (${cfg.frenzyCharges})` });
-    db.addMod({ name: 'Damage', type: 'MORE', value: cfg.frenzyCharges * 4, flags: 0, keywordFlags: 0, source: `Frenzy Charges (${cfg.frenzyCharges})` });
-  }
-  if (cfg.useEnduranceCharges && cfg.enduranceCharges > 0) {
-    db.addMod({ name: 'PhysDamageReduction', type: 'BASE', value: cfg.enduranceCharges * 4, flags: 0, keywordFlags: 0, source: `Endurance Charges (${cfg.enduranceCharges})` });
-    db.addMod({ name: 'FireResist', type: 'BASE', value: cfg.enduranceCharges * 4, flags: 0, keywordFlags: 0, source: `Endurance Charges (${cfg.enduranceCharges})` });
-    db.addMod({ name: 'ColdResist', type: 'BASE', value: cfg.enduranceCharges * 4, flags: 0, keywordFlags: 0, source: `Endurance Charges (${cfg.enduranceCharges})` });
-    db.addMod({ name: 'LightningResist', type: 'BASE', value: cfg.enduranceCharges * 4, flags: 0, keywordFlags: 0, source: `Endurance Charges (${cfg.enduranceCharges})` });
-  }
   if (cfg.onslaught) {
     db.addMod({ name: 'Speed', type: 'INC', value: 20, flags: ModFlag.Attack, keywordFlags: 0, source: 'Onslaught' });
     db.addMod({ name: 'Speed', type: 'INC', value: 20, flags: ModFlag.Spell, keywordFlags: 0, source: 'Onslaught' });
@@ -599,16 +576,6 @@ export function calculateBuild(build: Build): CalcOutput {
       flags: ModFlag.Spell,
       keywordFlags: 0,
       source: 'Pain Attunement (Low Life)',
-    });
-  }
-  if (db.flag('InnerConviction') && cfg.usePowerCharges && cfg.powerCharges > 0) {
-    db.addMod({
-      name: 'Damage',
-      type: 'MORE',
-      value: cfg.powerCharges * 3,
-      flags: ModFlag.Spell,
-      keywordFlags: 0,
-      source: `Inner Conviction (${cfg.powerCharges} Power Charges)`,
     });
   }
   if (cfg.buffArcaneSurge) {
@@ -670,12 +637,73 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parsedCustomAffixMods);
   }
 
-  const activePower = cfg.usePowerCharges ? Math.max(0, Math.round(cfg.powerCharges)) : 0;
-  const activeFrenzy = cfg.useFrenzyCharges ? Math.max(0, Math.round(cfg.frenzyCharges)) : 0;
-  const activeEndurance = cfg.useEnduranceCharges ? Math.max(0, Math.round(cfg.enduranceCharges)) : 0;
+  const maxPower = Math.max(0, 3 + Math.round(db.sum('BASE', 'MaxPowerCharges')));
+  const maxFrenzy = Math.max(0, 3 + Math.round(db.sum('BASE', 'MaxFrenzyCharges')));
+  const maxEndurance = Math.max(0, 3 + Math.round(db.sum('BASE', 'MaxEnduranceCharges')));
+  const minPower = Math.min(maxPower, Math.max(0, Math.round(db.sum('BASE', 'MinPowerCharges'))));
+  const minFrenzy = Math.min(maxFrenzy, Math.max(0, Math.round(db.sum('BASE', 'MinFrenzyCharges'))));
+  const minEndurance = Math.min(maxEndurance, Math.max(0, Math.round(db.sum('BASE', 'MinEnduranceCharges'))));
+  const activePower = Math.max(cfg.usePowerCharges ? Math.max(0, Math.round(cfg.powerCharges)) : 0, minPower);
+  const activeFrenzy = Math.max(cfg.useFrenzyCharges ? Math.max(0, Math.round(cfg.frenzyCharges)) : 0, minFrenzy);
+  const activeEndurance = Math.max(cfg.useEnduranceCharges ? Math.max(0, Math.round(cfg.enduranceCharges)) : 0, minEndurance);
+
+  if (activePower > 0) {
+    const perCharge = build.game === 'poe2' ? 40 : 50;
+    db.addMod({
+      name: 'CritChance',
+      type: 'INC',
+      value: activePower * perCharge,
+      flags: 0,
+      keywordFlags: 0,
+      source: `Power Charges (${activePower})`,
+    });
+    if (db.flag('InnerConviction')) {
+      db.addMod({
+        name: 'Damage',
+        type: 'MORE',
+        value: activePower * 3,
+        flags: ModFlag.Spell,
+        keywordFlags: 0,
+        source: `Inner Conviction (${activePower} Power Charges)`,
+      });
+    }
+  }
+  if (activeFrenzy > 0) {
+    db.addMod({ name: 'Speed', type: 'INC', value: activeFrenzy * 4, flags: ModFlag.Attack, keywordFlags: 0, source: `Frenzy Charges (${activeFrenzy})` });
+    db.addMod({ name: 'Speed', type: 'INC', value: activeFrenzy * 4, flags: ModFlag.Spell, keywordFlags: 0, source: `Frenzy Charges (${activeFrenzy})` });
+    db.addMod({ name: 'Damage', type: 'MORE', value: activeFrenzy * 4, flags: 0, keywordFlags: 0, source: `Frenzy Charges (${activeFrenzy})` });
+  }
+  if (activeEndurance > 0) {
+    // Official PoE 1 3.25+ / 3.30 Endurance Charges: +4% Phys & Ele Damage Reduction per charge (no longer +4% Ele Res)
+    db.addMod({ name: 'PhysDamageReduction', type: 'BASE', value: activeEndurance * 4, flags: 0, keywordFlags: 0, source: `Endurance Charges (${activeEndurance})` });
+  }
   injectChargeScaling(db, 'Power', activePower);
   injectChargeScaling(db, 'Frenzy', activeFrenzy);
   injectChargeScaling(db, 'Endurance', activeEndurance);
+
+  if (cfg.enemyTaunted) {
+    const tauntDmg = db.sum('BASE', 'TauntedEnemyDamageTaken');
+    if (tauntDmg > 0) {
+      db.addMod({
+        name: 'EnemyDamageTaken',
+        type: 'INC',
+        value: tauntDmg,
+        flags: 0,
+        keywordFlags: 0,
+        source: 'Worthy Foe (Taunted Enemy)',
+      });
+    }
+    if (db.flag('TauntedHitsCantBeEvaded')) {
+      db.addMod({
+        name: 'HitsCantBeEvaded',
+        type: 'FLAG',
+        value: true,
+        flags: ModFlag.Attack,
+        keywordFlags: 0,
+        source: 'Worthy Foe (Taunted Enemy)',
+      });
+    }
+  }
 
   // Phase 17 endgame ascendancy / defence mechanics (after tree, items & custom mods load)
   if (db.flag('BodyArmourDoubled') && bodyLocalArmour > 0) {
@@ -835,7 +863,32 @@ export function calculateBuild(build: Build): CalcOutput {
         esEval.moreMultiplier;
     }
   }
-  const energyShield = Math.round(esEval.total + extraEsFromLife);
+  // Hierophant Sanctuary of Thought: Gain X% of Maximum Mana as Extra Maximum Energy Shield
+  const manaAsExtraEsPct = Math.max(0, db.sum('BASE', 'ManaAsExtraES'));
+  let extraEsFromMana = 0;
+  if (manaAsExtraEsPct > 0 && manaEval.base > 0) {
+    const agnosticZero = esEval.sources.some((s) => s.type === 'OVERRIDE' && s.value === 0);
+    if (!agnosticZero) {
+      extraEsFromMana =
+        manaEval.base *
+        (manaAsExtraEsPct / 100) *
+        (1 + (manaEval.incPct + esEval.incPct) / 100) *
+        manaEval.moreMultiplier *
+        esEval.moreMultiplier;
+    }
+  }
+  // Hierophant Divine Guidance: Transfiguration of Mind (30% of Mana INC applies to Damage)
+  if (db.flag('TransfigurationOfMind') && manaEval.incPct !== 0) {
+    db.addMod({
+      name: 'Damage',
+      type: 'INC',
+      value: Math.floor(manaEval.incPct * 0.3),
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Transfiguration of Mind',
+    });
+  }
+  const energyShield = Math.round(esEval.total + extraEsFromLife + extraEsFromMana);
   const ward = Math.round(wardEval.total);
   const mana = Math.round(manaEval.total);
   const spirit = ruleset.supportsSpirit ? Math.round(spiritEval.total) : 0;
@@ -1620,8 +1673,9 @@ function computeGroupOffence(
     }
   }
 
-  // PoE 2 Archmage: Gain X% of ALL Damage as Extra Fire/Cold/Lightning/Chaos per 100 Maximum Mana (Spells)
-  if (!isAttack && !isMinion && _defence.mana >= 100) {
+  // PoE 2 Archmage: Gain X% of ALL Damage as Extra Fire/Cold/Lightning/Chaos per 100 Maximum Mana (Non-Channelling Spells)
+  const isChannellingSkill = activeDef.tags.some((t) => t.toLowerCase() === 'channelling');
+  if (!isAttack && !isMinion && !isChannellingSkill && _defence.mana >= 100) {
     const manaHundreds = Math.floor(_defence.mana / 100);
     let totalPreMin = 0;
     let totalPreMax = 0;

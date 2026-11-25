@@ -348,6 +348,8 @@ export interface BuildConfig {
   fortificationStacks?: number;
   /** Enemy is Blinded (20% less Enemy Accuracy, increasing Evade Chance). */
   enemyBlinded?: boolean;
+  /** Enemy is Taunted (activates Worthy Foe / Taunt modifiers). */
+  enemyTaunted?: boolean;
   /** Active guard skill (PoE 1 guard gem). */
   activeGuardSkill?: 'None' | 'MoltenShell' | 'Steelskin' | 'ArcaneCloak';
   /** PoE 1 Pantheon major god. */

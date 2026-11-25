@@ -690,4 +690,75 @@ describe('@webpob/calc', () => {
       expect(localizeStatLine(en, 'zh-CN')).toBe(zh);
     }
   });
+
+  it('supports Phase 20 Hierophant Sanctuary of Thought, Transfiguration of Mind & Conviction of Power', () => {
+    const base = createSamplePoe1Build();
+    const baseNoCharges = calculateBuild({
+      ...base,
+      config: { ...base.config, usePowerCharges: false, useEnduranceCharges: false, powerCharges: 0, enduranceCharges: 0 },
+    });
+    const hieroOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        usePowerCharges: false,
+        useEnduranceCharges: false,
+        powerCharges: 0,
+        enduranceCharges: 0,
+        customMods: [
+          '30% increased maximum Mana',
+          'Gain 20% of Maximum Mana as Extra Maximum Energy Shield',
+          'Transfiguration of Mind',
+          '+4 to Minimum Power Charges',
+          '+4 to Minimum Endurance Charges',
+          '+1 to Maximum Power Charges and Maximum Endurance Charges',
+        ].join('\n'),
+      },
+    });
+    expect(hieroOut.defence.energyShield).toBeGreaterThan(baseNoCharges.defence.energyShield + 100);
+    expect(hieroOut.offence.critChance).toBeGreaterThan(baseNoCharges.offence.critChance);
+    expect(hieroOut.offence.hitDps).toBeGreaterThan(baseNoCharges.offence.hitDps);
+    expect(hieroOut.defence.physDamageReduction).toBeGreaterThan(baseNoCharges.defence.physDamageReduction + 10);
+  });
+
+  it('supports Phase 20 Occultist Void Beacon, Champion Worthy Foe & bilingual EN/ZH rules', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const beaconOut = calculateBuild({
+      ...base,
+      config: { ...base.config, customMods: 'Nearby Enemies have -20% to Lightning Resistance' },
+    });
+    expect(beaconOut.offence.hitDps).toBeGreaterThan(baseOut.offence.hitDps);
+
+    const tauntOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        enemyTaunted: true,
+        customMods: [
+          'Taunt on Hit',
+          'Enemies Taunted by you take 15% increased Damage',
+          'Enemies Taunted by you cannot Evade Attacks',
+          '15% increased Evasion Rating and Armour',
+        ].join('\n'),
+      },
+    });
+    expect(tauntOut.offence.hitDps).toBeGreaterThan(baseOut.offence.hitDps);
+    expect(parseModLine('15% increased Evasion Rating and Armour', 'Test')).toEqual([
+      expect.objectContaining({ name: 'Armour', type: 'INC', value: 15 }),
+      expect.objectContaining({ name: 'Evasion', type: 'INC', value: 15 }),
+    ]);
+
+    const pairs: Array<[string, string]> = [
+      ['获得等同于最大魔力 20% 的额外最大能量护盾', 'Gain 20% of Maximum Mana as Extra Maximum Energy Shield'],
+      ['周围敌人的冰霜抗性 -20%', 'Nearby Enemies have -20% to Cold Resistance'],
+      ['被你嘲讽的敌人承受的伤害提高 15%', 'Enemies Taunted by you take 15% increased Damage'],
+      ['闪避值和护甲提高 15%', '15% increased Evasion Rating and Armour'],
+      ['最小暴击球数量 +4', '+4 to Minimum Power Charges'],
+    ];
+    for (const [zh, en] of pairs) {
+      expect(normalizeStatLineToEn(zh)).toBe(en);
+      expect(localizeStatLine(en, 'zh-CN')).toBe(zh);
+    }
+  });
 });
