@@ -73,6 +73,7 @@ async function main() {
       compareMetric('Int', o.Int, out.defence.int),
       compareMetric('Life', o.Life, out.defence.life),
       compareMetric('EnergyShield', o.EnergyShield, out.defence.energyShield),
+      ...(o.Ward ? [compareMetric('Ward', o.Ward, out.defence.ward ?? 0)] : []),
       compareMetric('Mana', o.Mana, out.defence.mana),
       compareMetric('Armour', o.Armour, out.defence.armour),
       compareMetric('Evasion', o.Evasion, out.defence.evasion),
@@ -90,6 +91,7 @@ async function main() {
         out.offence.averageHit * (out.offence.hitChance / 100),
       ),
       compareMetric('HitDPS', o.TotalDPS, out.offence.hitDps),
+      ...(o.ImpaleDPS ? [compareMetric('ImpaleDPS', o.ImpaleDPS, out.offence.impaleDps ?? 0)] : []),
       compareMetric('CombinedDPS', o.CombinedDPS, out.offence.totalDps),
     ];
 

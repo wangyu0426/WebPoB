@@ -115,7 +115,7 @@ const PARSER_RULES: ParserRule[] = [
     ],
   },
   {
-    pattern: /^\+(\d+) to (?:all Attributes|any Attribute)$/i,
+    pattern: /^\+(\d+) to all Attributes$/i,
     build: (m, src) => {
       const v = Number(m[1]);
       return [
@@ -589,6 +589,71 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [
       mkMod('MinionSpeed', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', Number(m[1]), src),
     ],
+  },
+  // Ward (Expedition Defence)
+  {
+    pattern: /^\+(\d+) to Ward$/i,
+    build: (m, src) => [mkMod('Ward', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Ward$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('Ward', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
+  },
+  // Impale Mechanics
+  {
+    pattern: /^(\d+)% chance to Impale Enemies on Hit with Attacks$/i,
+    build: (m, src) => [mkMod('ImpaleChance', 'BASE', Number(m[1]), src, ModFlag.Attack)],
+  },
+  {
+    pattern: /^(\d+)% increased Impale Effect$/i,
+    build: (m, src) => [mkMod('ImpaleEffect', 'INC', Number(m[1]), src, ModFlag.Attack)],
+  },
+  {
+    pattern: /^Impales you inflict last (\d+) additional Hits?$/i,
+    build: (m, src) => [mkMod('ImpaleStacksMax', 'BASE', Number(m[1]), src, ModFlag.Attack)],
+  },
+  // Cooldown Recovery Rate & Trigger Supports
+  {
+    pattern: /^(\d+)% increased Cooldown Recovery Rate$/i,
+    build: (m, src) => [mkMod('CooldownRecovery', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Trigger Supported Spells on Melee Critical Strike$/i,
+    build: (_, src) => [mkMod('CastOnCrit', 'FLAG', true, src)],
+  },
+  // Timeless Jewel Keystones & Life-as-Extra-ES
+  {
+    pattern: /^Gain (\d+)% of Maximum Life as Extra Maximum Energy Shield$/i,
+    build: (m, src) => [mkMod('LifeAsExtraES', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Corrupted Soul$/i,
+    build: (_, src) => [
+      mkMod('LifeAsExtraES', 'BASE', 15, src),
+      mkMod('CorruptedSoul', 'FLAG', true, src),
+    ],
+  },
+  {
+    pattern: /^Divine Flesh$/i,
+    build: (_, src) => [
+      mkMod('ChaosResistMax', 'BASE', 5, src),
+      mkMod('EleTakenAsChaos', 'BASE', 50, src),
+    ],
+  },
+  {
+    pattern: /^Inner Conviction$/i,
+    build: (_, src) => [mkMod('InnerConviction', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^The Agnostic$/i,
+    build: (_, src) => [mkMod('EnergyShield', 'OVERRIDE', 0, src)],
+  },
+  {
+    pattern: /^3% more Spell Damage per Power Charge$/i,
+    build: (_, src) => [mkMod('InnerConviction', 'FLAG', true, src)],
   },
 ];
 

@@ -107,8 +107,9 @@ for name, base in pairs(data.itemBases or {}) do
       local eva = base.armour.EvasionBaseMax or base.armour.Evasion or 0
       local es = base.armour.EnergyShieldBaseMax or base.armour.EnergyShield or 0
       local blk = base.armour.BlockChance or 0
-      if arm > 0 or eva > 0 or es > 0 or blk > 0 then
-        entry.a = { arm, eva, es, blk }
+      local ward = base.armour.WardBaseMax or base.armour.Ward or 0
+      if arm > 0 or eva > 0 or es > 0 or blk > 0 or ward > 0 then
+        entry.a = ward > 0 and { arm, eva, es, blk, ward } or { arm, eva, es, blk }
         hasUseful = true
       end
     end

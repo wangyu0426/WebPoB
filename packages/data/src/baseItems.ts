@@ -12,8 +12,8 @@ export interface CompactBaseItemsPayload {
   bases: Record<
     string,
     {
-      /** [armour, evasion, energyShield, blockChance] */
-      a?: [number, number, number, number];
+      /** [armour, evasion, energyShield, blockChance, ward?] */
+      a?: [number, number, number, number] | [number, number, number, number, number];
       /** [physMin, physMax, aps, crit, weaponType, twoHanded] */
       w?: [number, number, number, number, WeaponBaseStats['weaponType'], number];
       /** Default base implicit text */
@@ -67,12 +67,13 @@ export function registerBaseItems(payload: CompactBaseItemsPayload): number {
   for (const [name, compact] of Object.entries(payload.bases)) {
     const entry: BaseItemStatsEntry = {};
     if (compact.a) {
-      const [arm, eva, es, blk] = compact.a;
+      const [arm, eva, es, blk, ward = 0] = compact.a;
       entry.armour = {
         ...(arm > 0 ? { armour: arm } : {}),
         ...(eva > 0 ? { evasion: eva } : {}),
         ...(es > 0 ? { energyShield: es } : {}),
         ...(blk > 0 ? { blockChance: blk } : {}),
+        ...(ward > 0 ? { ward } : {}),
       };
     }
     if (compact.w) {
@@ -132,8 +133,7 @@ export function getBaseItemStats(
 ): BaseItemStatsEntry | undefined {
   const entry =
     dynamicBases[game][baseName] ??
-    dynamicBases[game === 'poe1' ? 'poe2' : 'poe1'][baseName] ??
-    BASE_ITEM_STATS[baseName];
+    (loadedBasesFlag[game] ? undefined : BASE_ITEM_STATS[baseName]);
   if (!entry) return undefined;
   const qMult = 1 + Math.max(0, quality) / 100;
   return {
@@ -143,6 +143,7 @@ export function getBaseItemStats(
           evasion: entry.armour.evasion ? Math.round(entry.armour.evasion * qMult) : undefined,
           energyShield: entry.armour.energyShield ? Math.round(entry.armour.energyShield * qMult) : undefined,
           blockChance: entry.armour.blockChance,
+          ward: entry.armour.ward ? Math.round(entry.armour.ward * qMult) : undefined,
         }
       : undefined,
     weapon: entry.weapon

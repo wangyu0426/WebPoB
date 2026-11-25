@@ -220,7 +220,10 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
       continue;
     }
 
-    if (/^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Corrupted|已腐化|Unidentified|未鉴定|Note|备注|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile)/i.test(line)) {
+    if (
+      /^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Note|备注|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile|WardBasePercentile)/i.test(line) ||
+      /^(?:Corrupted|已腐化|Unidentified|未鉴定)$/i.test(line)
+    ) {
       continue;
     }
 
@@ -240,6 +243,12 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     const esMatch = line.match(/^(?:Energy Shield|能量护盾)\s*[:：]\s*(\d+)/i);
     if (esMatch) {
       armourStats.energyShield = Number(esMatch[1]);
+      hasArmourStats = true;
+      continue;
+    }
+    const wardMatch = line.match(/^(?:Ward|结界)\s*[:：]\s*(\d+)/i);
+    if (wardMatch) {
+      armourStats.ward = Number(wardMatch[1]);
       hasArmourStats = true;
       continue;
     }

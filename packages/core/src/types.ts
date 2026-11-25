@@ -244,6 +244,8 @@ export interface SkillGroup {
   slot?: EquipmentSlotId;
   /** PoE 2: which weapon set(s) this skill is enabled for. */
   weaponSets?: WeaponSetId[];
+  /** 1-based index of the selected active gem within this group (PoB `mainActiveSkill`). */
+  mainActiveSkillIndex?: number;
   gems: GemInstance[];
 }
 
@@ -262,6 +264,7 @@ export interface ArmourBaseStats {
   evasion?: number;
   energyShield?: number;
   blockChance?: number;
+  ward?: number;
 }
 
 export interface Item {
@@ -434,10 +437,12 @@ export interface CalcOffenceOutput {
   hitChance: number;
   effectiveCritMultiplier: number;
   hitDps: number;
+  impaleDps?: number;
   igniteDps: number;
   bleedDps: number;
   poisonDps: number;
   totalDps: number;
+  triggerRate?: number;
   manaCost: number;
   manaPerSecond: number;
 }
@@ -451,6 +456,7 @@ export interface CalcDefenceOutput {
   lifeRegen: number;
   energyShield: number;
   esRegen: number;
+  ward?: number;
   mana: number;
   manaUnreserved: number;
   manaRegen: number;

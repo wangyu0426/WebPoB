@@ -856,4 +856,225 @@ Adds 15 to 30 Physical Damage
   <Notes/>
 </PathOfBuilding2>`,
   },
+  {
+    id: 'poe1_impale_cyclone_marauder',
+    title: 'PoE 1 — Impale Support + Brutality Cyclone Marauder (Hit DPS + Impale DPS + Combined DPS)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Impale Cyclone"/>
+  <Tree activeSpec="1">
+    <Spec title="RT" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175,31628,9511,23881,26523,6446,10221,50422,50570,29353,63282,31961"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Cyclone">
+        <Gem gemId="Metadata/Items/Gems/SkillGemCyclone" skillId="Cyclone" nameSpec="Cyclone" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemImpale" skillId="SupportImpale" nameSpec="Impale" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemBrutality" skillId="SupportBrutality" nameSpec="Brutality" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Doom Reaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+150% increased Physical Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_ward_expedition_armour',
+    title: 'PoE 1 — Expedition Ward Gear (Runic Crown + Runic Gauntlets + Runic Sabatons)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Expedition Ward"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Rune Crown
+Runic Crown
+Quality: 20
+Implicits: 0
++50 to Ward
+80% increased Ward
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Rune Grip
+Runic Gauntlets
+Quality: 20
+Implicits: 0
++30 to Ward
+60% increased Ward
+    </Item>
+    <Item id="3">
+Rarity: RARE
+Rune Stride
+Runic Sabatons
+Quality: 20
+Implicits: 0
++40 to Ward
+70% increased Ward
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Helmet" itemId="1"/>
+      <Slot name="Gloves" itemId="2"/>
+      <Slot name="Boots" itemId="3"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_timeless_corrupted_soul_inner_conviction',
+    title: 'PoE 1 — Timeless Keystones: Corrupted Soul (Replica Soul Tether) + Inner Conviction (3 Power Charges)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Timeless Keystones"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: UNIQUE
+Replica Soul Tether
+Cloth Belt
+Implicits: 1
+20% increased Stun and Block Recovery
++30 to Strength
+Gain 6% of Maximum Life as Extra Maximum Energy Shield
+Corrupted Soul
+    </Item>
+    <Item id="2">
+Rarity: UNIQUE
+Skin of the Lords
+Simple Robe
+Implicits: 0
+Inner Conviction
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Belt" itemId="1"/>
+      <Slot name="Body Armour" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="usePowerCharges" boolean="true"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_coc_trigger_cdr_ice_nova',
+    title: 'PoE 1 — Cast On Critical Strike Ice Nova + Cyclone (15% CDR 7.57/s Breakpoint)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: CoC Ice Nova 15% CDR"/>
+  <Tree activeSpec="1">
+    <Spec title="Default" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="2" mainActiveSkillCalcs="2" slot="Body Armour" label="CoC Ice Nova">
+        <Gem gemId="Metadata/Items/Gems/SkillGemCyclone" skillId="Cyclone" nameSpec="Cyclone" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemIceNova" skillId="IceNova" nameSpec="Ice Nova" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SupportGemCastOnCrit" skillId="SupportCastOnCrit" nameSpec="Cast On Critical Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+CoC Foil
+Jewelled Foil
+Quality: 20
+Implicits: 0
+Your Hits can't be Evaded
+25% increased Attack Speed
++100% to Critical Strike Chance
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Cooldown Belt
+Leather Belt
+Implicits: 0
+15% increased Cooldown Recovery Rate
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Belt" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_ranger_bow_lightning_arrow',
+    title: 'PoE 2 — Lv.90 Ranger w/ 0.5 Tree + Local-Mod Recurve Bow + Lightning Arrow Lv.20',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Ranger" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Ranger LA"/>
+  <Tree activeSpec="1">
+    <Spec title="Ranger" treeVersion="0_5" classId="2" classInternalId="2" ascendClassId="0" nodes="50459,13828,56651,1140,49691,35234,38143,15507,31409"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Lightning Arrow">
+        <Gem gemId="Metadata/Items/Gems/SkillGemLightningArrow" skillId="LightningArrowPlayer" nameSpec="Lightning Arrow" variantId="LightningArrow" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Storm Recurve
+Recurve Bow
+Quality: 20
+Implicits: 0
+120% increased Physical Damage
+Adds 12 to 24 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

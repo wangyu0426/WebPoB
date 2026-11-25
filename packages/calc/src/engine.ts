@@ -349,6 +349,9 @@ export function calculateBuild(build: Build): CalcOutput {
     if (resolved.armourStats?.energyShield) {
       db.addMod({ name: 'EnergyShield', type: 'BASE', value: resolved.armourStats.energyShield, flags: 0, keywordFlags: 0, source: src });
     }
+    if (resolved.armourStats?.ward) {
+      db.addMod({ name: 'Ward', type: 'BASE', value: resolved.armourStats.ward, flags: 0, keywordFlags: 0, source: src });
+    }
     if (resolved.armourStats?.blockChance) {
       db.addMod({ name: 'BlockChance', type: 'BASE', value: resolved.armourStats.blockChance, flags: 0, keywordFlags: 0, source: src });
     }
@@ -416,6 +419,16 @@ export function calculateBuild(build: Build): CalcOutput {
       flags: ModFlag.Spell,
       keywordFlags: 0,
       source: 'Pain Attunement (Low Life)',
+    });
+  }
+  if (db.flag('InnerConviction') && cfg.usePowerCharges && cfg.powerCharges > 0) {
+    db.addMod({
+      name: 'Damage',
+      type: 'MORE',
+      value: cfg.powerCharges * 3,
+      flags: ModFlag.Spell,
+      keywordFlags: 0,
+      source: `Inner Conviction (${cfg.powerCharges} Power Charges)`,
     });
   }
   if (cfg.buffArcaneSurge) {
@@ -493,7 +506,7 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMod({ name: 'EnergyShield', type: 'INC', value: Math.floor(int * ruleset.esPctPerIntelligence), flags: 0, keywordFlags: 0, source: `Intelligence (${int})` });
   }
 
-  // 7. Compute Defence Output (including Iron Reflexes, Life->ES conversion & Reservation Efficiency)
+  // 7. Compute Defence Output (including Iron Reflexes, Ward, Corrupted Soul / Life->ES & Reservation Efficiency)
   const rawLifeEval = db.calcStat('Life');
   const lifeConvToEsPct = Math.min(100, Math.max(0, db.sum('BASE', 'LifeConvertToES')));
   if (lifeConvToEsPct > 0 && rawLifeEval.total > 1) {
@@ -503,6 +516,7 @@ export function calculateBuild(build: Build): CalcOutput {
 
   const lifeEval = db.calcStat('Life');
   const esEval = db.calcStat('EnergyShield');
+  const wardEval = db.calcStat('Ward');
   const manaEval = db.calcStat('Mana');
   const spiritEval = db.calcStat('Spirit');
   const armourEval = db.calcStat('Armour');
@@ -513,7 +527,24 @@ export function calculateBuild(build: Build): CalcOutput {
     lifeConvToEsPct > 0 && lifeEval.total > 1
       ? Math.max(1, Math.round(lifeEval.total * (1 - lifeConvToEsPct / 100)))
       : Math.round(lifeEval.total);
-  const energyShield = Math.round(esEval.total);
+
+  // Corrupted Soul / Replica Soul Tether: Gain X% of Maximum Life as Extra Maximum Energy Shield
+  const lifeAsExtraEsPct = Math.max(0, db.sum('BASE', 'LifeAsExtraES'));
+  let extraEsFromLife = 0;
+  if (lifeAsExtraEsPct > 0 && rawLifeEval.total > 1 && db.calcStat('EnergyShield').total >= 0) {
+    // Only add if Energy Shield is not overridden to 0 (e.g. The Agnostic)
+    const agnosticZero = esEval.sources.some((s) => s.type === 'OVERRIDE' && s.value === 0);
+    if (!agnosticZero) {
+      extraEsFromLife =
+        rawLifeEval.base *
+        (lifeAsExtraEsPct / 100) *
+        (1 + (rawLifeEval.incPct + esEval.incPct) / 100) *
+        rawLifeEval.moreMultiplier *
+        esEval.moreMultiplier;
+    }
+  }
+  const energyShield = Math.round(esEval.total + extraEsFromLife);
+  const ward = Math.round(wardEval.total);
   const mana = Math.round(manaEval.total);
   const spirit = ruleset.supportsSpirit ? Math.round(spiritEval.total) : 0;
 
@@ -607,13 +638,17 @@ export function calculateBuild(build: Build): CalcOutput {
   const manaRegenInc = db.sum('INC', 'ManaRegen');
   const manaRegen = Math.round(mana * 0.0175 * (1 + manaRegenInc / 100) * 10) / 10;
 
-  // Effective Hit Pool & Max Hit Taken
+  // Effective Hit Pool & Max Hit Taken (including Ward & Divine Flesh Ele-Taken-as-Chaos)
   const momPct = Math.min(100, db.sum('BASE', 'DamageTakenFromManaBeforeLife'));
   const effectiveManaBuffer = momPct > 0 ? Math.min(manaUnreserved, Math.round((life * momPct) / (100 - momPct + 0.01))) : 0;
-  const totalPool = life + energyShield + effectiveManaBuffer;
+  const totalPool = life + energyShield + ward + effectiveManaBuffer;
 
   const avgEleRes = (fireResist + coldResist + lightningResist) / 3;
-  const eleTakenFactor = Math.max(0.1, 1 - avgEleRes / 100);
+  const eleAsChaosFrac = Math.min(1, Math.max(0, db.sum('BASE', 'EleTakenAsChaos') / 100));
+  const eleTakenFactor = Math.max(
+    0.1,
+    (1 - eleAsChaosFrac) * (1 - avgEleRes / 100) + eleAsChaosFrac * (1 - chaosResist / 100),
+  );
   const physTakenFactor = Math.max(0.1, 1 - physDamageReduction / 100);
   const avoidanceFactor = Math.max(0.15, (1 - evadeChance / 100) * (1 - blockChance / 100));
 
@@ -630,6 +665,7 @@ export function calculateBuild(build: Build): CalcOutput {
     lifeRegen,
     energyShield,
     esRegen: 0,
+    ...(ward > 0 ? { ward } : {}),
     mana,
     manaUnreserved,
     manaRegen,
@@ -668,6 +704,7 @@ export function calculateBuild(build: Build): CalcOutput {
   const breakdowns: StatBreakdownRow[] = [
     { label: 'Maximum Life', labelZh: '最大生命', ...lifeEval, total: life },
     { label: 'Maximum Energy Shield', labelZh: '最大能量护盾', ...esEval, total: energyShield },
+    ...(ward > 0 ? [{ label: 'Ward', labelZh: '结界', ...wardEval, total: ward }] : []),
     { label: 'Maximum Mana', labelZh: '最大魔力', ...manaEval, total: mana },
     ...(ruleset.supportsSpirit
       ? [{ label: 'Spirit', labelZh: '精魂', ...spiritEval, total: spirit }]
@@ -869,21 +906,41 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     return effectiveQuality;
   };
 
+  const activeCandidates: Array<{
+    inst: (typeof mainGroup.gems)[number];
+    def: GemDefinition;
+    effectiveStats: string[];
+  }> = [];
+
   for (const gemInst of mainGroup.gems) {
     if (!gemInst.enabled) continue;
     const def = getGemById(build.game, gemInst.gemId);
     if (!def) continue;
     const levelEntry = resolveGemLevelEntry(def, gemInst.level);
     const effectiveStats = levelEntry?.stats ?? def.stats;
-    if (def.category === 'active' && !def.isAuraOrBuff && !activeDef) {
-      activeDef = def;
-      activeLevel = gemInst.level;
-      activeQuality = applyGemQualityStats(def, gemInst.quality, 'Skill');
-      skillDb.addMods(parseModLines(effectiveStats, `Skill: ${def.name.en}`));
+    if (def.category === 'active' && !def.isAuraOrBuff) {
+      activeCandidates.push({ inst: gemInst, def, effectiveStats });
     } else if (def.category === 'support') {
       skillDb.addMods(parseModLines(effectiveStats, `Support: ${def.name.en}`));
       applyGemQualityStats(def, gemInst.quality, 'Support');
     }
+  }
+
+  let triggerAttackDef: GemDefinition | undefined;
+  if (activeCandidates.length > 0) {
+    const pickIdx = Math.max(
+      0,
+      Math.min(activeCandidates.length - 1, (mainGroup.mainActiveSkillIndex ?? 1) - 1),
+    );
+    const chosen = activeCandidates[pickIdx]!;
+    activeDef = chosen.def;
+    activeLevel = chosen.inst.level;
+    activeQuality = applyGemQualityStats(chosen.def, chosen.inst.quality, 'Skill');
+    skillDb.addMods(parseModLines(chosen.effectiveStats, `Skill: ${chosen.def.name.en}`));
+    const companionAtk = activeCandidates.find(
+      (c, i) => i !== pickIdx && (c.def.modFlags & ModFlag.Attack) !== 0,
+    );
+    triggerAttackDef = companionAtk?.def;
   }
 
   if (!activeDef) {
@@ -1156,7 +1213,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
   const effectiveCritMultiplier =
     neverCrit || noCritExtra ? 1 : 1 + (critChance / 100) * Math.max(0, critMultiplier / 100 - 1);
 
-  // Step F: Attack / Cast Speed (with exact harmonic-mean alternating dual-wield attack speed)
+  // Step F: Attack / Cast Speed (with alternating Dual-Wield harmonic APS & CoC server-tick Trigger Rate)
   const weaponBaseAps =
     isDualWield && mainWeaponStats && offWeaponStats
       ? 2 / (1 / Math.max(0.1, mainWeaponStats.attacksPerSecond) + 1 / Math.max(0.1, offWeaponStats.attacksPerSecond))
@@ -1166,13 +1223,66 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     : 1 / (activeDef.castTime ?? 0.75);
   const speedInc = skillDb.sum('INC', 'Speed', flags, kwFlags);
   const speedMore = skillDb.more('Speed', flags, kwFlags);
-  const speedExact = baseRate * (1 + speedInc / 100) * speedMore;
+  let speedExact = baseRate * (1 + speedInc / 100) * speedMore;
+  let triggerRate: number | undefined;
+
+  if (!isAttack && skillDb.flag('CastOnCrit') && triggerAttackDef) {
+    const cdr = Math.max(0, skillDb.sum('INC', 'CooldownRecovery', flags, kwFlags));
+    const serverTick = 0.033;
+    const baseCd = 0.15;
+    const effCd = Math.ceil(baseCd / (1 + cdr / 100) / serverTick - 1e-9) * serverTick;
+    const maxTriggerRate = 1 / effCd;
+
+    const atkFlags = triggerAttackDef.modFlags;
+    const atkKw = triggerAttackDef.keywordFlags;
+    const atkBaseAps = weaponBaseAps * (triggerAttackDef.attackSpeedMultiplier ?? 1);
+    const atkAps =
+      atkBaseAps *
+      (1 + skillDb.sum('INC', 'Speed', atkFlags, atkKw) / 100) *
+      skillDb.more('Speed', atkFlags, atkKw);
+
+    let atkHitChance = 100;
+    if (!skillDb.flag('HitsCantBeEvaded', atkFlags, atkKw)) {
+      const acc = Math.max(1, skillDb.calcStat('Accuracy', atkFlags, atkKw).total);
+      const eEva = Math.max(1, build.config.enemyEvasion);
+      const rawHit = (acc / (acc + Math.pow(eEva / 5, 0.9))) * 125;
+      atkHitChance = Math.min(100, Math.max(5, Math.round(rawHit)));
+    }
+    const atkNeverCrit = skillDb.flag('NeverCrit', atkFlags, atkKw);
+    const atkPreCrit = atkNeverCrit
+      ? 0
+      : Math.min(
+          100,
+          (weaponBaseCrit + enemyCritBonus) *
+            (1 + skillDb.sum('INC', 'CritChance', atkFlags, atkKw) / 100) *
+            skillDb.more('CritChance', atkFlags, atkKw),
+        );
+    const atkEffCrit = atkPreCrit * (atkHitChance / 100);
+    const atkTime = 1 / Math.max(0.01, atkAps);
+    const minAttacksPerTrigger = Math.max(1, Math.ceil((effCd - 1e-9) / atkTime));
+    const syncAps = atkAps / minAttacksPerTrigger;
+    const effRate = Math.min(maxTriggerRate, syncAps * (atkHitChance / 100) * (atkEffCrit / 100));
+    speedExact = effRate;
+    triggerRate = Math.round(effRate * 100) / 100;
+  }
   const speed = Math.round(speedExact * 100) / 100;
 
   const doubleDamagePct = Math.min(100, Math.max(0, skillDb.sum('BASE', 'DoubleDamageChance', flags, kwFlags)));
   const doubleDamageMult = 1 + doubleDamagePct / 100;
   const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * doubleDamageMult * 100) / 100;
   const hitDps = Math.round(avgHitWithCrit * speedExact * (hitChance / 100) * 100) / 100;
+
+  // Impale DPS (Physical Attacks: 10% stored phys * (1 + impaleEffect) * maxHits * impaleChance)
+  const impaleChance = isAttack ? Math.min(100, Math.max(0, skillDb.sum('BASE', 'ImpaleChance', flags, kwFlags))) : 0;
+  let impaleDps = 0;
+  if (isAttack && impaleChance > 0 && damageByType.Physical.average > 0) {
+    const impaleEffect = skillDb.sum('INC', 'ImpaleEffect', flags, kwFlags);
+    const maxImpaleHits = 5 + skillDb.sum('BASE', 'ImpaleStacksMax', flags, kwFlags);
+    const physHitDps =
+      damageByType.Physical.average * effectiveCritMultiplier * doubleDamageMult * speedExact * (hitChance / 100);
+    impaleDps =
+      Math.round(physHitDps * 0.1 * (1 + impaleEffect / 100) * maxImpaleHits * (impaleChance / 100) * 100) / 100;
+  }
 
   // Ailment DPS (Ignite / Bleed / Poison) with DoT Multiplier & Crit Ailment bonus
   const dotMulti = skillDb.sum('BASE', 'DotMultiplier', flags, kwFlags);
@@ -1224,7 +1334,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     poisonDps = Math.round(singlePoison * activeStacks);
   }
 
-  const totalDps = Math.round((hitDps + igniteDps + bleedDps + poisonDps) * 100) / 100;
+  const totalDps = Math.round((hitDps + impaleDps + igniteDps + bleedDps + poisonDps) * 100) / 100;
   const manaCost = activeDef.manaCost ?? 15;
   const manaPerSecond = Math.round(manaCost * speed * 10) / 10;
 
@@ -1239,10 +1349,12 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
     hitChance,
     effectiveCritMultiplier: Math.round(effectiveCritMultiplier * 100) / 100,
     hitDps,
+    ...(impaleDps > 0 ? { impaleDps } : {}),
     igniteDps,
     bleedDps,
     poisonDps,
     totalDps,
+    ...(triggerRate !== undefined ? { triggerRate } : {}),
     manaCost,
     manaPerSecond,
   };

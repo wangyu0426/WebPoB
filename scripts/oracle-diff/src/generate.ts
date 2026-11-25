@@ -27,6 +27,7 @@ export interface OracleNumericOutput {
   LifeUnreserved: number;
   LifeRegen: number;
   EnergyShield: number;
+  Ward?: number;
   Mana: number;
   ManaUnreserved: number;
   ManaRegen: number;
@@ -64,6 +65,8 @@ export interface OracleNumericOutput {
   IgniteDPS: number;
   BleedDPS: number;
   TotalPoisonDPS: number;
+  ImpaleDPS?: number;
+  SkillTriggerRate?: number;
   PhysicalMin: number;
   PhysicalMax: number;
   FireMin: number;

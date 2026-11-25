@@ -14,9 +14,11 @@ interface LocalArmourAccum {
   flatEvasion: number;
   flatEs: number;
   flatBlock: number;
+  flatWard: number;
   incArmour: number;
   incEvasion: number;
   incEs: number;
+  incWard: number;
 }
 
 interface LocalWeaponAccum {
@@ -91,6 +93,16 @@ function tryConsumeLocalArmourMod(rawLine: string, acc: LocalArmourAccum): boole
   m = line.match(/^\+(\d+)% Chance to Block$/i);
   if (m) {
     acc.flatBlock += Number(m[1]);
+    return true;
+  }
+  m = line.match(/^\+(\d+) to Ward$/i);
+  if (m) {
+    acc.flatWard += Number(m[1]);
+    return true;
+  }
+  m = line.match(/^(\d+)% increased Ward$/i);
+  if (m) {
+    acc.incWard += Number(m[1]);
     return true;
   }
   return false;
@@ -181,9 +193,11 @@ export function resolveItemEffectiveStats(item: Item, game: GameId): ResolvedIte
       flatEvasion: 0,
       flatEs: 0,
       flatBlock: 0,
+      flatWard: 0,
       incArmour: 0,
       incEvasion: 0,
       incEs: 0,
+      incWard: 0,
     };
     for (const line of item.implicits) {
       if (!tryConsumeLocalArmourMod(line, acc)) globalImplicits.push(line);
@@ -201,17 +215,28 @@ export function resolveItemEffectiveStats(item: Item, game: GameId): ResolvedIte
       };
     }
 
-    // Compute exact PoB 3.30 / PoE 2 0.5 local Armour/Evasion/ES with multiplicative Quality
-    const rawBase = getBaseItemStats(item.baseName, 0, game)?.armour ?? item.armourStats ?? {};
+    // Official PoB Item.lua: Tabula Rasa, Skin of the Loyal/Lords & The Apostate have zero base defences
+    const ZERO_BASE_DEFENCE_UNIQUES = new Set([
+      'Tabula Rasa',
+      'Skin of the Loyal',
+      'Skin of the Lords',
+      'The Apostate',
+    ]);
+    // Compute exact PoB 3.30 / PoE 2 0.5 local Armour/Evasion/ES/Ward with multiplicative Quality
+    const rawBase = ZERO_BASE_DEFENCE_UNIQUES.has(item.name)
+      ? {}
+      : (getBaseItemStats(item.baseName, 0, game)?.armour ?? item.armourStats ?? {});
     const qMult = 1 + Math.max(0, item.quality) / 100;
     const baseArm = (rawBase.armour ?? 0) + acc.flatArmour;
     const baseEva = (rawBase.evasion ?? 0) + acc.flatEvasion;
     const baseEs = (rawBase.energyShield ?? 0) + acc.flatEs;
+    const baseWard = (rawBase.ward ?? 0) + acc.flatWard;
 
     const computedArmour: ArmourBaseStats = {
       ...(baseArm > 0 ? { armour: Math.round(baseArm * (1 + acc.incArmour / 100) * qMult) } : {}),
       ...(baseEva > 0 ? { evasion: Math.round(baseEva * (1 + acc.incEvasion / 100) * qMult) } : {}),
       ...(baseEs > 0 ? { energyShield: Math.round(baseEs * (1 + acc.incEs / 100) * qMult) } : {}),
+      ...(baseWard > 0 ? { ward: Math.round(baseWard * (1 + acc.incWard / 100) * qMult) } : {}),
       ...(rawBase.blockChance || acc.flatBlock
         ? { blockChance: Math.min(100, (rawBase.blockChance ?? 0) + acc.flatBlock) }
         : {}),

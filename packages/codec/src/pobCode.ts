@@ -157,8 +157,9 @@ export function buildToPobXml(build: Build): string {
       group.weaponSets && group.weaponSets.length > 0
         ? ` weaponSets="${group.weaponSets.join(',')}"`
         : '';
+    const mainActive = group.mainActiveSkillIndex ?? 1;
     lines.push(
-      `      <Skill enabled="${group.enabled}" mainActiveSkill="1" mainActiveSkillCalcs="1" label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
+      `      <Skill enabled="${group.enabled}" mainActiveSkill="${mainActive}" mainActiveSkillCalcs="${mainActive}" label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
     );
     for (const gem of group.gems) {
       const def = gemsCatalog.find((g) => g.id === gem.gemId);
@@ -352,12 +353,14 @@ export function xmlToBuild(xml: string): Build {
             .map((v) => Number(v.trim()))
             .filter((v): v is WeaponSetId => v === 1 || v === 2))
         : undefined;
+      const mainActiveRaw = Number(attrs.mainActiveSkill ?? attrs.mainActiveSkillCalcs ?? 1);
       skills.push({
         id: `imp_sg_${groupCounter}`,
         label: attrs.label || `Skill Group ${groupCounter}`,
         enabled: attrs.enabled !== 'false',
         slot: attrs.slot as EquipmentSlotId | undefined,
         weaponSets: weaponSets && weaponSets.length > 0 ? weaponSets : game === 'poe2' ? [1, 2] : undefined,
+        ...(Number.isFinite(mainActiveRaw) && mainActiveRaw > 1 ? { mainActiveSkillIndex: mainActiveRaw } : {}),
         gems,
       });
       groupCounter++;

@@ -74,6 +74,9 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
       // Tight <= 1 integer match on Life, Mana, Energy Shield, Armour, Evasion, Elemental Resists
       expectWithinPct(out.defence.life, o.Life!, 0.1, 1);
       expectWithinPct(out.defence.energyShield, o.EnergyShield!, 0.5, 1);
+      if ((o.Ward ?? 0) > 0) {
+        expectWithinPct(out.defence.ward ?? 0, o.Ward!, 0.5, 1);
+      }
       expectWithinPct(out.defence.mana, o.Mana!, 0.1, 1);
       expectWithinPct(out.defence.armour, o.Armour!, 0.5, 1);
       expectWithinPct(out.defence.evasion, o.Evasion!, 0.5, 1);
@@ -91,6 +94,10 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
       const webAvgDamage = out.offence.averageHit * (out.offence.hitChance / 100);
       expectWithinPct(webAvgDamage, o.AverageDamage || o.AverageHit || 0, 0.5, 1);
       expectWithinPct(out.offence.hitDps, o.TotalDPS!, 0.5, 1);
+      if ((o.ImpaleDPS ?? 0) > 0) {
+        expectWithinPct(out.offence.impaleDps ?? 0, o.ImpaleDPS!, 0.5, 1);
+        expectWithinPct(out.offence.totalDps, o.CombinedDPS!, 0.5, 1);
+      }
     });
   }
 });
