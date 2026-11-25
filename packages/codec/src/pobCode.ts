@@ -301,6 +301,9 @@ export function buildToPobXml(build: Build): string {
       lines.push(`      <Input name="overrideFortification" number="${cfg.fortificationStacks}" />`);
     }
   }
+  if (cfg.activeGuardSkill && cfg.activeGuardSkill !== 'None') {
+    lines.push(`      <Input name="activeGuardSkill" string="${escapeXml(cfg.activeGuardSkill)}" />`);
+  }
   if (cfg.customMods.trim()) {
     lines.push(`      <Placeholder name="customMods" string="${escapeXml(cfg.customMods)}" />`);
   }
@@ -679,6 +682,16 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'multiplierRage' && attrs.number) config.rage = Number(attrs.number);
     if (key === 'buffFortification' && attrs.boolean) config.fortified = attrs.boolean === 'true';
     if (key === 'overrideFortification' && attrs.number) config.fortificationStacks = Number(attrs.number);
+    if (key === 'activeGuardSkill' && attrs.string) {
+      if (
+        attrs.string === 'None' ||
+        attrs.string === 'MoltenShell' ||
+        attrs.string === 'Steelskin' ||
+        attrs.string === 'ArcaneCloak'
+      ) {
+        config.activeGuardSkill = attrs.string;
+      }
+    }
     if (key === 'customMods' && attrs.string) config.customMods = attrs.string;
   }
 

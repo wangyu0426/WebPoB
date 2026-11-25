@@ -158,6 +158,34 @@ export function ConfigTab() {
 
           {build.game === 'poe1' && (
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#242a3c]">
+              <span className="text-sky-300">
+                {locale === 'zh-CN' ? '防卫技能 (Guard Skill)' : 'Active Guard Skill'}
+              </span>
+              <select
+                value={cfg.activeGuardSkill ?? 'None'}
+                onChange={(e) =>
+                  updateConfig({
+                    activeGuardSkill: e.target.value as NonNullable<BuildConfig['activeGuardSkill']>,
+                  })
+                }
+                className="pob-input rounded px-2 py-1 text-xs"
+              >
+                <option value="None">{locale === 'zh-CN' ? '无 (None)' : 'None'}</option>
+                <option value="MoltenShell">
+                  {locale === 'zh-CN' ? '熔岩护盾 (Molten Shell Lv.20)' : 'Molten Shell (Lv.20)'}
+                </option>
+                <option value="Steelskin">
+                  {locale === 'zh-CN' ? '钢铁之肤 (Steelskin Lv.20)' : 'Steelskin (Lv.20)'}
+                </option>
+                <option value="ArcaneCloak">
+                  {locale === 'zh-CN' ? '奥术斗篷 (Arcane Cloak Lv.20)' : 'Arcane Cloak (Lv.20)'}
+                </option>
+              </select>
+            </div>
+          )}
+
+          {build.game === 'poe1' && (
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#242a3c]">
               <span className="text-zinc-300">{t(locale, 'config.bandit')}</span>
               <select
                 value={build.bandit ?? 'None'}

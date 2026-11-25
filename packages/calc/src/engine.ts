@@ -1422,115 +1422,119 @@ function computeGroupOffence(
     baseMax[dt] += addMax * effectiveness;
   }
 
-  // Step B: Physical Conversion & Gained-as-Extra
-  const convFire = skillDb.sum('BASE', 'PhysicalDamageConvertToFire', flags, kwFlags);
-  const convCold = skillDb.sum('BASE', 'PhysicalDamageConvertToCold', flags, kwFlags);
-  const convLight = skillDb.sum('BASE', 'PhysicalDamageConvertToLightning', flags, kwFlags);
-  const convChaos = skillDb.sum('BASE', 'PhysicalDamageConvertToChaos', flags, kwFlags);
-  const convSum = convFire + convCold + convLight + convChaos;
-  const convScale = convSum > 100 ? 100 / convSum : 1;
-
-  const physOrigMin = baseMin.Physical;
-  const physOrigMax = baseMax.Physical;
-
-  const finalBaseMin = { ...baseMin };
-  const finalBaseMax = { ...baseMax };
-  // PoE 1 conversion inheritance: damage converted/gained from Physical retains Physical scaling
-  const fromPhysMin: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
-  const fromPhysMax: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
-
-  if (convSum > 0) {
-    const fracFire = (convFire * convScale) / 100;
-    const fracCold = (convCold * convScale) / 100;
-    const fracLight = (convLight * convScale) / 100;
-    const fracChaos = (convChaos * convScale) / 100;
-    const remainingPhys = Math.max(0, 1 - (fracFire + fracCold + fracLight + fracChaos));
-
-    finalBaseMin.Physical = physOrigMin * remainingPhys;
-    finalBaseMax.Physical = physOrigMax * remainingPhys;
-    const addConv = (dt: 'Fire' | 'Cold' | 'Lightning' | 'Chaos', frac: number) => {
-      if (frac <= 0) return;
-      const mn = physOrigMin * frac;
-      const mx = physOrigMax * frac;
-      finalBaseMin[dt] += mn;
-      finalBaseMax[dt] += mx;
-      fromPhysMin[dt] += mn;
-      fromPhysMax[dt] += mx;
-    };
-    addConv('Fire', fracFire);
-    addConv('Cold', fracCold);
-    addConv('Lightning', fracLight);
-    addConv('Chaos', fracChaos);
-  }
-
-  // Gain Physical as Extra Elemental/Chaos
-  for (const target of ['Fire', 'Cold', 'Lightning', 'Chaos'] as const) {
-    const extraPct = skillDb.sum('BASE', `PhysicalDamageGainAs${target}`, flags, kwFlags);
-    if (extraPct > 0) {
-      const mn = physOrigMin * (extraPct / 100);
-      const mx = physOrigMax * (extraPct / 100);
-      finalBaseMin[target] += mn;
-      finalBaseMax[target] += mx;
-      fromPhysMin[target] += mn;
-      fromPhysMax[target] += mx;
+  // Step B: Full PoE Conversion & Gain-as-Extra Pipeline (Physical -> Lightning -> Cold -> Fire -> Chaos)
+  // PoE 1 tracks full conversion-history bitmask so converted damage inherits all intermediate type modifiers;
+  // PoE 2 scales converted damage only by its final damage type.
+  const DMG_BIT: Record<DamageType, number> = {
+    Physical: 1,
+    Lightning: 2,
+    Cold: 4,
+    Fire: 8,
+    Chaos: 16,
+  };
+  const ELE_MASK = DMG_BIT.Lightning | DMG_BIT.Cold | DMG_BIT.Fire;
+  const packets: Record<DamageType, Map<number, [number, number]>> = {
+    Physical: new Map(),
+    Lightning: new Map(),
+    Cold: new Map(),
+    Fire: new Map(),
+    Chaos: new Map(),
+  };
+  const addPacket = (target: DamageType, mask: number, mn: number, mx: number) => {
+    if (mn <= 0 && mx <= 0) return;
+    const prev = packets[target].get(mask);
+    if (prev) {
+      prev[0] += mn;
+      prev[1] += mx;
+    } else {
+      packets[target].set(mask, [mn, mx]);
     }
+  };
+  for (const dt of DAMAGE_TYPES) {
+    addPacket(dt, DMG_BIT[dt], baseMin[dt], baseMax[dt]);
   }
+
+  const applyConversionStage = (
+    source: DamageType,
+    targets: readonly DamageType[],
+    convModPrefix: string,
+    gainModPrefix?: string,
+  ) => {
+    const srcEntries = [...packets[source].entries()];
+    if (srcEntries.length === 0) return;
+    const convPcts = targets.map((t) => Math.max(0, skillDb.sum('BASE', `${convModPrefix}${t}`, flags, kwFlags)));
+    const convSum = convPcts.reduce((a, b) => a + b, 0);
+    const convScale = convSum > 100 ? 100 / convSum : 1;
+    const gainPcts = gainModPrefix
+      ? targets.map((t) => Math.max(0, skillDb.sum('BASE', `${gainModPrefix}${t}`, flags, kwFlags)))
+      : targets.map(() => 0);
+    const gainSum = gainPcts.reduce((a, b) => a + b, 0);
+    if (convSum <= 0 && gainSum <= 0) return;
+
+    const totalConvFrac = Math.min(1, (convSum * convScale) / 100);
+    const remainingFrac = Math.max(0, 1 - totalConvFrac);
+    packets[source].clear();
+
+    for (const [mask, [mn, mx]] of srcEntries) {
+      if (remainingFrac > 0) {
+        addPacket(source, mask, mn * remainingFrac, mx * remainingFrac);
+      }
+      targets.forEach((target, i) => {
+        const cFrac = (convPcts[i]! * convScale) / 100;
+        const gFrac = gainPcts[i]! / 100;
+        const totalFrac = cFrac + gFrac;
+        if (totalFrac > 0) {
+          const nextMask = build.game === 'poe1' ? mask | DMG_BIT[target] : DMG_BIT[target];
+          addPacket(target, nextMask, mn * totalFrac, mx * totalFrac);
+        }
+      });
+    }
+  };
+
+  applyConversionStage('Physical', ['Lightning', 'Cold', 'Fire', 'Chaos'], 'PhysicalDamageConvertTo', 'PhysicalDamageGainAs');
+  applyConversionStage('Lightning', ['Cold', 'Fire', 'Chaos'], 'LightningDamageConvertTo');
+  applyConversionStage('Cold', ['Fire', 'Chaos'], 'ColdDamageConvertTo');
+  applyConversionStage('Fire', ['Chaos'], 'FireDamageConvertTo');
+
   const eleExtraChaos = skillDb.sum('BASE', 'ElementalDamageGainAsChaos', flags, kwFlags);
   if (eleExtraChaos > 0) {
-    const eleMin = finalBaseMin.Fire + finalBaseMin.Cold + finalBaseMin.Lightning;
-    const eleMax = finalBaseMax.Fire + finalBaseMax.Cold + finalBaseMax.Lightning;
-    finalBaseMin.Chaos += eleMin * (eleExtraChaos / 100);
-    finalBaseMax.Chaos += eleMax * (eleExtraChaos / 100);
+    const frac = eleExtraChaos / 100;
+    for (const el of ['Lightning', 'Cold', 'Fire'] as const) {
+      for (const [mask, [mn, mx]] of packets[el].entries()) {
+        const nextMask = build.game === 'poe1' ? mask | DMG_BIT.Chaos : DMG_BIT.Chaos;
+        addPacket('Chaos', nextMask, mn * frac, mx * frac);
+      }
+    }
   }
 
   // PoE 2 Archmage: Gain X% of ALL Damage as Extra Fire/Cold/Lightning/Chaos per 100 Maximum Mana (Spells)
   if (!isAttack && !isMinion && _defence.mana >= 100) {
     const manaHundreds = Math.floor(_defence.mana / 100);
-    const totalPreMin =
-      finalBaseMin.Physical + finalBaseMin.Fire + finalBaseMin.Cold + finalBaseMin.Lightning + finalBaseMin.Chaos;
-    const totalPreMax =
-      finalBaseMax.Physical + finalBaseMax.Fire + finalBaseMax.Cold + finalBaseMax.Lightning + finalBaseMax.Chaos;
+    let totalPreMin = 0;
+    let totalPreMax = 0;
+    for (const dt of DAMAGE_TYPES) {
+      for (const [mn, mx] of packets[dt].values()) {
+        totalPreMin += mn;
+        totalPreMax += mx;
+      }
+    }
     for (const target of ['Fire', 'Cold', 'Lightning', 'Chaos'] as const) {
       const per100 = skillDb.sum('BASE', `SpellGainAs${target}PerMana100`, flags, kwFlags);
       if (per100 > 0) {
         const extraFrac = (per100 * manaHundreds) / 100;
-        finalBaseMin[target] += totalPreMin * extraFrac;
-        finalBaseMax[target] += totalPreMax * extraFrac;
+        addPacket(target, DMG_BIT[target], totalPreMin * extraFrac, totalPreMax * extraFrac);
       }
     }
   }
 
-  // Full PoE conversion chain: Lightning -> Cold -> Fire -> Chaos (each stage normalized to <= 100%)
-  const convertStage = (
-    source: 'Lightning' | 'Cold' | 'Fire',
-    targets: Array<'Cold' | 'Fire' | 'Chaos'>,
-  ) => {
-    const pcts = targets.map((target) =>
-      source === 'Fire'
-        ? target === 'Chaos'
-          ? Math.max(0, skillDb.sum('BASE', 'FireDamageConvertToChaos', flags, kwFlags))
-          : 0
-        : Math.max(0, skillDb.sum('BASE', `${source}DamageConvertTo${target}`, flags, kwFlags)),
-    );
-    const totalPct = pcts.reduce((sum, pct) => sum + pct, 0);
-    if (totalPct <= 0) return;
-    const scale = totalPct > 100 ? 100 / totalPct : 1;
-    const srcMin = finalBaseMin[source];
-    const srcMax = finalBaseMax[source];
-    let convertedFrac = 0;
-    targets.forEach((target, i) => {
-      const frac = (pcts[i]! * scale) / 100;
-      if (frac <= 0) return;
-      finalBaseMin[target] += srcMin * frac;
-      finalBaseMax[target] += srcMax * frac;
-      convertedFrac += frac;
-    });
-    finalBaseMin[source] = srcMin * (1 - convertedFrac);
-    finalBaseMax[source] = srcMax * (1 - convertedFrac);
-  };
-  convertStage('Lightning', ['Cold', 'Fire', 'Chaos']);
-  convertStage('Cold', ['Fire', 'Chaos']);
-  convertStage('Fire', ['Chaos']);
+  const finalBaseMin: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
+  const finalBaseMax: Record<DamageType, number> = { Physical: 0, Lightning: 0, Cold: 0, Fire: 0, Chaos: 0 };
+  for (const dt of DAMAGE_TYPES) {
+    for (const [mn, mx] of packets[dt].values()) {
+      finalBaseMin[dt] += mn;
+      finalBaseMax[dt] += mx;
+    }
+  }
 
   // Step C: Apply Increased & More multipliers + Enemy Resistances / Curses / Penetration + Shock/DamageTaken
   // Official PoB uses enemyFire/Cold/Lightning/ChaosResist directly (Pinnacle default = 50% Ele / 30% Chaos).
@@ -1602,28 +1606,23 @@ function computeGroupOffence(
       damageByType[dt] = { min: 0, max: 0, average: 0 };
       continue;
     }
-    const statNames = isMinion
-      ? ['MinionDamage']
-      : isEle
-        ? ['Damage', 'ElementalDamage', `${dt}Damage`]
-        : ['Damage', `${dt}Damage`];
-
-    const inc = skillDb.sum('INC', statNames, flags, kwFlags);
-    const more = skillDb.more(statNames, flags, kwFlags);
-    const preMitMult = (1 + inc / 100) * more;
-
-    let rawMin = finalBaseMin[dt] * preMitMult;
-    let rawMax = finalBaseMax[dt] * preMitMult;
-    // PoE 1 authentic conversion rule: portion converted/gained from Physical also scales with PhysicalDamage
-    if (build.game === 'poe1' && !isMinion && dt !== 'Physical' && fromPhysMax[dt] > 0) {
-      const physConvStats = [...statNames, 'PhysicalDamage'];
-      const convInc = skillDb.sum('INC', physConvStats, flags, kwFlags);
-      const convMore = skillDb.more(physConvStats, flags, kwFlags);
-      const convMult = (1 + convInc / 100) * convMore;
-      const nonPhysMin = Math.max(0, finalBaseMin[dt] - fromPhysMin[dt]);
-      const nonPhysMax = Math.max(0, finalBaseMax[dt] - fromPhysMax[dt]);
-      rawMin = nonPhysMin * preMitMult + fromPhysMin[dt] * convMult;
-      rawMax = nonPhysMax * preMitMult + fromPhysMax[dt] * convMult;
+    let rawMin = 0;
+    let rawMax = 0;
+    for (const [mask, [pMin, pMax]] of packets[dt].entries()) {
+      const statNames: string[] = isMinion ? ['MinionDamage'] : ['Damage'];
+      if (!isMinion) {
+        if ((mask & ELE_MASK) !== 0) statNames.push('ElementalDamage');
+        for (const srcType of DAMAGE_TYPES) {
+          if ((mask & DMG_BIT[srcType]) !== 0) {
+            statNames.push(`${srcType}Damage`);
+          }
+        }
+      }
+      const inc = skillDb.sum('INC', statNames, flags, kwFlags);
+      const more = skillDb.more(statNames, flags, kwFlags);
+      const mult = (1 + inc / 100) * more;
+      rawMin += pMin * mult;
+      rawMax += pMax * mult;
     }
     const rawAvg = (rawMin + rawMax) / 2;
 
