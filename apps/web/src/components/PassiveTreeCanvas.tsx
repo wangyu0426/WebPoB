@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
+  Check,
   ChevronRight,
   Copy,
   Crosshair,
   Gem,
   Flame,
   GitCompare,
+  ListTree,
   Loader2,
   Maximize2,
   Plus,
@@ -124,6 +126,8 @@ export function PassiveTreeCanvas() {
   const [jumpDrawerOpen, setJumpDrawerOpen] = useState(false);
   const [jumpFilter, setJumpFilter] = useState<'keystone' | 'jewel' | 'allocated'>('keystone');
   const [jumpQuery, setJumpQuery] = useState('');
+  const [allocatedDrawerOpen, setAllocatedDrawerOpen] = useState(false);
+  const [allocatedCopied, setAllocatedCopied] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState<number | null>(null);
   const [compareSpecIdx, setCompareSpecIdx] = useState<number | null>(null);
   const cameraAnimRef = useRef<number | null>(null);
@@ -721,6 +725,109 @@ export function PassiveTreeCanvas() {
       .slice(0, 120);
   }, [visibleNodes, jumpFilter, jumpQuery, allocatedTreeSet, locale]);
 
+  const allocatedSummary = useMemo(() => {
+    const allocatedNodes = [...allocatedTreeSet]
+      .map((id) => tree.nodes[id])
+      .filter((node): node is PassiveNode => Boolean(node));
+
+    const keystones = allocatedNodes.filter((node) => node.kind === 'keystone');
+    const ascendancyNotables = allocatedNodes.filter(
+      (node) => node.kind === 'notable' && Boolean(node.ascendancyId),
+    );
+    const notables = allocatedNodes.filter(
+      (node) => node.kind === 'notable' && !node.ascendancyId,
+    );
+    const jewelSockets = allocatedNodes.filter((node) => node.kind === 'jewel');
+    const masteries = allocatedNodes.filter((node) => node.kind === 'mastery');
+    const smallPassives = allocatedNodes.filter((node) => node.kind === 'small');
+
+    const byName = (a: PassiveNode, b: PassiveNode) =>
+      localizeText(a.name, locale).localeCompare(localizeText(b.name, locale));
+    keystones.sort(byName);
+    ascendancyNotables.sort(byName);
+    notables.sort(byName);
+    masteries.sort(byName);
+
+    const modifierCounts = new Map<string, number>();
+    const addLine = (line: string) => {
+      const localized = localizeStatLine(line, locale).trim();
+      if (!localized) return;
+      modifierCounts.set(localized, (modifierCounts.get(localized) ?? 0) + 1);
+    };
+    for (const node of allocatedNodes) {
+      if (node.kind === 'mastery') {
+        const chosen = build.tree.masteryEffects[node.id];
+        if (chosen) addLine(chosen);
+        continue;
+      }
+      for (const stat of node.stats) addLine(stat);
+    }
+    const modifiers = [...modifierCounts.entries()]
+      .map(([line, count]) => ({ line, count }))
+      .sort((a, b) => b.count - a.count || a.line.localeCompare(b.line));
+
+    return {
+      allocatedNodes,
+      keystones,
+      ascendancyNotables,
+      notables,
+      jewelSockets,
+      masteries,
+      smallPassives,
+      modifiers,
+    };
+  }, [allocatedTreeSet, tree.nodes, build.tree.masteryEffects, locale]);
+
+  const copyAllocatedSummary = useCallback(async () => {
+    const sections: string[] = [];
+    if (allocatedSummary.keystones.length > 0) {
+      sections.push(
+        `${locale === 'zh-CN' ? '基石' : 'Keystones'}:\n${allocatedSummary.keystones
+          .map((node) => `- ${localizeText(node.name, locale)}`)
+          .join('\n')}`,
+      );
+    }
+    const notables = [...allocatedSummary.ascendancyNotables, ...allocatedSummary.notables];
+    if (notables.length > 0) {
+      sections.push(
+        `${locale === 'zh-CN' ? '大点' : 'Notables'}:\n${notables
+          .map((node) => `- ${localizeText(node.name, locale)}`)
+          .join('\n')}`,
+      );
+    }
+    if (allocatedSummary.masteries.length > 0) {
+      sections.push(
+        `${locale === 'zh-CN' ? '专精' : 'Masteries'}:\n${allocatedSummary.masteries
+          .map((node) => {
+            const chosen = build.tree.masteryEffects[node.id];
+            return `- ${localizeText(node.name, locale)}${chosen ? `: ${localizeStatLine(chosen, locale)}` : ''}`;
+          })
+          .join('\n')}`,
+      );
+    }
+    const text =
+      sections.join('\n\n') ||
+      (locale === 'zh-CN' ? '尚未分配任何天赋' : 'No passives allocated yet');
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      setAllocatedCopied(true);
+      window.setTimeout(() => setAllocatedCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable; leave the button state unchanged.
+    }
+  }, [allocatedSummary, build.tree.masteryEffects, locale]);
+
   const topPowerNodes = useMemo(() => {
     if (!heatmapEnabled || heatmapMap.size === 0) return [];
     const items = [...heatmapMap.values()]
@@ -769,6 +876,17 @@ export function PassiveTreeCanvas() {
     if (!node || node.kind === 'start' || node.kind === 'mastery') return null;
     return computeNodePower(build, hoveredNodeId, calc);
   }, [hoveredNodeId, tree, build, calc]);
+
+  const hoverPathNodeCount = previewPathSet.size;
+  const hoverEhpDeltaPct =
+    hoveredPower && calc.defence.effectiveHitPool > 0
+      ? (hoveredPower.ehpDelta / calc.defence.effectiveHitPool) * 100
+      : 0;
+  const hoverDpsPerPoint =
+    hoveredPower && hoverPathNodeCount > 1 ? hoveredPower.dpsDeltaPct / hoverPathNodeCount : null;
+  const hoverEhpPerPoint =
+    hoveredPower && hoverPathNodeCount > 1 ? hoverEhpDeltaPct / hoverPathNodeCount : null;
+  const isHighEfficiencyHover = hoverDpsPerPoint !== null && hoverDpsPerPoint >= 2;
 
   const screenToWorld = useCallback(
     (sx: number, sy: number) => {
@@ -1726,14 +1844,18 @@ export function PassiveTreeCanvas() {
           <button
             type="button"
             onClick={() => {
-              if (jumpDrawerOpen && heatmapEnabled) {
+              if ((jumpDrawerOpen || allocatedDrawerOpen) && heatmapEnabled) {
                 setJumpDrawerOpen(false);
+                setAllocatedDrawerOpen(false);
                 setPowerDrawerOpen(true);
                 return;
               }
               setHeatmapEnabled((v) => {
                 const next = !v;
-                if (next) setJumpDrawerOpen(false);
+                if (next) {
+                  setJumpDrawerOpen(false);
+                  setAllocatedDrawerOpen(false);
+                }
                 return next;
               });
             }}
@@ -1760,7 +1882,10 @@ export function PassiveTreeCanvas() {
             onClick={() => {
               setJumpDrawerOpen((open) => {
                 const next = !open;
-                if (next) setPowerDrawerOpen(false);
+                if (next) {
+                  setPowerDrawerOpen(false);
+                  setAllocatedDrawerOpen(false);
+                }
                 return next;
               });
             }}
@@ -1777,6 +1902,32 @@ export function PassiveTreeCanvas() {
           >
             <Gem className="w-3.5 h-3.5" />
             {locale === 'zh-CN' ? '基石/插槽' : 'Keystones'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAllocatedDrawerOpen((open) => {
+                const next = !open;
+                if (next) {
+                  setPowerDrawerOpen(false);
+                  setJumpDrawerOpen(false);
+                }
+                return next;
+              });
+            }}
+            title={
+              locale === 'zh-CN'
+                ? '查看已点天赋与聚合词缀总览'
+                : 'Allocated passives and aggregated modifiers overview'
+            }
+            className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition whitespace-nowrap shrink-0 ${
+              allocatedDrawerOpen
+                ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200'
+                : 'bg-[#141824]/90 border-[#2a3147] text-zinc-300 hover:text-emerald-200'
+            }`}
+          >
+            <ListTree className="w-3.5 h-3.5" />
+            {locale === 'zh-CN' ? '已点总览' : 'Allocated'}
           </button>
           <button
             type="button"
@@ -1898,7 +2049,7 @@ export function PassiveTreeCanvas() {
       </div>
 
       {/* Floating Top Power Nodes Efficiency Drawer (when Heatmap is active) */}
-      {heatmapEnabled && !jumpDrawerOpen && (
+      {heatmapEnabled && !jumpDrawerOpen && !allocatedDrawerOpen && (
         <div className="absolute top-16 right-3 z-20 w-72 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-orange-500/40 shadow-2xl overflow-hidden pointer-events-auto">
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-orange-300">
@@ -1911,7 +2062,10 @@ export function PassiveTreeCanvas() {
               onClick={() => {
                 setPowerDrawerOpen((v) => {
                   const next = !v;
-                  if (next) setJumpDrawerOpen(false);
+                  if (next) {
+                    setJumpDrawerOpen(false);
+                    setAllocatedDrawerOpen(false);
+                  }
                   return next;
                 });
               }}
@@ -2142,6 +2296,148 @@ export function PassiveTreeCanvas() {
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Allocated Passives Summary Drawer */}
+      {allocatedDrawerOpen && (
+        <div className="absolute top-16 right-3 z-20 w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-emerald-500/40 shadow-2xl overflow-hidden pointer-events-auto">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+              <ListTree className="w-3.5 h-3.5" />
+              {locale === 'zh-CN' ? '已点天赋总览' : 'Allocated Passives'}
+              <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-1 text-[10px] font-mono text-emerald-200">
+                {allocatedSummary.allocatedNodes.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAllocatedDrawerOpen(false)}
+              className="text-zinc-400 hover:text-zinc-200 cursor-pointer p-0.5"
+              title={locale === 'zh-CN' ? '关闭' : 'Close'}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Summary counters */}
+          <div className="grid grid-cols-3 gap-1 p-1.5 bg-[#0a0d14] border-b border-[#1e2436] text-center">
+            {(
+              [
+                [locale === 'zh-CN' ? '基石' : 'Keystones', allocatedSummary.keystones.length, 'text-orange-300'],
+                [locale === 'zh-CN' ? '升华大点' : 'Asc Notables', allocatedSummary.ascendancyNotables.length, 'text-amber-300'],
+                [locale === 'zh-CN' ? '大点' : 'Notables', allocatedSummary.notables.length, 'text-sky-300'],
+                [locale === 'zh-CN' ? '珠宝槽' : 'Jewel Sockets', allocatedSummary.jewelSockets.length, 'text-emerald-300'],
+                [locale === 'zh-CN' ? '专精' : 'Masteries', allocatedSummary.masteries.length, 'text-violet-300'],
+                [locale === 'zh-CN' ? '小点' : 'Small Passives', allocatedSummary.smallPassives.length, 'text-zinc-300'],
+              ] as const
+            ).map(([label, count, tone]) => (
+              <div key={label} className="rounded bg-[#10141f] border border-[#1f2638] px-1 py-1">
+                <div className={`font-mono font-bold text-xs ${tone}`}>{count}</div>
+                <div className="text-[9px] text-zinc-500 leading-tight truncate">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-y-auto divide-y divide-[#1b2030]">
+            {(
+              [
+                [locale === 'zh-CN' ? '基石' : 'Keystones', allocatedSummary.keystones, 'text-orange-300'],
+                [locale === 'zh-CN' ? '升华大点' : 'Ascendancy Notables', allocatedSummary.ascendancyNotables, 'text-amber-300'],
+                [locale === 'zh-CN' ? '大点' : 'Notables', allocatedSummary.notables, 'text-sky-300'],
+                [locale === 'zh-CN' ? '已点专精' : 'Allocated Masteries', allocatedSummary.masteries, 'text-violet-300'],
+              ] as const
+            ).map(([label, nodes, tone]) => (
+              <div key={label} className="px-2 py-1.5 space-y-1">
+                <div className={`text-[10px] font-semibold uppercase tracking-wider ${tone}`}>
+                  {label} <span className="text-zinc-500 font-mono">({nodes.length})</span>
+                </div>
+                {nodes.length === 0 ? (
+                  <div className="text-[10px] text-zinc-600 pl-1">
+                    {locale === 'zh-CN' ? '无' : 'None'}
+                  </div>
+                ) : (
+                  nodes.map((node) => {
+                    const isHighlighted = highlightedNodeId === node.id;
+                    const masteryLine =
+                      node.kind === 'mastery' ? build.tree.masteryEffects[node.id] : undefined;
+                    return (
+                      <button
+                        key={node.id}
+                        type="button"
+                        onClick={() => panToNode(node.id)}
+                        className={`w-full text-left px-1.5 py-1 rounded transition cursor-pointer ${
+                          isHighlighted ? 'bg-emerald-500/15' : 'hover:bg-[#161c2c]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                          <span className="text-xs font-semibold text-zinc-100 truncate">
+                            {localizeText(node.name, locale)}
+                          </span>
+                        </div>
+                        {masteryLine && (
+                          <div className="pl-3 mt-0.5 text-[10px] text-violet-200/80 truncate font-mono">
+                            {localizeStatLine(masteryLine, locale)}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ))}
+
+            {/* Aggregated Tree Modifiers */}
+            <div className="px-2 py-1.5 space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+                {locale === 'zh-CN' ? '天赋词缀汇总' : 'Aggregated Tree Modifiers'}{' '}
+                <span className="text-zinc-500 font-mono">({allocatedSummary.modifiers.length})</span>
+              </div>
+              {allocatedSummary.modifiers.length === 0 ? (
+                <div className="text-[10px] text-zinc-600 pl-1">
+                  {locale === 'zh-CN' ? '无' : 'None'}
+                </div>
+              ) : (
+                <div className="space-y-0.5 max-h-56 overflow-y-auto pr-0.5">
+                  {allocatedSummary.modifiers.map((modifier) => (
+                    <div
+                      key={modifier.line}
+                      className="flex items-start justify-between gap-1.5 rounded bg-[#0c0e15] border border-[#1f2436] px-1.5 py-0.5"
+                    >
+                      <span className="text-[10px] text-zinc-300 leading-snug">{modifier.line}</span>
+                      {modifier.count > 1 && (
+                        <span className="shrink-0 rounded bg-emerald-500/15 border border-emerald-500/35 px-1 text-[9px] font-mono font-semibold text-emerald-300">
+                          ×{modifier.count}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-1.5 border-t border-[#1e2436] bg-[#0a0d14]">
+            <button
+              type="button"
+              onClick={() => void copyAllocatedSummary()}
+              className={`w-full inline-flex items-center justify-center gap-1.5 rounded border px-2 py-1 text-[11px] font-semibold cursor-pointer transition ${
+                allocatedCopied
+                  ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300'
+                  : 'bg-[#161c2b] hover:bg-[#1e263a] border-[#2e364f] text-emerald-200'
+              }`}
+            >
+              {allocatedCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+              {allocatedCopied
+                ? locale === 'zh-CN'
+                  ? '已复制天赋清单'
+                  : 'Tree summary copied'
+                : locale === 'zh-CN'
+                  ? '复制天赋清单'
+                  : 'Copy Tree Summary'}
+            </button>
           </div>
         </div>
       )}
@@ -2764,9 +3060,17 @@ export function PassiveTreeCanvas() {
 
           {hoveredPower && (
             <div className="mt-2.5 pt-2 border-t border-[#262d40] space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
-                {t(locale, 'tree.nodePower')}{' '}
-                {previewPathSet.size > 1 && `(+${previewPathSet.size} pts)`}
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+                  {t(locale, 'tree.nodePower')}{' '}
+                  {hoverPathNodeCount > 1 && `(+${hoverPathNodeCount} pts)`}
+                </div>
+                {isHighEfficiencyHover && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-mono font-semibold text-emerald-300">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    {locale === 'zh-CN' ? '高效' : 'High Eff.'}
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-1 font-mono text-[11px]">
                 <div className={hoveredPower.dpsDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
@@ -2788,6 +3092,39 @@ export function PassiveTreeCanvas() {
                   {Math.round(hoveredPower.ehpDelta).toLocaleString()}
                 </div>
               </div>
+              {(hoverDpsPerPoint !== null || hoverEhpPerPoint !== null) && (
+                <div className="space-y-0.5 rounded bg-[#0a0d14]/70 border border-[#252b3d] px-2 py-1 font-mono text-[10px]">
+                  <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-sans font-semibold">
+                    {locale === 'zh-CN' ? '每点收益效率' : 'Per-Point Efficiency'}
+                  </div>
+                  {hoverDpsPerPoint !== null && (
+                    <div
+                      className={
+                        isHighEfficiencyHover ? 'text-emerald-300 font-semibold' : 'text-zinc-300'
+                      }
+                    >
+                      DPS {hoveredPower.dpsDeltaPct >= 0 ? '+' : ''}
+                      {hoveredPower.dpsDeltaPct}%{' '}
+                      <span className="text-zinc-400">
+                        {locale === 'zh-CN'
+                          ? `(每点 ${hoverDpsPerPoint >= 0 ? '+' : ''}${hoverDpsPerPoint.toFixed(1)}%)`
+                          : `(${hoverDpsPerPoint >= 0 ? '+' : ''}${hoverDpsPerPoint.toFixed(1)}%/pt)`}
+                      </span>
+                    </div>
+                  )}
+                  {hoverEhpPerPoint !== null && (
+                    <div className="text-sky-300">
+                      EHP {hoverEhpDeltaPct >= 0 ? '+' : ''}
+                      {hoverEhpDeltaPct.toFixed(1)}%{' '}
+                      <span className="text-zinc-400">
+                        {locale === 'zh-CN'
+                          ? `(每点 ${hoverEhpPerPoint >= 0 ? '+' : ''}${hoverEhpPerPoint.toFixed(1)}%)`
+                          : `(${hoverEhpPerPoint >= 0 ? '+' : ''}${hoverEhpPerPoint.toFixed(1)}%/pt)`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
