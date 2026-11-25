@@ -111,6 +111,29 @@ export function SkillsTab() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {(() => {
+                    const activeInGroup = group.gems
+                      .filter((gi) => gi.enabled)
+                      .map((gi) => ({ gi, def: gemsCatalog.find((g) => g.id === gi.gemId) }))
+                      .filter((x) => x.def && x.def.category === 'active' && !x.def.isAuraOrBuff);
+                    if (activeInGroup.length < 2) return null;
+                    return (
+                      <select
+                        value={group.mainActiveSkillIndex ?? 1}
+                        onChange={(e) =>
+                          updateSkillGroup(group.id, { mainActiveSkillIndex: Number(e.target.value) || 1 })
+                        }
+                        title={locale === 'zh-CN' ? '选择本组主计算主动技能（如 CoC 法术）' : 'Active skill to calculate (e.g. CoC spell)'}
+                        className="pob-input rounded px-2 py-1 text-xs text-cyan-200 border-cyan-500/40"
+                      >
+                        {activeInGroup.map((item, idx) => (
+                          <option key={item.gi.instanceId} value={idx + 1}>
+                            #{idx + 1} {localizeText(item.def!.name, locale)}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  })()}
                   {build.game === 'poe1' ? (
                     <select
                       value={group.slot ?? 'Body Armour'}

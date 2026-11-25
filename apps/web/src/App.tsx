@@ -40,14 +40,14 @@ export function App() {
     void ensureOfficialDataLoaded(build.game);
   }, [build.game, ensureOfficialDataLoaded]);
 
-  // Auto-load shared build from URL hash (#pob=<base64url-code>)
+  // Auto-load shared build from URL hash (#pob=<base64url-code>) on mount and hashchange
   useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash.startsWith('#pob=')) return;
-    const code = hash.slice(5).trim();
-    if (!code) return;
     let cancelled = false;
-    (async () => {
+    const loadFromHash = async () => {
+      const hash = window.location.hash;
+      if (!hash.startsWith('#pob=')) return;
+      const code = hash.slice(5).trim();
+      if (!code) return;
       try {
         const xml = decodePobCodeToXml(code);
         const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';
@@ -60,11 +60,16 @@ export function App() {
       } catch (err) {
         console.warn('[WebPoB] Failed to load #pob URL hash build:', err);
       }
-    })();
+    };
+    void loadFromHash();
+    const onHashChange = () => {
+      void loadFromHash();
+    };
+    window.addEventListener('hashchange', onHashChange);
     return () => {
       cancelled = true;
+      window.removeEventListener('hashchange', onHashChange);
     };
-    // Run once on initial mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

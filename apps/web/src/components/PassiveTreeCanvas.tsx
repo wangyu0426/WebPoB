@@ -17,6 +17,7 @@ import {
   findShortestPathToNode,
   getAllClusterNotables,
   getAscendancyStartNodeId,
+  getClusterNotable,
   getTreeForGame,
   getUniquesForGame,
   instantiateUniqueItem,
@@ -87,7 +88,14 @@ export function PassiveTreeCanvas() {
   const [hoveredNodeId, setHoveredNodeId] = useState<number | null>(null);
   const [masteryModalNodeId, setMasteryModalNodeId] = useState<number | null>(null);
   const [jewelModalNodeId, setJewelModalNodeId] = useState<number | null>(null);
-  const [jewelModalTab, setJewelModalTab] = useState<'standard' | 'cluster'>('standard');
+  const [jewelModalTab, setJewelModalTab] = useState<'standard' | 'cluster' | 'timeless'>('standard');
+  const [hoveredClusterNode, setHoveredClusterNode] = useState<{
+    name: string;
+    nameZh?: string;
+    kind: 'small' | 'notable' | 'jewel';
+    stats: string[];
+    statsZh?: string[];
+  } | null>(null);
   const [jewelSearch, setJewelSearch] = useState('');
   const [clusterSize, setClusterSize] = useState<'Large' | 'Medium' | 'Small'>('Large');
   const [clusterSmallGrant, setClusterSmallGrant] = useState('12% increased Lightning Damage');
@@ -160,6 +168,131 @@ export function PassiveTreeCanvas() {
     }
     return { x: cx, y: cy, radius: maxDist + 160, count: ascNodes.length };
   }, [visibleNodes, build.ascendancyId]);
+
+  // Visual Cluster Jewel Sub-Graphs synthesized radially around every allocated Cluster Jewel socket
+  const clusterSubGraphs = useMemo(() => {
+    const graphs: Array<{
+      parentSocket: PassiveNode;
+      cx: number;
+      cy: number;
+      ringRadius: number;
+      nodes: Array<{
+        x: number;
+        y: number;
+        kind: 'small' | 'notable' | 'jewel';
+        name: string;
+        nameZh?: string;
+        stats: string[];
+        statsZh?: string[];
+      }>;
+    }> = [];
+    const offset = isOfficialFull ? 600 : 115;
+    const ringRadius = isOfficialFull ? 320 : 62;
+    for (const [nodeIdStr, itemId] of Object.entries(build.tree.socketedJewels ?? {})) {
+      const nodeId = Number(nodeIdStr);
+      if (!build.tree.allocatedNodeIds.includes(nodeId)) continue;
+      const parentSocket = tree.nodes[nodeId];
+      const jewel = build.items[itemId];
+      if (!parentSocket || !jewel || !jewel.baseName.toLowerCase().includes('cluster jewel')) continue;
+
+      const allLines = [...jewel.implicits, ...jewel.explicits];
+      let totalAdded = 8;
+      let socketCount = 0;
+      const smallGrants: string[] = [];
+      const notableNames: string[] = [];
+      for (const l of allLines) {
+        let m = l.match(/^Adds (\d+) Passive Skills$/i);
+        if (m) {
+          totalAdded = Number(m[1]);
+          continue;
+        }
+        m = l.match(/^(\d+) Added Passive Skills? (?:is|are) (?:a )?Jewel Sockets?$/i);
+        if (m) {
+          socketCount = Number(m[1]);
+          continue;
+        }
+        m = l.match(/^1 Added Passive Skill is (.+)$/i);
+        if (m) {
+          notableNames.push(m[1]!.trim());
+          continue;
+        }
+        m = l.match(/^Added Small Passive Skills (?:also )?grant:\s*(.+)$/i);
+        if (m) {
+          smallGrants.push(m[1]!.trim());
+        }
+      }
+
+      const smallCount = Math.max(1, totalAdded - socketCount - notableNames.length);
+      const outAngle = Math.atan2(parentSocket.y, parentSocket.x);
+      const cx = parentSocket.x + Math.cos(outAngle) * offset;
+      const cy = parentSocket.y + Math.sin(outAngle) * offset;
+
+      // Order ring nodes cleanly: entrance small, alternating notables/sockets/smalls
+      const specs: Array<{
+        kind: 'small' | 'notable' | 'jewel';
+        name: string;
+        nameZh?: string;
+        stats: string[];
+        statsZh?: string[];
+      }> = [];
+      const totalSlots = Math.max(3, Math.min(12, totalAdded));
+      const notablePositions = new Set<number>();
+      const socketPositions = new Set<number>();
+      for (let i = 0; i < notableNames.length; i++) {
+        notablePositions.add(Math.round(((i + 1) * totalSlots) / (notableNames.length + 1)));
+      }
+      let placedSockets = 0;
+      for (let pos = 1; pos < totalSlots && placedSockets < socketCount; pos++) {
+        const idx = (pos * 2) % totalSlots;
+        if (idx !== 0 && !notablePositions.has(idx) && !socketPositions.has(idx)) {
+          socketPositions.add(idx);
+          placedSockets++;
+        }
+      }
+
+      let nIdx = 0;
+      for (let i = 0; i < totalSlots; i++) {
+        if (notablePositions.has(i) && nIdx < notableNames.length) {
+          const nName = notableNames[nIdx++]!;
+          const def = getClusterNotable(nName);
+          specs.push({
+            kind: 'notable',
+            name: def?.en ?? nName,
+            nameZh: def?.zh,
+            stats: def?.st ?? [nName],
+            statsZh: def?.sz,
+          });
+        } else if (socketPositions.has(i)) {
+          specs.push({
+            kind: 'jewel',
+            name: 'Cluster Jewel Socket',
+            nameZh: '星团子珠宝插槽',
+            stats: ['Medium / Small Cluster Socket'],
+          });
+        } else {
+          specs.push({
+            kind: 'small',
+            name: smallCount > 0 ? 'Cluster Small Passive' : 'Cluster Passive',
+            nameZh: '星团小天赋',
+            stats: smallGrants.length > 0 ? smallGrants : ['Cluster Small Passive'],
+          });
+        }
+      }
+
+      const startAngle = outAngle + Math.PI;
+      const nodes = specs.map((sp, i) => {
+        const ang = startAngle + (i / specs.length) * Math.PI * 2;
+        return {
+          ...sp,
+          x: cx + Math.cos(ang) * ringRadius,
+          y: cy + Math.sin(ang) * ringRadius,
+        };
+      });
+
+      graphs.push({ parentSocket, cx, cy, ringRadius, nodes });
+    }
+    return graphs;
+  }, [build.tree.socketedJewels, build.tree.allocatedNodeIds, build.items, tree.nodes, isOfficialFull]);
 
   // Build spatial hash grid for O(1) hover & click hit-testing across 4,500+ nodes
   const spatialGrid = useMemo(() => {
@@ -766,6 +899,89 @@ export function PassiveTreeCanvas() {
       }
     }
 
+    // 3. Draw Visual Cluster Jewel Sub-Graphs around allocated outer jewel sockets
+    for (const sg of clusterSubGraphs) {
+      if (
+        sg.cx + sg.ringRadius * 1.6 < viewMinX ||
+        sg.cx - sg.ringRadius * 1.6 > viewMaxX ||
+        sg.cy + sg.ringRadius * 1.6 < viewMinY ||
+        sg.cy - sg.ringRadius * 1.6 > viewMaxY
+      ) {
+        continue;
+      }
+
+      // Translucent golden-amber cluster disc backdrop
+      ctx.save();
+      const cGrad = ctx.createRadialGradient(sg.cx, sg.cy, sg.ringRadius * 0.1, sg.cx, sg.cy, sg.ringRadius * 1.35);
+      cGrad.addColorStop(0, 'rgba(245, 158, 11, 0.16)');
+      cGrad.addColorStop(0.75, 'rgba(217, 119, 6, 0.08)');
+      cGrad.addColorStop(1, 'rgba(217, 119, 6, 0)');
+      ctx.beginPath();
+      ctx.arc(sg.cx, sg.cy, sg.ringRadius * 1.35, 0, Math.PI * 2);
+      ctx.fillStyle = cGrad;
+      ctx.fill();
+
+      // Golden connector from parent socket to entrance node + full ring loop
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = activeLineWidth;
+      if (sg.nodes.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(sg.parentSocket.x, sg.parentSocket.y);
+        ctx.lineTo(sg.nodes[0]!.x, sg.nodes[0]!.y);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(sg.cx, sg.cy, sg.ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Draw sub-graph nodes & bilingual notable labels
+      for (const cn of sg.nodes) {
+        const cr = getNodeRadius(cn.kind, isOfficialFull);
+        ctx.beginPath();
+        if (cn.kind === 'jewel') {
+          for (let i = 0; i < 6; i++) {
+            const ang = (Math.PI / 3) * i - Math.PI / 6;
+            const px = cn.x + cr * Math.cos(ang);
+            const py = cn.y + cr * Math.sin(ang);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = '#0f2b26';
+          ctx.strokeStyle = '#34d399';
+        } else if (cn.kind === 'notable') {
+          ctx.arc(cn.x, cn.y, cr, 0, Math.PI * 2);
+          ctx.fillStyle = '#6b4214';
+          ctx.strokeStyle = '#fbbf24';
+        } else {
+          ctx.arc(cn.x, cn.y, cr, 0, Math.PI * 2);
+          ctx.fillStyle = '#3d2c15';
+          ctx.strokeStyle = '#f3cc82';
+        }
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.2, 2 * invZoom);
+        ctx.fill();
+        ctx.stroke();
+
+        if (cn.kind === 'notable') {
+          ctx.beginPath();
+          ctx.arc(cn.x, cn.y, cr * 0.4, 0, Math.PI * 2);
+          ctx.fillStyle = '#fde68a';
+          ctx.fill();
+          if (showNotableLabels || camera.zoom >= 0.09) {
+            const fontPx = Math.round(11 * invZoom);
+            ctx.font = `700 ${fontPx}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#fde68a';
+            const label = locale === 'zh-CN' && cn.nameZh ? cn.nameZh : cn.name;
+            ctx.fillText(label, cn.x, cn.y + cr + 4 * invZoom);
+          }
+        }
+      }
+      ctx.restore();
+    }
+
     ctx.restore();
   }, [
     camera,
@@ -783,6 +999,7 @@ export function PassiveTreeCanvas() {
     locale,
     isOfficialFull,
     ascendancyCenter,
+    clusterSubGraphs,
     heatmapEnabled,
     heatmapMap,
   ]);
@@ -854,7 +1071,34 @@ export function PassiveTreeCanvas() {
       return;
     }
 
-    setHoveredNodeId(hitTestNode(sx, sy));
+    const hit = hitTestNode(sx, sy);
+    setHoveredNodeId(hit);
+    if (hit === null && clusterSubGraphs.length > 0) {
+      const world = screenToWorld(sx, sy);
+      const pad = 10 / Math.max(0.03, camera.zoom);
+      let found: typeof hoveredClusterNode = null;
+      for (const sg of clusterSubGraphs) {
+        for (const cn of sg.nodes) {
+          const hitR = getNodeRadius(cn.kind, isOfficialFull) + pad;
+          const dx = world.x - cn.x;
+          const dy = world.y - cn.y;
+          if (dx * dx + dy * dy <= hitR * hitR) {
+            found = {
+              name: cn.name,
+              nameZh: cn.nameZh,
+              kind: cn.kind,
+              stats: cn.stats,
+              statsZh: cn.statsZh,
+            };
+            break;
+          }
+        }
+        if (found) break;
+      }
+      setHoveredClusterNode(found);
+    } else if (hoveredClusterNode !== null) {
+      setHoveredClusterNode(null);
+    }
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1121,7 +1365,7 @@ export function PassiveTreeCanvas() {
             </div>
 
             {build.game === 'poe1' && (
-              <div className="flex items-center gap-1.5 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <button
                   type="button"
                   onClick={() => setJewelModalTab('standard')}
@@ -1142,7 +1386,18 @@ export function PassiveTreeCanvas() {
                       : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
-                  {locale === 'zh-CN' ? '星团珠宝工坊 (308核心天赋)' : 'Cluster Jewel Builder (308 Notables)'}
+                  {locale === 'zh-CN' ? '星团珠宝工坊 (308)' : 'Cluster Jewel (308)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJewelModalTab('timeless')}
+                  className={`px-3 py-1 rounded border cursor-pointer ${
+                    jewelModalTab === 'timeless'
+                      ? 'bg-purple-500/20 border-purple-400/60 text-purple-200 font-semibold'
+                      : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {locale === 'zh-CN' ? '永恒珠宝 (军团基石)' : 'Timeless Jewels'}
                 </button>
               </div>
             )}
@@ -1173,7 +1428,89 @@ export function PassiveTreeCanvas() {
                 </div>
               )}
 
-            {jewelModalTab === 'cluster' && build.game === 'poe1' ? (
+            {jewelModalTab === 'timeless' && build.game === 'poe1' ? (
+              <div className="space-y-2 text-xs">
+                <div className="text-[11px] text-zinc-400">
+                  {locale === 'zh-CN'
+                    ? '选择经典军团永恒珠宝与征服者核心基石（直接生效于当前计算）:'
+                    : 'Choose an iconic Timeless Jewel & Conqueror Keystone (applies live to calculations):'}
+                </div>
+                <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                  {[
+                    {
+                      name: 'Glorious Vanity (Doryani)',
+                      nameZh: '荣耀幻景 · 多里亚尼 (堕落之魂)',
+                      desc: 'Corrupted Soul — Gain 15% of Maximum Life as Extra Maximum Energy Shield',
+                      descZh: '堕落之魂 — 获得等同于最大生命 15% 的额外最大能量护盾',
+                      explicits: ['Corrupted Soul'],
+                    },
+                    {
+                      name: 'Glorious Vanity (Xibaqua)',
+                      nameZh: '荣耀幻景 · 希巴夸 (血肉神圣)',
+                      desc: 'Divine Flesh — +5% max Chaos Res, 50% Elemental Damage taken as Chaos',
+                      descZh: '血肉神圣 — 混沌抗性上限 +5%，50% 元素承伤转为混沌伤害',
+                      explicits: ['Divine Flesh'],
+                    },
+                    {
+                      name: 'Militant Faith (Dominus)',
+                      nameZh: '军团信仰 · 多米纳斯 (内在信念)',
+                      desc: 'Inner Conviction — 3% more Spell Damage per Power Charge',
+                      descZh: '内在信念 — 每个暴击球使法术伤害总增 3%',
+                      explicits: ['Inner Conviction'],
+                    },
+                    {
+                      name: 'Lethal Pride (Kaom)',
+                      nameZh: '致命骄傲 · 卡鲁 (力量与双倍伤害)',
+                      desc: '+20 Strength, 10% chance to deal Double Damage, 10% increased maximum Life',
+                      descZh: '+20 力量、10% 几率造成双倍伤害、最大生命提高 10%',
+                      explicits: [
+                        '+20 to Strength',
+                        '10% chance to deal Double Damage',
+                        '10% increased maximum Life',
+                      ],
+                    },
+                    {
+                      name: 'Brutal Restraint (Balbala)',
+                      nameZh: '残酷约束 · 巴尔巴拉 (敏捷与速度)',
+                      desc: '+20 Dexterity, 8% increased Movement Speed, 12% increased Attack and Cast Speed',
+                      descZh: '+20 敏捷、移动速度提高 8%、攻击与施法速度提高 12%',
+                      explicits: [
+                        '+20 to Dexterity',
+                        '8% increased Movement Speed',
+                        '12% increased Attack and Cast Speed',
+                      ],
+                    },
+                  ].map((tj) => (
+                    <button
+                      key={tj.name}
+                      type="button"
+                      onClick={() => {
+                        socketJewel(jewelModalNodeId, {
+                          id: `timeless_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                          name: tj.name,
+                          nameZh: tj.nameZh,
+                          baseName: 'Timeless Jewel',
+                          rarity: 'UNIQUE',
+                          slotType: 'Any',
+                          quality: 0,
+                          implicits: [],
+                          explicits: tj.explicits,
+                        });
+                        setJewelModalNodeId(null);
+                      }}
+                      className="w-full text-left rounded p-2.5 bg-[#110e1c] hover:bg-[#1a152c] border border-purple-500/35 cursor-pointer"
+                    >
+                      <div className="font-semibold text-purple-200">
+                        {locale === 'zh-CN' ? tj.nameZh : tj.name}
+                      </div>
+                      <div className="text-[11px] text-indigo-200/80 mt-0.5">
+                        {locale === 'zh-CN' ? tj.descZh : tj.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : jewelModalTab === 'cluster' && build.game === 'poe1' ? (
               <div className="space-y-3 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <label className="space-y-1">
@@ -1522,6 +1859,43 @@ export function PassiveTreeCanvas() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hover Tooltip for Visual Cluster Jewel Sub-Graph Nodes */}
+      {hoveredClusterNode && !hoveredNode && !masteryModalNode && jewelModalNodeId === null && (
+        <div
+          className="pointer-events-none absolute z-30 w-72 rounded-md border border-amber-400/55 bg-[#0e111a]/95 shadow-2xl p-3 text-xs backdrop-blur-sm"
+          style={{
+            left: Math.min(mousePos.x + 18, (containerRef.current?.clientWidth ?? 800) - 300),
+            top: Math.min(mousePos.y + 18, (containerRef.current?.clientHeight ?? 600) - 180),
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-[#262d40] pb-1.5 mb-2">
+            <div>
+              <div className="font-bold text-amber-200 text-sm">
+                {locale === 'zh-CN' && hoveredClusterNode.nameZh
+                  ? hoveredClusterNode.nameZh
+                  : hoveredClusterNode.name}
+              </div>
+              {hoveredClusterNode.nameZh && (
+                <div className="text-[10px] text-zinc-400">
+                  {locale === 'zh-CN' ? hoveredClusterNode.name : hoveredClusterNode.nameZh}
+                </div>
+              )}
+            </div>
+            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40 shrink-0">
+              Cluster {hoveredClusterNode.kind}
+            </span>
+          </div>
+          <div className="space-y-1 text-sky-200/95">
+            {(locale === 'zh-CN' && hoveredClusterNode.statsZh
+              ? hoveredClusterNode.statsZh
+              : hoveredClusterNode.stats.map((s) => localizeStatLine(s, locale))
+            ).map((s, idx) => (
+              <div key={idx}>• {s}</div>
+            ))}
           </div>
         </div>
       )}

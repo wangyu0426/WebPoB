@@ -63,7 +63,7 @@ interface WebPobState {
   addSkillGroup: () => void;
   removeSkillGroup: (groupId: string) => void;
   toggleSkillGroup: (groupId: string) => void;
-  updateSkillGroup: (groupId: string, patch: { label?: string; slot?: EquipmentSlotId; weaponSets?: WeaponSetId[] }) => void;
+  updateSkillGroup: (groupId: string, patch: { label?: string; slot?: EquipmentSlotId; weaponSets?: WeaponSetId[]; mainActiveSkillIndex?: number }) => void;
   addGemToGroup: (groupId: string, gemId: string) => void;
   removeGemFromGroup: (groupId: string, instanceId: string) => void;
   updateGem: (groupId: string, instanceId: string, patch: { level?: number; quality?: number; enabled?: boolean }) => void;

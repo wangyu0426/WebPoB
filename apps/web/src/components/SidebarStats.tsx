@@ -70,6 +70,13 @@ export function SidebarStats() {
           {t(locale, 'sidebar.offence')}
         </div>
         <StatRow label={t(locale, 'sidebar.hitDps')} value={fmtNum(offence.hitDps)} valueClass="text-amber-200" />
+        {(offence.impaleDps ?? 0) > 0 && (
+          <StatRow
+            label={locale === 'zh-CN' ? '穿刺 DPS' : 'Impale DPS'}
+            value={fmtNum(offence.impaleDps!)}
+            valueClass="text-amber-400"
+          />
+        )}
         {offence.igniteDps > 0 && (
           <StatRow label={t(locale, 'sidebar.igniteDps')} value={fmtNum(offence.igniteDps)} valueClass="text-orange-400" />
         )}
@@ -80,7 +87,17 @@ export function SidebarStats() {
           <StatRow label={locale === 'zh-CN' ? '中毒 DPS' : 'Poison DPS'} value={fmtNum(offence.poisonDps)} valueClass="text-lime-400" />
         )}
         <StatRow label={t(locale, 'sidebar.averageHit')} value={fmtNum(offence.averageHit)} />
-        <StatRow label={t(locale, 'sidebar.speed')} value={`${offence.speed.toFixed(2)} /s`} />
+        <StatRow
+          label={
+            offence.triggerRate !== undefined
+              ? locale === 'zh-CN'
+                ? '触发频率 (CoC)'
+                : 'Trigger Rate (CoC)'
+              : t(locale, 'sidebar.speed')
+          }
+          value={`${offence.speed.toFixed(2)} /s`}
+          valueClass={offence.triggerRate !== undefined ? 'text-cyan-300' : 'text-zinc-100'}
+        />
         <StatRow label={t(locale, 'sidebar.critChance')} value={`${offence.critChance.toFixed(1)}%`} valueClass="text-yellow-300" />
         <StatRow label={t(locale, 'sidebar.critMulti')} value={`${offence.critMultiplier}%`} valueClass="text-yellow-200" />
         <StatRow label={t(locale, 'sidebar.hitChance')} value={`${offence.hitChance}%`} />
@@ -94,6 +111,13 @@ export function SidebarStats() {
         </div>
         <StatRow label={t(locale, 'sidebar.life')} value={fmtNum(defence.life)} valueClass="text-rose-400" sub={defence.lifeRegen > 0 ? `+${defence.lifeRegen}/s` : undefined} />
         <StatRow label={t(locale, 'sidebar.energyShield')} value={fmtNum(defence.energyShield)} valueClass="text-sky-400" />
+        {(defence.ward ?? 0) > 0 && (
+          <StatRow
+            label={locale === 'zh-CN' ? '结界 (Ward)' : 'Ward'}
+            value={fmtNum(defence.ward!)}
+            valueClass="text-indigo-300"
+          />
+        )}
         <StatRow label={t(locale, 'sidebar.mana')} value={`${fmtNum(defence.manaUnreserved)} / ${fmtNum(defence.mana)}`} valueClass="text-blue-400" />
         {build.game === 'poe2' && (
           <StatRow

@@ -26,7 +26,7 @@ WebPoB/
 │   ├── web/         # @webpob/web   - React + Vite + Tailwind web app, 60fps Canvas Tree, Web Worker & IndexedDB Library
 │   └── cors-proxy/  # Optional Cloudflare Worker CORS proxy for pobb.in / pastebin / GGG APIs
 ├── fixtures/
-│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (25 PoE 1 3.30 & PoE 2 0.5 benchmarks)
+│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (30 PoE 1 3.30 & PoE 2 0.5 benchmarks)
 └── scripts/
     ├── sync-data/   # Upstream PathOfBuilding & PoeCharm/PoeCharm2 bilingual sync + LuaJIT skill/base exporter
     └── oracle-diff/ # Automated differential verification harness against official PathOfBuilding LuaJIT
@@ -58,8 +58,8 @@ pnpm oracle:diff
 
 WebPoB's pure TypeScript calculation engine is continuously regression-tested against **official upstream [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding) (PoE 1 `3.30`)** and **[PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2) (PoE 2 `0.5`)** running headlessly in LuaJIT (`HeadlessWrapper.lua`):
 
-- **25 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, Armour, Evasion, Resistances, Crit Confirmation, PoE 1 & PoE 2 Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **Dual-Wielding** (`+10% more AS`, `+20% Block`, alternating weapons), **Cluster Jewels** (308 official Notables + small passives), **Endgame Combat Buffs/Debuffs** (`Pain Attunement Low Life`, `Arcane Surge`, `Tailwind`, `Intimidated`, `Unnerved`, `Withered 0–15`, `Elemental Exposure + Mastermind of Discord`), **Curses & Marks** (`Conductivity`, `Despair`, `Assassin's Mark`), **Socketed Passive Tree Jewels**, **Unique Items**, **Endgame Keystones** (`CI`, `RT`, `MoM`, `Iron Reflexes`, `Avatar of Fire`), **Spell Totem Support**, **Elementalist Ascendancy**, **Active Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **PoE 2 Sorceress Spark/Comet & Monk Quarterstaff Ice Strike**.
-- **0.00% – 0.18% Hit DPS error** across all 25 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
+- **30 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, **Ward** (Runic Crown/Gauntlets/Sabatons), Armour, Evasion, Resistances, Crit Confirmation, PoE 1 & PoE 2 Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **Dual-Wielding**, **Impale Support DPS**, **Cast On Critical Strike (CoC) 0.033s server-tick CDR breakpoints**, **Timeless Jewel Keystones** (`Corrupted Soul`, `Divine Flesh`, `Inner Conviction`), **Cluster Jewels** (308 official Notables), **Endgame Combat Buffs/Debuffs** (`Low Life Pain Attunement`, `Arcane Surge`, `Tailwind`, `Intimidated`, `Unnerved`, `Withered 0–15`, `Elemental Exposure + Mastermind of Discord`), **Curses & Marks**, **Socketed Tree Jewels**, **Unique Items**, **Endgame Keystones**, **Spell Totem**, **Ascendancy**, **Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **PoE 2 Sorceress Spark/Comet, Monk Quarterstaff Ice Strike & Ranger Bow Lightning Arrow**.
+- **0.00% – 0.18% Hit DPS error** across all 30 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
 
 ## Roadmap
 
@@ -98,8 +98,12 @@ WebPoB's pure TypeScript calculation engine is continuously regression-tested ag
   - **Character Profile Importer** supporting GGG International (`pathofexile.com`), Tencent CN (`poe.game.qq.com`), and **Zero-Proxy Direct JSON Paste** (`get-passive-skills` + `get-items`)
   - **Side-by-Side Build Compare** inside the Calcs tab comparing current build vs IndexedDB saved builds / baselines with live `ΔDPS`, `ΔLife`, `ΔES`, `ΔEHP` deltas
   - **25/25 official LuaJIT PoB Oracle benchmarks** passing within `<= 0.18%` Hit DPS parity
-- [ ] **Phase 7 — Next Horizons**
-  - Timeless jewels, full minion/trigger/ward calculations, and visual cluster sub-graph rendering on canvas
+- [x] **Phase 7 — Visual Cluster Sub-Graphs, Ward, Impale, CoC Server-Tick Triggers & Timeless Keystones**
+  - **Visual Cluster Jewel Sub-Graphs** rendered dynamically on the 60fps HTML5 Canvas around socketed outer sockets (radial golden arcs, small passives, notable medallions with live bilingual tooltips, and sub-sockets)
+  - **Expedition Ward** (`Runic Crown / Gauntlets / Sabatons` exported in `2,701` total base items) + local/global Ward scaling & EHP buffer
+  - **Impale Support DPS** (60% chance, 28% effect, 5 base hits) + **Cast On Critical Strike (CoC)** `0.033s` server-tick CDR breakpoints & multi-active skill selector
+  - **Timeless Jewel Keystones** (`Corrupted Soul`, `Divine Flesh`, `Inner Conviction`, `The Agnostic`) + one-click **Timeless Jewel Picker** inside the Tree Jewel Socket modal
+  - **30/30 official LuaJIT PoB Oracle benchmarks** (`42/42` Vitest tests) passing within `<= 0.18%` Hit DPS parity (including **PoE 2 `0.5` Ranger Bow Lightning Arrow**)
 
 ## License
 
