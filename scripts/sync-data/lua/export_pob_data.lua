@@ -161,11 +161,18 @@ local function modToStatLine(m, val)
   if v == 0 then return nil end
 
   local flags = m.flags or 0
+  local kflags = m.keywordFlags or 0
   local isSpell = bit.band(flags, ModFlag.Spell or 0) ~= 0
   local isAttack = bit.band(flags, ModFlag.Attack or 0) ~= 0
   local isMelee = bit.band(flags, ModFlag.Melee or 0) ~= 0
   local isProj = bit.band(flags, ModFlag.Projectile or 0) ~= 0
   local isArea = bit.band(flags, ModFlag.Area or 0) ~= 0
+  local isHit = bit.band(flags, ModFlag.Hit or 0) ~= 0
+  local isDot = bit.band(flags, ModFlag.Dot or 0) ~= 0
+  local isAilment = bit.band(flags, ModFlag.Ailment or 0) ~= 0 or bit.band(kflags, KeywordFlag.Ailment or 0) ~= 0
+  local isMinion = bit.band(kflags, KeywordFlag.Minion or 0) ~= 0
+  local isProxy = bit.band(kflags, bit.bor(KeywordFlag.Totem or 0, KeywordFlag.Trap or 0, KeywordFlag.Mine or 0, KeywordFlag.Brand or 0)) ~= 0
+  if isProxy then return nil end
 
   local name = m.name
   local mtype = m.type
@@ -174,6 +181,10 @@ local function modToStatLine(m, val)
     local word = v < 0 and "less" or "more"
     local av = math.abs(v)
     if name == "Damage" then
+      if isMinion then return av .. "% " .. word .. " Minion Damage" end
+      if isAilment then return av .. "% " .. word .. " Damage with Ailments" end
+      if isDot then return av .. "% " .. word .. " Damage over Time" end
+      if isHit then return av .. "% " .. word .. " Damage with Hits" end
       if isSpell then return av .. "% " .. word .. " Spell Damage" end
       if isMelee then return av .. "% " .. word .. " Melee Damage" end
       if isAttack then return av .. "% " .. word .. " Attack Damage" end
@@ -182,9 +193,12 @@ local function modToStatLine(m, val)
       return av .. "% " .. word .. " Damage"
     elseif name == "PhysicalDamage" or name == "FireDamage" or name == "ColdDamage" or name == "LightningDamage" or name == "ChaosDamage" or name == "ElementalDamage" then
       local dt = name:gsub("Damage$", "")
+      if isAilment then return av .. "% " .. word .. " Damage with Ailments" end
+      if isDot then return av .. "% " .. word .. " Damage over Time" end
       if isAttack then return av .. "% " .. word .. " " .. dt .. " Damage with Attack Skills" end
       return av .. "% " .. word .. " " .. dt .. " Damage"
     elseif name == "Speed" then
+      if isMinion and v > 0 then return "Minions have " .. av .. "% more Attack and Cast Speed" end
       if isSpell then return av .. "% " .. word .. " Cast Speed" end
       if isAttack then return av .. "% " .. word .. " Attack Speed" end
       return av .. "% " .. word .. " Attack and Cast Speed"
@@ -199,6 +213,10 @@ local function modToStatLine(m, val)
     end
   elseif mtype == "INC" and type(v) == "number" and v > 0 then
     if name == "Damage" then
+      if isMinion then return v .. "% increased Minion Damage" end
+      if isAilment then return v .. "% increased Damage with Ailments" end
+      if isDot then return v .. "% increased Damage over Time" end
+      if isHit then return v .. "% increased Damage with Hits" end
       if isSpell then return v .. "% increased Spell Damage" end
       if isMelee then return v .. "% increased Melee Damage" end
       if isAttack then return v .. "% increased Attack Damage" end
@@ -207,9 +225,12 @@ local function modToStatLine(m, val)
       return v .. "% increased Damage"
     elseif name == "PhysicalDamage" or name == "FireDamage" or name == "ColdDamage" or name == "LightningDamage" or name == "ChaosDamage" or name == "ElementalDamage" then
       local dt = name:gsub("Damage$", "")
+      if isAilment then return v .. "% increased Damage with Ailments" end
+      if isDot then return v .. "% increased Damage over Time" end
       if isAttack then return v .. "% increased " .. dt .. " Damage with Attack Skills" end
       return v .. "% increased " .. dt .. " Damage"
     elseif name == "Speed" then
+      if isMinion then return "Minions have " .. v .. "% increased Attack and Cast Speed" end
       if isSpell then return v .. "% increased Cast Speed" end
       if isAttack then return v .. "% increased Attack Speed" end
       return v .. "% increased Attack and Cast Speed"

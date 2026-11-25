@@ -28,7 +28,7 @@ WebPoB/
 │   ├── web/         # @webpob/web   - React + Vite + Tailwind 前端应用、60fps 天赋树、Web Worker 热力图与 IndexedDB BD 库
 │   └── cors-proxy/  # 可选 Cloudflare Worker 轻量 CORS 代理
 ├── fixtures/
-│   └── oracle/      # 官方 LuaJIT PathOfBuilding 黄金基准快照（30 组 PoE 1 3.30 & PoE 2 0.5 差分测试）
+│   └── oracle/      # 官方 LuaJIT PathOfBuilding 黄金基准快照（35 组 PoE 1 3.30 & PoE 2 0.5 差分测试）
 └── scripts/
     ├── sync-data/   # 上游 PathOfBuilding 与 PoeCharm 汉化同步脚本 + LuaJIT 全量技能/基底导出器
     └── oracle-diff/ # 对照原版 PathOfBuilding LuaJIT 的自动化差分验证框架
@@ -36,16 +36,16 @@ WebPoB/
 
 ## 原版 Path of Building 自动化差分验证（Oracle）
 
-WebPoB 的纯 TypeScript 计算引擎通过本地 LuaJIT 直接驱动上游原版 [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding)（PoE 1 `3.30`）与 [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)（PoE 2 `0.5`）的 `HeadlessWrapper.lua`，生成 **30 组官方黄金基准快照**并固化在 CI 回归测试（`packages/calc/src/oracle.test.ts`）中：
+WebPoB 的纯 TypeScript 计算引擎通过本地 LuaJIT 直接驱动上游原版 [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding)（PoE 1 `3.30`）与 [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)（PoE 2 `0.5`）的 `HeadlessWrapper.lua`，生成 **35 组官方黄金基准快照**并固化在 CI 回归测试（`packages/calc/src/oracle.test.ts`）中：
 
-- 覆盖属性、生命、魔力、能量护盾、**结界（Ward）**、护甲、闪避、元素抗性、PoE 1 & PoE 2 命中与二次暴击检定、**稀有武器与护甲局部词缀**、**双持武器**、**穿刺（Impale）DPS**、**暴击时施放（CoC）`0.033s` 服务器帧冷却档位**、**永恒珠宝基石（堕落之魂 / 血肉神圣 / 内在信念）**、**星团珠宝（308 个官方核心天赋）**、**终局战斗条件（低血苦痛灵曲 / 秘术增强 / 顺风 / 恐吓 / 胆怯 / 凋零 0–15 层 / 元素曝露 + 元素使额外 -25%）**、**诅咒与印记**、**天赋树镶嵌珠宝**、**传奇暗金装备**、核心基石（CI / RT / 40% MoM / 霸体 / 火之化身）、法术图腾、元素使升华、功能药剂、火球点燃、Lv.21 宝石成长以及 **PoE 2 魔巫电球/彗星、武僧细杖寒冰打击与游侠弓箭闪电箭矢**等核心场景。
-- **全部 30 组官方基准 Hit DPS 误差控制在 `0.00% – 0.18%`**。
+- 覆盖属性、生命、魔力、能量护盾、**结界（Ward）**、护甲、闪避、元素抗性、PoE 1 & PoE 2 命中与二次暴击检定、**稀有武器与护甲局部词缀**、**PoE 1 物理转伤继承 vs PoE 2 终态转伤**、**双持武器**、**召唤物 DPS（愤怒狂灵 SRS + 召唤物伤害 + 愤怒光环）**、**三进攻光环（憎恨/奋锐/迅捷）**、**穿刺（Impale）DPS**、**暴击时施放（CoC）`0.033s` 服务器帧冷却档位**、**永恒珠宝基石（堕落之魂 / 血肉神圣 / 内在信念）**、**星团珠宝（308 个官方核心天赋）**、**终局战斗条件**、**诅咒与印记**、**天赋树镶嵌珠宝**、**传奇暗金装备**、核心基石（CI / RT / 40% MoM / 霸体 / 火之化身 / 元素超载 EO）、法术图腾、元素使升华、功能药剂、火球点燃、Lv.21 宝石成长以及 **PoE 2 五大职业核心构筑（魔巫电球/彗星、武僧细杖寒冰打击、游侠弓箭闪电箭矢、战士双手锤熔岩裂隙）**。
+- **全部 35 组官方基准 Hit DPS 误差控制在 `0.00% – 0.18%`**。
 
 ## 已完成核心功能
 
 - **官方全量数据**：PoE 1 `3.30`（2,750 天赋点）& PoE 2 `0.5`（4,524 天赋点）+ **1,794 颗 Lv.1–30 官方技能宝石数值** + **2,701 种官方装备基底（含全部先祖结界装备）** + **1,731 件中英文官方传奇暗金库** + **308 个官方星团珠宝核心天赋（301 条中文）** + PoeCharm 双语汉化。
 - **60fps 交互式天赋树、升华、珠宝、星团子图与永恒珠宝**：支持视口裁剪、弧线轨道、PoE 1 专精弹窗、**升华子天赋树独立点选与聚焦**、**星团珠宝画布可视化子图渲染与悬停双语提示**、**星团珠宝工坊与永恒珠宝快速镶嵌**、PoE 2 武器组独立天赋涂色、**Web Worker 后台节点收益热力图**。
-- **Web 原生工作流**：**IndexedDB 本地多 BD 离线库**、**BD 属性对比面板（Calcs 页实时对比 DPS/生命/护盾/EHP 差值）**、**GGG 国际服 / 腾讯国服角色导入（支持代理拉取与免代理 JSON 粘贴）**、一键生成 **`#pob=` 直达分享链接**、功能药剂开关、中英文 `Ctrl+C` 装备粘贴解析、**国服/国际服市集直达搜索**以及 GitHub Pages / Cloudflare Pages 静态部署配置。
+- **Web 原生构筑工具链**：**技能页按实时 DPS 收益排序的智能辅助宝石推荐**、**装备页交互式稀有装备制作台（2,701 基底 + 6 词缀 + 装备前实时 ΔDPS/Δ生命/ΔEHP 预览）**、**IndexedDB 本地多 BD 离线库**、**BD 属性对比面板**、**GGG 国际服 / 腾讯国服角色导入（代理拉取 + 免代理 JSON 粘贴）**、一键 **`#pob=` 直达分享链接**、**离线 PWA 安装与资源缓存**、中英文 `Ctrl+C` 装备解析以及国服/国际服市集直达搜索。
 
 ## 快速开始
 

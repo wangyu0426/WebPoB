@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ClipboardPaste, ExternalLink, Search, Shield, Sparkles, X } from 'lucide-react';
+import { ClipboardPaste, ExternalLink, Hammer, Search, Shield, Sparkles, X } from 'lucide-react';
 import type { EquipmentSlotId, Item } from '@webpob/core';
 import {
   getPresetItemsForGame,
   getRuleset,
   getUniquesForGame,
   instantiateUniqueItem,
+  listBaseItemsForGame,
   type CompactUniqueEntry,
 } from '@webpob/data';
 import { parseItemText } from '@webpob/codec';
-import { resolveItemEffectiveStats } from '@webpob/calc';
+import { calculateBuild, resolveItemEffectiveStats } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
@@ -79,10 +80,66 @@ function buildTradeSearchUrl(item: Item, game: 'poe1' | 'poe2', cn: boolean): st
     : `https://www.pathofexile.com/trade/search/Standard?q=${encoded}`;
 }
 
+const CRAFT_AFFIX_POOL: Record<'weapon' | 'armour' | 'accessory', Array<{ en: string; zh: string }>> = {
+  weapon: [
+    { en: '150% increased Physical Damage', zh: '物理伤害提高 150% (局部)' },
+    { en: 'Adds 25 to 45 Physical Damage', zh: '附加 25 - 45 点物理伤害 (局部)' },
+    { en: '20% increased Attack Speed', zh: '攻击速度提高 20% (局部)' },
+    { en: '30% increased Critical Strike Chance', zh: '暴击率提高 30% (局部)' },
+    { en: '75% increased Spell Damage', zh: '法术伤害提高 75%' },
+    { en: '22% increased Cast Speed', zh: '施法速度提高 22%' },
+    { en: '+35% to Global Critical Strike Multiplier', zh: '全局暴击伤害加成 +35%' },
+    { en: 'Adds 35 to 75 Lightning Damage to Spells', zh: '法术附加 35 - 75 点闪电伤害' },
+    { en: 'Adds 35 to 75 Fire Damage to Spells', zh: '法术附加 35 - 75 点火焰伤害' },
+    { en: 'Adds 35 to 75 Cold Damage to Spells', zh: '法术附加 35 - 75 点冰霜伤害' },
+    { en: "Your Hits can't be Evaded", zh: '你的击中无法被闪避' },
+    { en: '10% chance to deal Double Damage', zh: '10% 几率造成双倍伤害' },
+  ],
+  armour: [
+    { en: '+105 to maximum Life', zh: '最大生命 +105' },
+    { en: '+95 to maximum Energy Shield', zh: '最大能量护盾 +95 (局部)' },
+    { en: '110% increased Energy Shield', zh: '能量护盾提高 110% (局部)' },
+    { en: '110% increased Armour', zh: '护甲提高 110% (局部)' },
+    { en: '110% increased Evasion Rating', zh: '闪避值提高 110% (局部)' },
+    { en: '+50 to Ward', zh: '结界 +50 (局部)' },
+    { en: '80% increased Ward', zh: '结界提高 80% (局部)' },
+    { en: '+45% to Fire Resistance', zh: '火焰抗性 +45%' },
+    { en: '+45% to Cold Resistance', zh: '冰霜抗性 +45%' },
+    { en: '+45% to Lightning Resistance', zh: '闪电抗性 +45%' },
+    { en: '+35% to Chaos Resistance', zh: '混沌抗性 +35%' },
+    { en: '+14% chance to Suppress Spell Damage', zh: '法术伤害压制率 +14%' },
+    { en: '30% increased Movement Speed', zh: '移动速度提高 30%' },
+  ],
+  accessory: [
+    { en: '+85 to maximum Life', zh: '最大生命 +85' },
+    { en: '+45 to maximum Energy Shield', zh: '最大能量护盾 +45' },
+    { en: '+45% to Fire Resistance', zh: '火焰抗性 +45%' },
+    { en: '+45% to Cold Resistance', zh: '冰霜抗性 +45%' },
+    { en: '+45% to Lightning Resistance', zh: '闪电抗性 +45%' },
+    { en: '+35% to Chaos Resistance', zh: '混沌抗性 +35%' },
+    { en: '+45 to Strength', zh: '力量 +45' },
+    { en: '+45 to Dexterity', zh: '敏捷 +45' },
+    { en: '+45 to Intelligence', zh: '智慧 +45' },
+    { en: '+35% to Global Critical Strike Multiplier', zh: '全局暴击伤害加成 +35%' },
+    { en: '18% increased Cast Speed', zh: '施法速度提高 18%' },
+    { en: '15% increased Cooldown Recovery Rate', zh: '冷却回复速度提高 15%' },
+    { en: '35% increased Elemental Damage with Attack Skills', zh: '攻击技能元素伤害提高 35%' },
+  ],
+};
+
+function getCraftCategoryForSlot(slot: EquipmentSlotId): 'weapon' | 'armour' | 'accessory' {
+  if (slot.startsWith('Weapon')) return 'weapon';
+  if (slot === 'Helmet' || slot === 'Body Armour' || slot === 'Gloves' || slot === 'Boots') {
+    return 'armour';
+  }
+  return 'accessory';
+}
+
 export function ItemsTab() {
   const {
     locale,
     build,
+    calc,
     treeRevision,
     addItem,
     equipItem,
@@ -94,6 +151,17 @@ export function ItemsTab() {
   const [selectedSlot, setSelectedSlot] = useState<EquipmentSlotId>('Weapon 1');
   const [uniqueSearch, setUniqueSearch] = useState('');
   const [uniqueSlotFilter, setUniqueSlotFilter] = useState<(typeof UNIQUE_SLOT_FILTERS)[number]>('ALL');
+
+  // Rare Item Crafting Bench state
+  const [craftOpen, setCraftOpen] = useState(false);
+  const [craftBaseSearch, setCraftBaseSearch] = useState('');
+  const [craftBaseName, setCraftBaseName] = useState('');
+  const [craftQuality, setCraftQuality] = useState(20);
+  const [craftAffixes, setCraftAffixes] = useState<string[]>([
+    '+105 to maximum Life',
+    '+45% to Fire Resistance',
+    '+45% to Lightning Resistance',
+  ]);
 
   const ruleset = getRuleset(build.game);
   const presets = getPresetItemsForGame(build.game);
@@ -175,6 +243,76 @@ export function ItemsTab() {
     () => (equippedItem ? resolveItemEffectiveStats(equippedItem, build.game) : undefined),
     [equippedItem, build.game],
   );
+
+  // Crafting Bench candidates & live simulated ΔDPS / ΔEHP preview
+  const craftCategory = getCraftCategoryForSlot(selectedSlot);
+  const allBases = useMemo(() => {
+    void treeRevision;
+    return listBaseItemsForGame(build.game);
+  }, [build.game, treeRevision]);
+
+  const craftBases = useMemo(() => {
+    const q = craftBaseSearch.trim().toLowerCase();
+    return allBases
+      .filter(({ name, entry }) => {
+        if (craftCategory === 'weapon' && !entry.weapon) return false;
+        if (craftCategory === 'armour' && !entry.armour) return false;
+        if (q && !name.toLowerCase().includes(q)) return false;
+        return true;
+      })
+      .slice(0, 80);
+  }, [allBases, craftCategory, craftBaseSearch]);
+
+  const effectiveCraftBase =
+    craftBases.find((b) => b.name === craftBaseName) ?? craftBases[0];
+
+  const craftedDraftItem = useMemo<Item | null>(() => {
+    if (!craftOpen) return null;
+    const baseName =
+      effectiveCraftBase?.name ??
+      (craftCategory === 'weapon'
+        ? 'Prophecy Wand'
+        : craftCategory === 'armour'
+          ? 'Vaal Regalia'
+          : 'Leather Belt');
+    const baseEntry = effectiveCraftBase?.entry;
+    return {
+      id: '__craft_preview__',
+      name: `Crafted ${baseName}`,
+      baseName,
+      rarity: 'RARE',
+      slotType: selectedSlot,
+      quality: craftQuality,
+      weaponStats: baseEntry?.weapon,
+      armourStats: baseEntry?.armour,
+      implicits: baseEntry?.implicit ? [baseEntry.implicit] : [],
+      explicits: craftAffixes,
+      localStatsPrecomputed: false,
+    };
+  }, [craftOpen, effectiveCraftBase, craftCategory, selectedSlot, craftQuality, craftAffixes]);
+
+  const craftPreviewDelta = useMemo(() => {
+    if (!craftedDraftItem) return null;
+    const simBuild = {
+      ...build,
+      items: { ...build.items, [craftedDraftItem.id]: craftedDraftItem },
+      equipped: { ...build.equipped, [selectedSlot]: craftedDraftItem.id },
+    };
+    const nextCalc = calculateBuild(simBuild);
+    const resolved = resolveItemEffectiveStats(craftedDraftItem, build.game);
+    return {
+      resolved,
+      dpsDelta: nextCalc.offence.totalDps - calc.offence.totalDps,
+      dpsDeltaPct:
+        calc.offence.totalDps > 0
+          ? ((nextCalc.offence.totalDps - calc.offence.totalDps) / calc.offence.totalDps) * 100
+          : 0,
+      lifeDelta: nextCalc.defence.life - calc.defence.life,
+      esDelta: nextCalc.defence.energyShield - calc.defence.energyShield,
+      wardDelta: (nextCalc.defence.ward ?? 0) - (calc.defence.ward ?? 0),
+      ehpDelta: nextCalc.defence.effectiveHitPool - calc.defence.effectiveHitPool,
+    };
+  }, [craftedDraftItem, build, selectedSlot, calc]);
 
   return (
     <div className="h-full overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -286,6 +424,7 @@ export function ItemsTab() {
                   {resolvedEquipped.armourStats?.armour && <span>Armour: {resolvedEquipped.armourStats.armour}</span>}
                   {resolvedEquipped.armourStats?.evasion && <span>Evasion: {resolvedEquipped.armourStats.evasion}</span>}
                   {resolvedEquipped.armourStats?.energyShield && <span className="text-sky-300">ES: {resolvedEquipped.armourStats.energyShield}</span>}
+                  {resolvedEquipped.armourStats?.ward && <span className="text-indigo-300">Ward: {resolvedEquipped.armourStats.ward}</span>}
                   {resolvedEquipped.armourStats?.blockChance && <span>Block: {resolvedEquipped.armourStats.blockChance}%</span>}
                   {resolvedEquipped.weaponStats && (
                     <>
@@ -311,6 +450,161 @@ export function ItemsTab() {
             </div>
           ) : (
             <div className="text-xs text-zinc-500 py-4 text-center">{t(locale, 'items.empty')}</div>
+          )}
+        </div>
+
+        {/* Interactive Rare Item Crafting Bench (with Live ΔDPS / ΔEHP Upgrade Preview) */}
+        <div className="pob-panel rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-bold text-yellow-300 flex items-center gap-1.5">
+              <Hammer className="w-4 h-4" />
+              {locale === 'zh-CN'
+                ? `稀有装备制作台 — ${getSlotLabel(locale, selectedSlot)} (${allBases.length} 官方基底)`
+                : `Rare Item Crafting Bench — ${getSlotLabel(locale, selectedSlot)} (${allBases.length} bases)`}
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                setCraftOpen((v) => !v);
+                const cat = getCraftCategoryForSlot(selectedSlot);
+                if (!craftOpen) {
+                  setCraftAffixes(
+                    cat === 'weapon'
+                      ? ['150% increased Physical Damage', 'Adds 25 to 45 Physical Damage', '20% increased Attack Speed']
+                      : ['+105 to maximum Life', '+45% to Fire Resistance', '+45% to Lightning Resistance'],
+                  );
+                }
+              }}
+              className="px-2.5 py-1 rounded text-xs font-semibold bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 border border-yellow-500/40 cursor-pointer"
+            >
+              {craftOpen
+                ? locale === 'zh-CN'
+                  ? '收起制作台'
+                  : 'Hide Bench'
+                : locale === 'zh-CN'
+                  ? '打开制作台'
+                  : 'Open Craft Bench'}
+            </button>
+          </div>
+
+          {craftOpen && (
+            <div className="space-y-3 text-xs pt-1 border-t border-[#242a3c]">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={craftBaseSearch}
+                  onChange={(e) => setCraftBaseSearch(e.target.value)}
+                  placeholder={locale === 'zh-CN' ? '搜索基底 (如 Vaal / Runic)...' : 'Filter base item...'}
+                  className="pob-input rounded px-2 py-1 text-xs"
+                />
+                <select
+                  value={effectiveCraftBase?.name ?? ''}
+                  onChange={(e) => setCraftBaseName(e.target.value)}
+                  className="pob-input rounded px-2 py-1 text-xs"
+                >
+                  {craftBases.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-[#0c0e15] border border-[#22283a]">
+                  <span className="text-zinc-400">{locale === 'zh-CN' ? '品质' : 'Quality'}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={craftQuality}
+                    onChange={(e) => setCraftQuality(Math.max(0, Math.min(30, Number(e.target.value) || 0)))}
+                    className="pob-input rounded w-14 px-1.5 py-0.5 text-center font-mono"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] text-zinc-400">
+                  {locale === 'zh-CN'
+                    ? `点选词缀 (${craftAffixes.length}/6):`
+                    : `Toggle T1/T2 Affixes (${craftAffixes.length}/6):`}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {CRAFT_AFFIX_POOL[craftCategory].map((affix) => {
+                    const active = craftAffixes.includes(affix.en);
+                    return (
+                      <button
+                        key={affix.en}
+                        type="button"
+                        onClick={() =>
+                          setCraftAffixes((prev) =>
+                            prev.includes(affix.en)
+                              ? prev.filter((x) => x !== affix.en)
+                              : prev.length < 6
+                                ? [...prev, affix.en]
+                                : prev,
+                          )
+                        }
+                        className={`px-2 py-1 rounded border text-[11px] cursor-pointer transition ${
+                          active
+                            ? 'bg-yellow-500/20 border-yellow-400/60 text-yellow-200 font-semibold'
+                            : 'bg-[#0e111a] border-[#252c40] text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        {locale === 'zh-CN' ? affix.zh : affix.en}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {craftPreviewDelta && (
+                <div className="rounded bg-[#0a0d14] border border-yellow-500/30 p-2.5 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
+                    <span className={craftPreviewDelta.dpsDelta >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      ΔDPS: {craftPreviewDelta.dpsDelta >= 0 ? '+' : ''}
+                      {Math.round(craftPreviewDelta.dpsDelta).toLocaleString()} (
+                      {craftPreviewDelta.dpsDeltaPct >= 0 ? '+' : ''}
+                      {craftPreviewDelta.dpsDeltaPct.toFixed(1)}%)
+                    </span>
+                    <span className={craftPreviewDelta.lifeDelta >= 0 ? 'text-emerald-300' : 'text-rose-400'}>
+                      ΔLife: {craftPreviewDelta.lifeDelta >= 0 ? '+' : ''}{craftPreviewDelta.lifeDelta}
+                    </span>
+                    <span className={craftPreviewDelta.esDelta >= 0 ? 'text-sky-300' : 'text-rose-400'}>
+                      ΔES: {craftPreviewDelta.esDelta >= 0 ? '+' : ''}{craftPreviewDelta.esDelta}
+                    </span>
+                    {craftPreviewDelta.wardDelta !== 0 && (
+                      <span className="text-indigo-300">
+                        ΔWard: {craftPreviewDelta.wardDelta >= 0 ? '+' : ''}{craftPreviewDelta.wardDelta}
+                      </span>
+                    )}
+                    <span className={craftPreviewDelta.ehpDelta >= 0 ? 'text-emerald-300' : 'text-rose-400'}>
+                      ΔEHP: {craftPreviewDelta.ehpDelta >= 0 ? '+' : ''}{Math.round(craftPreviewDelta.ehpDelta).toLocaleString()}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!craftedDraftItem) return;
+                      const finalItem: Item = {
+                        ...craftedDraftItem,
+                        id: `craft_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                      };
+                      addItem(finalItem, selectedSlot);
+                      equipItem(selectedSlot, finalItem.id);
+                      setStatusMsg({
+                        ok: true,
+                        text:
+                          locale === 'zh-CN'
+                            ? `已制作并装备 ${finalItem.name} → ${getSlotLabel(locale, selectedSlot)}`
+                            : `Crafted & equipped ${finalItem.name} → ${getSlotLabel(locale, selectedSlot)}`,
+                      });
+                    }}
+                    className="px-3 py-1 rounded text-xs font-semibold bg-yellow-500/25 hover:bg-yellow-500/35 text-yellow-200 border border-yellow-400/60 cursor-pointer"
+                  >
+                    {locale === 'zh-CN' ? '制作并装备' : 'Craft & Equip'}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 

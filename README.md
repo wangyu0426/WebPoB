@@ -26,7 +26,7 @@ WebPoB/
 │   ├── web/         # @webpob/web   - React + Vite + Tailwind web app, 60fps Canvas Tree, Web Worker & IndexedDB Library
 │   └── cors-proxy/  # Optional Cloudflare Worker CORS proxy for pobb.in / pastebin / GGG APIs
 ├── fixtures/
-│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (30 PoE 1 3.30 & PoE 2 0.5 benchmarks)
+│   └── oracle/      # Official LuaJIT PathOfBuilding Golden Snapshots (35 PoE 1 3.30 & PoE 2 0.5 benchmarks)
 └── scripts/
     ├── sync-data/   # Upstream PathOfBuilding & PoeCharm/PoeCharm2 bilingual sync + LuaJIT skill/base exporter
     └── oracle-diff/ # Automated differential verification harness against official PathOfBuilding LuaJIT
@@ -58,8 +58,8 @@ pnpm oracle:diff
 
 WebPoB's pure TypeScript calculation engine is continuously regression-tested against **official upstream [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding) (PoE 1 `3.30`)** and **[PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2) (PoE 2 `0.5`)** running headlessly in LuaJIT (`HeadlessWrapper.lua`):
 
-- **30 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, **Ward** (Runic Crown/Gauntlets/Sabatons), Armour, Evasion, Resistances, Crit Confirmation, PoE 1 & PoE 2 Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **Dual-Wielding**, **Impale Support DPS**, **Cast On Critical Strike (CoC) 0.033s server-tick CDR breakpoints**, **Timeless Jewel Keystones** (`Corrupted Soul`, `Divine Flesh`, `Inner Conviction`), **Cluster Jewels** (308 official Notables), **Endgame Combat Buffs/Debuffs** (`Low Life Pain Attunement`, `Arcane Surge`, `Tailwind`, `Intimidated`, `Unnerved`, `Withered 0–15`, `Elemental Exposure + Mastermind of Discord`), **Curses & Marks**, **Socketed Tree Jewels**, **Unique Items**, **Endgame Keystones**, **Spell Totem**, **Ascendancy**, **Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **PoE 2 Sorceress Spark/Comet, Monk Quarterstaff Ice Strike & Ranger Bow Lightning Arrow**.
-- **0.00% – 0.18% Hit DPS error** across all 30 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
+- **35 Golden Benchmarks** (`fixtures/oracle/snapshots.json`) covering Attributes, Life, Mana, Energy Shield, **Ward**, Armour, Evasion, Resistances, Crit Confirmation, PoE 1 & PoE 2 Accuracy/Hit Chance, **Local Rare Weapon & Armour scaling**, **PoE 1 Phys-conversion inheritance vs PoE 2 final-type conversion**, **Dual-Wielding**, **Minion DPS** (`Summon Raging Spirit` + `Minion Damage` + `Anger`), **Triple Offensive Auras** (`Hatred`, `Zealotry`, `Haste`), **Impale Support DPS**, **Cast On Critical Strike (CoC) 0.033s server-tick CDR breakpoints**, **Timeless Jewel Keystones** (`Corrupted Soul`, `Divine Flesh`, `Inner Conviction`), **Cluster Jewels** (308 official Notables), **Endgame Combat Buffs/Debuffs**, **Curses & Marks**, **Socketed Tree Jewels**, **Unique Items**, **Endgame Keystones** (`CI`, `RT`, `MoM`, `Iron Reflexes`, `Avatar of Fire`, `Elemental Overload`), **Spell Totem**, **Ascendancy**, **Utility Flasks**, **Fireball Ignite**, **Lv.21 Gem Scaling**, and **5 PoE 2 `0.5` classes** (`Sorceress Spark/Comet`, `Monk Quarterstaff Ice Strike`, `Ranger Bow Lightning Arrow`, `Warrior Mace Volcanic Fissure`).
+- **0.00% – 0.18% Hit DPS error** across all 35 official benchmarks, locked into CI via `packages/calc/src/oracle.test.ts`.
 
 ## Roadmap
 
@@ -104,6 +104,12 @@ WebPoB's pure TypeScript calculation engine is continuously regression-tested ag
   - **Impale Support DPS** (60% chance, 28% effect, 5 base hits) + **Cast On Critical Strike (CoC)** `0.033s` server-tick CDR breakpoints & multi-active skill selector
   - **Timeless Jewel Keystones** (`Corrupted Soul`, `Divine Flesh`, `Inner Conviction`, `The Agnostic`) + one-click **Timeless Jewel Picker** inside the Tree Jewel Socket modal
   - **30/30 official LuaJIT PoB Oracle benchmarks** (`42/42` Vitest tests) passing within `<= 0.18%` Hit DPS parity (including **PoE 2 `0.5` Ranger Bow Lightning Arrow**)
+- [x] **Phase 8 — Smart Support Gem Optimizer, Rare Item Crafting Bench, Minion Engine & Offline PWA**
+  - **Smart Support Gem Optimizer** (`rankSupportGemsForGroup`) inside the Skills tab sorting compatible Lv.20 Support Gems by live simulated `ΔTotal DPS` with one-click equip
+  - **Interactive Rare Item Crafting Bench** inside the Items tab supporting all `2,701` official bases, `0–30%` quality, up to 6 bilingual T1/T2 affixes, and **live `ΔDPS / ΔLife / ΔES / ΔWard / ΔEHP` upgrade preview** before equipping
+  - **Minion Combat Engine** (`Summon Raging Spirit`, `Raise Zombie`, `Minion Damage`, 130% minion crit multi, Aura attack flat scaling) & **PoE 1 authentic Physical-conversion inheritance**
+  - **Offline PWA Support** (`manifest.webmanifest` + Service Worker caching `/data/*.json` & static chunks)
+  - **35/35 official LuaJIT PoB Oracle benchmarks** (`48/48` Vitest tests) passing within `<= 0.18%` Hit DPS parity (including **PoE 2 `0.5` Warrior Volcanic Fissure**)
 
 ## License
 

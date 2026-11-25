@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Plus, Search, Star, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Plus, Search, Sparkles, Star, Trash2 } from 'lucide-react';
 import type { EquipmentSlotId, WeaponSetId } from '@webpob/core';
 import { getGemsForGame, getRuleset } from '@webpob/data';
+import { rankSupportGemsForGroup } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
@@ -28,7 +29,13 @@ export function SkillsTab() {
   } = useWebPobStore();
 
   const [gemSearch, setGemSearch] = useState('');
+  const [optimizerGroupId, setOptimizerGroupId] = useState<string | null>(null);
   void treeRevision;
+
+  const rankedSupports = useMemo(() => {
+    if (!optimizerGroupId) return [];
+    return rankSupportGemsForGroup(build, optimizerGroupId, 8);
+  }, [build, optimizerGroupId]);
   const gemsCatalog = getGemsForGame(build.game);
   const q = gemSearch.trim().toLowerCase();
   const filteredGems = q
@@ -285,34 +292,95 @@ export function SkillsTab() {
                 })}
               </div>
 
-              {/* Add Gem Dropdown */}
-              <div className="pt-1">
-                <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      addGemToGroup(group.id, e.target.value);
-                      e.target.value = '';
+              {/* Add Gem Dropdown + Smart Support DPS Recommender */}
+              <div className="pt-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        addGemToGroup(group.id, e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    className="pob-input flex-1 min-w-0 rounded px-2.5 py-1.5 text-xs"
+                  >
+                    <option value="">+ {t(locale, 'skills.addGem')}...</option>
+                    <optgroup label={t(locale, 'skills.activeGems')}>
+                      {activeGems.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label={t(locale, 'skills.supportGems')}>
+                      {supportGems.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOptimizerGroupId((cur) => (cur === group.id ? null : group.id))
                     }
-                  }}
-                  className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
-                >
-                  <option value="">+ {t(locale, 'skills.addGem')}...</option>
-                  <optgroup label={t(locale, 'skills.activeGems')}>
-                    {activeGems.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label={t(locale, 'skills.supportGems')}>
-                    {supportGems.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold border shrink-0 cursor-pointer transition ${
+                      optimizerGroupId === group.id
+                        ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200'
+                        : 'bg-[#161c2b] hover:bg-[#1e263a] border-emerald-500/35 text-emerald-300'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {locale === 'zh-CN' ? '按 DPS 推荐辅助' : 'Rank Supports'}
+                  </button>
+                </div>
+
+                {optimizerGroupId === group.id && (
+                  <div className="rounded bg-[#0a0d14] border border-emerald-500/35 p-2.5 space-y-1.5">
+                    <div className="text-[11px] font-semibold text-emerald-300 flex items-center justify-between">
+                      <span>
+                        {locale === 'zh-CN'
+                          ? '实时模拟最高 DPS 辅助宝石推荐 (Lv.20)'
+                          : 'Top Compatible Support Gems by Live DPS Gain (Lv.20)'}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-mono">
+                        Top {rankedSupports.length}
+                      </span>
+                    </div>
+                    {rankedSupports.length === 0 ? (
+                      <div className="text-[11px] text-zinc-500 py-1">
+                        {locale === 'zh-CN'
+                          ? '未找到更高 DPS 增益的兼容辅助宝石（或此组仅含光环）'
+                          : 'No compatible support gem with positive DPS gain found.'}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {rankedSupports.map((rec) => (
+                          <button
+                            key={rec.gem.id}
+                            type="button"
+                            onClick={() => addGemToGroup(group.id, rec.gem.id)}
+                            className="flex items-center justify-between gap-2 rounded bg-[#111521] hover:bg-[#192033] border border-[#242c42] px-2 py-1.5 text-left text-xs cursor-pointer"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold text-zinc-100 truncate">
+                                {localizeText(rec.gem.name, locale)}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 truncate">
+                                {rec.gem.stats.slice(0, 1).map((s) => localizeStatLine(s, locale)).join('')}
+                              </div>
+                            </div>
+                            <span className="font-mono text-[11px] font-bold text-emerald-400 shrink-0">
+                              +{rec.dpsDeltaPct.toFixed(1)}%
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );

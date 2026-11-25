@@ -305,6 +305,14 @@ const PARSER_RULES: ParserRule[] = [
     },
   },
   {
+    pattern: /^(\d+)% (increased|more|less) Damage with Hits$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      const type: ModType = m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE';
+      return [mkMod('Damage', type, val, src, ModFlag.Hit)];
+    },
+  },
+  {
     pattern: /^(\d+)% (increased|more|less) Damage$/i,
     build: (m, src) => {
       const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);

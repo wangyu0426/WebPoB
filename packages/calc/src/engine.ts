@@ -966,7 +966,7 @@ function computeOffence(build: Build, globalDb: ModDB, _defence: CalcDefenceOutp
 
   const isMinion = Boolean(activeDef.minionBase);
   const isAttack = !isMinion && (activeDef.modFlags & ModFlag.Attack) !== 0;
-  const flags = activeDef.modFlags;
+  const flags = activeDef.modFlags | ModFlag.Hit;
   const kwFlags = activeDef.keywordFlags;
   const activeLevelEntry = resolveGemLevelEntry(activeDef, activeLevel);
   const levelFactor = activeLevelEntry ? 1 : getLevelScalingFactor(activeLevel);

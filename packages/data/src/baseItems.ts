@@ -126,6 +126,15 @@ export const UTILITY_FLASK_BUFFS: Record<string, string[]> = {
   'Quartz Flask': ['+10% chance to Suppress Spell Damage'],
 };
 
+export function listBaseItemsForGame(
+  game: GameId,
+): Array<{ name: string; entry: BaseItemStatsEntry }> {
+  const map = loadedBasesFlag[game] ? dynamicBases[game] : BASE_ITEM_STATS;
+  return Object.entries(map)
+    .map(([name, entry]) => ({ name, entry }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function getBaseItemStats(
   baseName: string,
   quality = 0,

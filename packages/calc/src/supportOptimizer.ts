@@ -9,6 +9,14 @@ export interface RankedSupportRecommendation {
   newTotalDps: number;
 }
 
+function normalizeSupportFamily(enName: string): string {
+  return enName
+    .replace(/^(?:Awakened|Greater|Vaal|Anomalous|Divergent|Phantasmal)\s+/i, '')
+    .replace(/\s+Support$/i, '')
+    .trim()
+    .toLowerCase();
+}
+
 function isSupportCompatible(active: GemDefinition, support: GemDefinition): boolean {
   const activeTags = new Set(active.tags.map((t) => t.toLowerCase()));
   const supTags = new Set(support.tags.map((t) => t.toLowerCase()));
@@ -16,12 +24,38 @@ function isSupportCompatible(active: GemDefinition, support: GemDefinition): boo
   const isAttack = !isMinion && (active.modFlags & ModFlag.Attack) !== 0;
   const isSpell = !isMinion && (active.modFlags & ModFlag.Spell) !== 0;
 
-  // Exclude incompatible archetype supports
-  if (supTags.has('minion') && !isMinion) return false;
-  if (isMinion && !supTags.has('minion') && !supTags.has('fire') && !supTags.has('cold') && !supTags.has('lightning') && !supTags.has('physical') && !supTags.has('melee') && !supTags.has('attack')) {
+  // Exclude item-only / exceptional / Vaal-only / trigger / proxy supports
+  if (
+    supTags.has('exceptional') ||
+    supTags.has('low_max_level') ||
+    supTags.has('vaal') ||
+    supTags.has('trigger') ||
+    supTags.has('totem') ||
+    supTags.has('trap') ||
+    supTags.has('mine') ||
+    supTags.has('brand') ||
+    supTags.has('warcry') ||
+    supTags.has('guard') ||
+    supTags.has('curse') ||
+    supTags.has('mark') ||
+    supTags.has('aura') ||
+    supTags.has('herald')
+  ) {
     return false;
   }
-  if (supTags.has('trigger') || supTags.has('totem') || supTags.has('trap') || supTags.has('mine')) {
+
+  // Exclude incompatible archetype supports
+  if (supTags.has('minion') && !isMinion) return false;
+  if (
+    isMinion &&
+    !supTags.has('minion') &&
+    !supTags.has('fire') &&
+    !supTags.has('cold') &&
+    !supTags.has('lightning') &&
+    !supTags.has('physical') &&
+    !supTags.has('melee') &&
+    !supTags.has('attack')
+  ) {
     return false;
   }
   if ((support.modFlags & ModFlag.Attack) !== 0 && isSpell) return false;
@@ -30,6 +64,11 @@ function isSupportCompatible(active: GemDefinition, support: GemDefinition): boo
   if (supTags.has('bow') && !activeTags.has('bow')) return false;
   if (supTags.has('melee') && !activeTags.has('melee') && !isMinion) return false;
   if (supTags.has('projectile') && !activeTags.has('projectile')) return false;
+  if (supTags.has('area') && !activeTags.has('area')) return false;
+  if (supTags.has('duration') && !activeTags.has('duration')) return false;
+  if (supTags.has('channelling') && !activeTags.has('channelling')) return false;
+  if (supTags.has('strike') && !activeTags.has('strike')) return false;
+  if (supTags.has('slam') && !activeTags.has('slam')) return false;
   return true;
 }
 
@@ -57,6 +96,12 @@ export function rankSupportGemsForGroup(
   );
   const activeDef = activeCandidates[pickIdx]!;
   const existingIds = new Set(group.gems.map((g) => g.gemId));
+  const existingFamilies = new Set(
+    group.gems
+      .map((g) => getGemById(build.game, g.gemId))
+      .filter((def): def is GemDefinition => Boolean(def && def.category === 'support'))
+      .map((def) => normalizeSupportFamily(def.name.en)),
+  );
 
   // Evaluate baseline with this group set as mainSkillGroupId
   const baseBuild: Build =
@@ -68,6 +113,7 @@ export function rankSupportGemsForGroup(
     (g) =>
       g.category === 'support' &&
       !existingIds.has(g.id) &&
+      !existingFamilies.has(normalizeSupportFamily(g.name.en)) &&
       g.stats.length > 0 &&
       isSupportCompatible(activeDef, g),
   );
