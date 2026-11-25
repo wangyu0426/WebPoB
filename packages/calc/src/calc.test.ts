@@ -231,4 +231,37 @@ describe('@webpob/calc', () => {
     expect(ebOut.defence.effectiveHitPool).toBeLessThan(baseOut.defence.effectiveHitPool);
     expect(ebOut.defence.evadeChance).toBeGreaterThanOrEqual(baseOut.defence.evadeChance);
   });
+
+  it('applies Berserker Aspect of Carnage + Crave the Slaughter, Slayer Overwhelm, and Iron Will', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+
+    // Aspect of Carnage: 40% more Damage & 10% increased Damage taken
+    const carnageOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods: '40% more Damage\n10% increased Damage taken',
+      },
+    });
+    expect(carnageOut.offence.totalDps).toBeCloseTo(baseOut.offence.totalDps * 1.4, -1);
+    expect(carnageOut.defence.effectiveHitPool).toBeLessThan(baseOut.defence.effectiveHitPool);
+
+    // Iron Will: Strength grants Spell Damage (floor(str * 0.2)%)
+    const iwOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods: "+500 to Strength\nStrength's Damage bonus applies to all Spell Damage as well",
+      },
+    });
+    const strOnlyOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods: '+500 to Strength',
+      },
+    });
+    expect(iwOut.offence.totalDps).toBeGreaterThan(strOnlyOut.offence.totalDps * 1.15);
+  });
 });

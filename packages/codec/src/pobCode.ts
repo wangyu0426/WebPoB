@@ -281,7 +281,7 @@ export function buildToPobXml(build: Build): string {
   lines.push(`      <Input name="frenzyCharges" number="${cfg.frenzyCharges}" />`);
   lines.push(`      <Input name="useEnduranceCharges" boolean="${cfg.useEnduranceCharges}" />`);
   lines.push(`      <Input name="enduranceCharges" number="${cfg.enduranceCharges}" />`);
-  lines.push(`      <Input name="onslaught" boolean="${cfg.onslaught}" />`);
+  lines.push(`      <Input name="buffOnslaught" boolean="${cfg.onslaught}" />`);
   lines.push(`      <Input name="enemyShocked" boolean="${cfg.enemyShocked}" />`);
   lines.push(`      <Input name="shockValue" number="${cfg.shockValue}" />`);
   if (cfg.conditionLowLife) lines.push(`      <Input name="conditionLowLife" boolean="true" />`);
@@ -663,7 +663,7 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'frenzyCharges' && attrs.number) config.frenzyCharges = Number(attrs.number);
     if (key === 'useEnduranceCharges' && attrs.boolean) config.useEnduranceCharges = attrs.boolean === 'true';
     if (key === 'enduranceCharges' && attrs.number) config.enduranceCharges = Number(attrs.number);
-    if (key === 'onslaught' && attrs.boolean) config.onslaught = attrs.boolean === 'true';
+    if ((key === 'onslaught' || key === 'buffOnslaught') && attrs.boolean) config.onslaught = attrs.boolean === 'true';
     if (key === 'enemyShocked' && attrs.boolean) config.enemyShocked = attrs.boolean === 'true';
     if (key === 'shockValue' && attrs.number) config.shockValue = Number(attrs.number);
     if (key === 'conditionLowLife' && attrs.boolean) config.conditionLowLife = attrs.boolean === 'true';

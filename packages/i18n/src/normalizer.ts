@@ -247,8 +247,24 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `Regenerate ${v}% of Life per second`,
   },
   {
-    zhPattern: /^伤害穿透\s*(\d+)%\s*(火焰|冰霜|冰冷|闪电|元素)抗性$/,
+    zhPattern: /^伤害穿透\s*(\d+)%\s*(火焰|冰霜|冰冷|闪电|混沌|元素)抗性$/,
     toEn: (_, v, el) => `Damage Penetrates ${v}% ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Resistance`,
+  },
+  {
+    zhPattern: /^武器攻击的基础暴击率为\s*(\d+(?:\.\d+)?)%$/,
+    toEn: (_, v) => `Base Critical Strike Chance for Attacks with Weapons is ${v}%`,
+  },
+  {
+    zhPattern: /^每点怒火(?:同时)?提供\s*(\d+)%\s*攻击速度(?:提高|增加)$/,
+    toEn: (_, v) => `Every Rage also grants ${v}% increased Attack Speed`,
+  },
+  {
+    zhPattern: /^力量的伤害加成也作用于所有法术伤害$/,
+    toEn: () => `Strength's Damage bonus applies to all Spell Damage as well`,
+  },
+  {
+    zhPattern: /^受到的伤害(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Damage taken`,
   },
   // Skill Gem Level & Quality bonuses (PoE 1 & PoE 2 Chinese clipboard / custom mods)
   {
@@ -392,7 +408,7 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
   { enPattern: /^Regenerate (\d+(?:\.\d+)?) Life per second$/i, toZh: (_, v) => `每秒再生 ${v} 生命` },
   { enPattern: /^Regenerate (\d+(?:\.\d+)?)% of Life per second$/i, toZh: (_, v) => `每秒再生 ${v}% 生命` },
   {
-    enPattern: /^Damage Penetrates (\d+)% (Fire|Cold|Lightning|Elemental) Resistance$/i,
+    enPattern: /^Damage Penetrates (\d+)% (Fire|Cold|Lightning|Chaos|Elemental) Resistance$/i,
     toZh: (_, v, el) => `伤害穿透 ${v}% ${EN_DAMAGE_TYPE_TO_ZH[el] ?? el}抗性`,
   },
   {

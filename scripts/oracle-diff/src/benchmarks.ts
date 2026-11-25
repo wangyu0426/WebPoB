@@ -3817,4 +3817,226 @@ Implicits: 0
   <Notes/>
 </PathOfBuilding2>`,
   },
+  // ─── Phase 16 Benchmarks (106..110): Berserker, Slayer Overwhelm, Iron Will, Necromancer SRS & PoE 2 Frenzy Bow ───
+  {
+    id: 'poe1_berserker_aspect_of_carnage_crave_the_slaughter_rage30',
+    title: 'PoE 1 — Lv.90 Marauder Berserker (Aspect of Carnage + Crave the Slaughter + 30 Rage) Heavy Strike',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="Berserker" mainSocketGroup="1" buildName="Oracle: Berserker Carnage + Crave"/>
+  <Tree activeSpec="1">
+    <Spec title="Berserker" treeVersion="3_30" classId="1" ascendClassId="2" nodes="47175,29294,63673,59920,63583,24528"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Heavy Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeavyStrike" skillId="HeavyStrike" nameSpec="Heavy Strike" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportRage" skillId="SupportRage" nameSpec="Rage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Carnage Cleaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+150% increased Physical Damage
+Adds 20 to 40 Physical Damage
+18% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="multiplierRage" number="30"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_slayer_overwhelm_8pct_base_crit_cyclone',
+    title: 'PoE 1 — Lv.90 Duelist Slayer (Overwhelm 8% Base Weapon Crit) Crit Cyclone + Vaal Axe',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Duelist" ascendClassName="Slayer" mainSocketGroup="1" buildName="Oracle: Slayer Overwhelm 8% Base Crit"/>
+  <Tree activeSpec="1">
+    <Spec title="Slayer" treeVersion="3_30" classId="4" ascendClassId="1" nodes="50986,33795,61393,17315"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Cyclone">
+        <Gem gemId="Metadata/Items/Gems/SkillGemCyclone" skillId="Cyclone" nameSpec="Cyclone" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportBrutality" skillId="SupportBrutality" nameSpec="Brutality" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportIncreasedCriticalDamage" skillId="SupportIncreasedCriticalDamage" nameSpec="Increased Critical Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Slayer Chopper
+Vaal Axe
+Quality: 20
+Implicits: 0
+160% increased Physical Damage
+Adds 20 to 40 Physical Damage
+18% increased Attack Speed
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Precision Loop
+Diamond Ring
+Implicits: 1
+25% increased Global Critical Strike Chance
++400 to Accuracy Rating
++30% to Global Critical Strike Multiplier
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Ring 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_iron_will_strength_stacking_marauder_arc',
+    title: 'PoE 1 — Lv.90 Marauder Iron Will Keystone (Strength-Stacking Spell Damage) + Arc',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Iron Will Strength Stacker"/>
+  <Tree activeSpec="1">
+    <Spec title="Iron Will" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175,31628,9511,23881,26523,44606,50862,15405,33740,46910,50288"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Titan Sash
+Heavy Belt
+Implicits: 1
++35 to Strength
++55 to Strength
++80 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Brute Amulet
+Amber Amulet
+Implicits: 1
++30 to Strength
++55 to Strength
++30 to all Attributes
+    </Item>
+    <Item id="3">
+Rarity: RARE
+Titan Ring
+Ruby Ring
+Implicits: 0
++55 to Strength
++30 to all Attributes
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Belt" itemId="1"/>
+      <Slot name="Amulet" itemId="2"/>
+      <Slot name="Ring 1" itemId="3"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_necromancer_mindless_aggression_srs_20',
+    title: 'PoE 1 — Lv.90 Witch Necromancer (Mindless Aggression 10% More Minion Dmg) + 20x SRS Full DPS + Wrath',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Necromancer" mainSocketGroup="1" buildName="Oracle: Necromancer Mindless Aggression SRS"/>
+  <Tree activeSpec="1">
+    <Spec title="Necromancer" treeVersion="3_30" classId="3" ascendClassId="3" nodes="54447,60791,26298,54159"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" includeInFullDPS="true" slot="Body Armour" label="SRS">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSummonRagingSpirit" skillId="SummonRagingSpirit" nameSpec="Summon Raging Spirit" level="20" quality="0" enabled="true" count="20"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportMinionDamage" skillId="SupportMinionDamage" nameSpec="Minion Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Wrath">
+        <Gem gemId="Metadata/Items/Gems/SkillGemWrath" skillId="Wrath" nameSpec="Wrath" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_ranger_lightning_arrow_frenzy3_plus3_bow_supports',
+    title: 'PoE 2 — Lv.90 Ranger Lightning Arrow + Elemental Focus + Rapid Attacks I + +3 Projectile Bow + Onslaught',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Ranger" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Ranger LA +3 Bow Onslaught"/>
+  <Tree activeSpec="1">
+    <Spec title="Ranger" treeVersion="0_5" classId="2" classInternalId="2" ascendClassId="0" nodes="50459"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Lightning Arrow">
+        <Gem gemId="Metadata/Items/Gems/SkillGemLightningArrow" skillId="LightningArrowPlayer" nameSpec="Lightning Arrow" variantId="LightningArrow" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidAttacksSupport" skillId="SupportRapidAttacksPlayer" nameSpec="Rapid Attacks I" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Tempest Arc
+Composite Bow
+Quality: 20
+Implicits: 0
++3 to Level of all Projectile Skills
+150% increased Physical Damage
+Adds 20 to 40 Physical Damage
+20% increased Attack Speed
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Hawk Eye
+Emerald Ring
+Implicits: 0
++300 to Accuracy Rating
+25% increased Lightning Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Ring 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="buffOnslaught" boolean="true"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GitCompare, Zap } from 'lucide-react';
+import { GitCompare, TrendingUp, Zap } from 'lucide-react';
 import { DAMAGE_TYPES, type Build } from '@webpob/core';
 import { getSampleBuild } from '@webpob/data';
 import { calculateBuild } from '@webpob/calc';
@@ -20,6 +20,7 @@ export function CalcsTab() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [savedBuilds, setSavedBuilds] = useState<SavedBuildRecord[]>([]);
   const [compareId, setCompareId] = useState<string>('sample_current_game');
+  const [curveMode, setCurveMode] = useState<'gem' | 'char'>('gem');
 
   useEffect(() => {
     void listSavedBuilds().then(setSavedBuilds);
@@ -174,6 +175,60 @@ export function CalcsTab() {
     });
   }, [build, calc, locale]);
 
+  // Live Character Level (60->100) & Main Gem Level (18->30) Progression Curve
+  const progressionRows = useMemo(() => {
+    const baseDps = calc.offence.fullDps ?? calc.offence.totalDps;
+    if (curveMode === 'char') {
+      const levels = [60, 70, 80, 90, 95, 100];
+      return levels.map((lv) => {
+        const res = calculateBuild({ ...build, level: lv });
+        const dps = res.offence.fullDps ?? res.offence.totalDps;
+        const pct = baseDps > 0 ? ((dps - baseDps) / baseDps) * 100 : 0;
+        return {
+          key: `Lv.${lv}`,
+          isCurrent: build.level === lv,
+          dps,
+          dpsPct: pct,
+          life: res.defence.life,
+          es: res.defence.energyShield,
+          ehp: res.defence.effectiveHitPool,
+        };
+      });
+    }
+    const gemLevels = [18, 19, 20, 21, 23, 25, 28, 30];
+    const mainGroup = build.skills.find((g) => g.id === build.mainSkillGroupId) ?? build.skills[0];
+    const curGemLv = calc.offence.mainSkillBaseLevel ?? mainGroup?.gems[0]?.level ?? 20;
+    return gemLevels.map((glv) => {
+      const mutated: Build = mainGroup
+        ? {
+            ...build,
+            skills: build.skills.map((g) =>
+              g.id === mainGroup.id
+                ? {
+                    ...g,
+                    gems: g.gems.map((gem, idx) => (idx === 0 ? { ...gem, level: glv } : gem)),
+                  }
+                : g,
+            ),
+          }
+        : build;
+      const res = calculateBuild(mutated);
+      const dps = res.offence.fullDps ?? res.offence.totalDps;
+      const pct = baseDps > 0 ? ((dps - baseDps) / baseDps) * 100 : 0;
+      return {
+        key: `Gem ${glv}`,
+        isCurrent: curGemLv === glv,
+        dps,
+        dpsPct: pct,
+        life: res.defence.life,
+        es: res.defence.energyShield,
+        ehp: res.defence.effectiveHitPool,
+      };
+    });
+  }, [build, calc, curveMode]);
+
+  const maxProgressionDps = Math.max(1, ...progressionRows.map((r) => r.dps));
+
   const selectedRow = calc.breakdowns[selectedIdx] ?? calc.breakdowns[0];
 
   return (
@@ -296,6 +351,97 @@ export function CalcsTab() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Level & Main Gem Progression Scaling Curve */}
+      <div className="pob-panel rounded-lg p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242a3c] pb-2">
+          <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            {locale === 'zh-CN'
+              ? '等级与主技能宝石成长曲线 (ROI 收益预测)'
+              : 'Level & Gem Progression Scaling Curve'}
+          </h3>
+          <div className="flex items-center gap-1 rounded bg-[#0a0c12] p-0.5 border border-[#252b3d] text-[11px]">
+            <button
+              type="button"
+              onClick={() => setCurveMode('gem')}
+              className={`px-2 py-0.5 rounded font-semibold cursor-pointer ${
+                curveMode === 'gem'
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {locale === 'zh-CN' ? '主技能宝石 Lv.18–30' : 'Main Gem Lv.18–30'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurveMode('char')}
+              className={`px-2 py-0.5 rounded font-semibold cursor-pointer ${
+                curveMode === 'char'
+                  ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {locale === 'zh-CN' ? '角色等级 Lv.60–100' : 'Character Lv.60–100'}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          {progressionRows.map((row) => {
+            const barWidth = Math.max(4, Math.min(100, (row.dps / maxProgressionDps) * 100));
+            return (
+              <div
+                key={row.key}
+                className={`grid grid-cols-12 items-center gap-2 rounded px-2.5 py-1.5 text-xs font-mono ${
+                  row.isCurrent
+                    ? 'bg-amber-500/15 border border-amber-500/45'
+                    : 'bg-[#0c0e15] border border-[#1d2233]'
+                }`}
+              >
+                <div className="col-span-2 flex items-center gap-1.5 font-semibold text-zinc-200">
+                  <span>{row.key}</span>
+                  {row.isCurrent && (
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/30 text-amber-200">
+                      NOW
+                    </span>
+                  )}
+                </div>
+                <div className="col-span-4 sm:col-span-5">
+                  <div className="h-2 w-full rounded-full bg-[#171c2b] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        row.isCurrent
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-300'
+                          : 'bg-gradient-to-r from-emerald-600 to-cyan-400'
+                      }`}
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="col-span-3 sm:col-span-2 text-right font-semibold text-zinc-100">
+                  {Math.round(row.dps).toLocaleString()}
+                </div>
+                <div
+                  className={`col-span-3 sm:col-span-1 text-right text-[11px] ${
+                    Math.abs(row.dpsPct) < 0.05
+                      ? 'text-zinc-500'
+                      : row.dpsPct > 0
+                        ? 'text-emerald-400'
+                        : 'text-rose-400'
+                  }`}
+                >
+                  {row.dpsPct > 0 ? '+' : ''}
+                  {row.dpsPct.toFixed(1)}%
+                </div>
+                <div className="hidden sm:block sm:col-span-2 text-right text-[11px] text-sky-300">
+                  EHP {row.ehp.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

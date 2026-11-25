@@ -526,6 +526,22 @@ export function calculateBuild(build: Build): CalcOutput {
       .filter(Boolean);
     db.addMods(parseModLines(customLines, 'Custom Modifiers'));
   }
+  // Crave the Slaughter: Every Rage also grants X% increased Attack Speed
+  if (cfg.rage && cfg.rage > 0) {
+    const maxRage = Math.max(0, 30 + Math.round(db.sum('BASE', 'MaximumRage')));
+    const rageStacks = Math.min(maxRage, Math.max(0, Math.round(cfg.rage)));
+    const rageAsPerStack = db.sum('BASE', 'RageGrantsAttackSpeed');
+    if (rageStacks > 0 && rageAsPerStack > 0) {
+      db.addMod({
+        name: 'Speed',
+        type: 'INC',
+        value: rageStacks * rageAsPerStack,
+        flags: ModFlag.Attack,
+        keywordFlags: 0,
+        source: `Crave the Slaughter (${rageStacks} Rage)`,
+      });
+    }
+  }
 
   // 6. Compute Attributes & inject Attribute-derived bonuses per GameRuleset
   const strStat = db.calcStat('Str');
@@ -538,8 +554,22 @@ export function calculateBuild(build: Build): CalcOutput {
   if (ruleset.lifePerStrength > 0) {
     db.addMod({ name: 'Life', type: 'BASE', value: Math.floor(str * ruleset.lifePerStrength), flags: 0, keywordFlags: 0, source: `Strength (${str})` });
   }
-  if (ruleset.meleePhysPctPerStrength > 0) {
-    db.addMod({ name: 'PhysicalDamage', type: 'INC', value: Math.floor(str * ruleset.meleePhysPctPerStrength), flags: ModFlag.Melee, keywordFlags: 0, source: `Strength (${str})` });
+  const strDmgBonus = ruleset.meleePhysPctPerStrength > 0 ? Math.floor(str * ruleset.meleePhysPctPerStrength) : 0;
+  if (strDmgBonus > 0) {
+    db.addMod({ name: 'PhysicalDamage', type: 'INC', value: strDmgBonus, flags: ModFlag.Melee, keywordFlags: 0, source: `Strength (${str})` });
+    if (db.flag('IronWill')) {
+      db.addMod({ name: 'Damage', type: 'INC', value: strDmgBonus, flags: ModFlag.Spell, keywordFlags: 0, source: `Iron Will (Strength ${str})` });
+    }
+    if (db.flag('IronGrip')) {
+      db.addMod({
+        name: 'PhysicalDamage',
+        type: 'INC',
+        value: strDmgBonus,
+        flags: ModFlag.Attack | ModFlag.Projectile,
+        keywordFlags: 0,
+        source: `Iron Grip (Strength ${str})`,
+      });
+    }
   }
   if (ruleset.accuracyPerDexterity > 0) {
     db.addMod({ name: 'Accuracy', type: 'BASE', value: Math.floor(dex * ruleset.accuracyPerDexterity), flags: 0, keywordFlags: 0, source: `Dexterity (${dex})` });
@@ -732,12 +762,19 @@ export function calculateBuild(build: Build): CalcOutput {
   const eleAsChaosFrac = Math.min(1, Math.max(0, db.sum('BASE', 'EleTakenAsChaos') / 100));
   const fortifyStacks = cfg.fortified ? Math.min(40, Math.max(0, Math.round(cfg.fortificationStacks ?? 20))) : 0;
   const fortifyTakenMult = 1 - fortifyStacks / 100;
+  const globalTakenMult = Math.max(
+    0.1,
+    (1 + db.sum('INC', 'DamageTaken') / 100) * db.more('DamageTaken'),
+  );
   const eleTakenFactor =
     Math.max(
       0.1,
       (1 - eleAsChaosFrac) * (1 - avgEleRes / 100) + eleAsChaosFrac * (1 - chaosResist / 100),
-    ) * fortifyTakenMult;
-  const physTakenFactor = Math.max(0.1, 1 - physDamageReduction / 100) * fortifyTakenMult;
+    ) *
+    fortifyTakenMult *
+    globalTakenMult;
+  const physTakenFactor =
+    Math.max(0.1, 1 - physDamageReduction / 100) * fortifyTakenMult * globalTakenMult;
   const avoidanceFactor = Math.max(0.15, (1 - evadeChance / 100) * (1 - blockChance / 100));
 
   const maxPhysHitTaken = Math.round(totalPool / physTakenFactor);
@@ -1375,10 +1412,12 @@ function computeGroupOffence(
   const noCritExtra = skillDb.flag('NoCritExtraDamage', flags, kwFlags);
   const enemyCritBonus = skillDb.sum('BASE', 'EnemyCritChance', flags, kwFlags);
   const enemyCritMulti = skillDb.sum('BASE', 'EnemyCritMultiplier', flags, kwFlags);
-  const weaponBaseCrit =
+  const weaponCritOverride = skillDb.override('WeaponBaseCritChance', flags, kwFlags);
+  const rawWeaponBaseCrit =
     isDualWield && mainWeaponStats && offWeaponStats
       ? (mainWeaponStats.critChance + offWeaponStats.critChance) / 2
       : (weaponStats?.critChance ?? 5);
+  const weaponBaseCrit = weaponCritOverride !== null ? weaponCritOverride : rawWeaponBaseCrit;
   const baseCrit = isMinion
     ? (activeDef.minionBase?.critChance ?? 5) + enemyCritBonus
     : (isAttack ? weaponBaseCrit : (activeDef.baseCritChance ?? 6)) + enemyCritBonus;
@@ -1478,7 +1517,8 @@ function computeGroupOffence(
       }
     } else if (dt === 'Chaos') {
       typeDmgTaken += enemyChaosDmgTaken;
-      const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);
+      const chaosPen = skillDb.sum('BASE', 'ChaosPenetration', flags, kwFlags);
+      const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes) - chaosPen;
       enemyFactor = 1 - effRes / 100;
     }
 

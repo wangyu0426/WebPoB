@@ -427,7 +427,7 @@ const PARSER_RULES: ParserRule[] = [
   },
   // Penetration
   {
-    pattern: /^Damage Penetrates (\d+)% (Fire|Cold|Lightning|Elemental) Resistance$/i,
+    pattern: /^Damage Penetrates (\d+)% (Fire|Cold|Lightning|Chaos|Elemental) Resistance$/i,
     build: (m, src) => {
       const v = Number(m[1]);
       if (m[2] === 'Elemental') {
@@ -749,6 +749,37 @@ const PARSER_RULES: ParserRule[] = [
   {
     pattern: /^Energy Shield protects Mana instead of Life$/i,
     build: (_, src) => [mkMod('EldritchBattery', 'FLAG', true, src)],
+  },
+  // Berserker, Slayer, Necromancer & Strength Keystones (Phase 16)
+  {
+    pattern: /^Base Critical Strike Chance for Attacks with Weapons is (\d+(?:\.\d+)?)%$/i,
+    build: (m, src) => [mkMod('WeaponBaseCritChance', 'OVERRIDE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Every Rage also grants (\d+)% increased Attack Speed$/i,
+    build: (m, src) => [mkMod('RageGrantsAttackSpeed', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(?:Strength's Damage bonus applies to all Spell Damage as well|Iron Will)$/i,
+    build: (_, src) => [mkMod('IronWill', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^(?:Strength's Damage bonus applies to Projectile Attack Damage as well|Iron Grip)$/i,
+    build: (_, src) => [mkMod('IronGrip', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^(\d+)% (increased|more|less) Damage taken$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('DamageTaken', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
+  },
+  {
+    pattern: /^Minions have (\d+)% (increased|more|less) maximum Life$/i,
+    build: (m, src) => {
+      const val = m[2]!.toLowerCase() === 'less' ? -Number(m[1]) : Number(m[1]);
+      return [mkMod('MinionLife', m[2]!.toLowerCase() === 'increased' ? 'INC' : 'MORE', val, src)];
+    },
   },
 ];
 
