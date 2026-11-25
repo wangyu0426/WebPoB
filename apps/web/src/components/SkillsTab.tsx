@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Copy, Plus, Search, Sparkles, Star, Trash2 } from 'lucide-react';
+import { Copy, Gauge, Plus, Search, Sparkles, Star, Trash2, Zap } from 'lucide-react';
 import type { EquipmentSlotId, WeaponSetId } from '@webpob/core';
 import { getGemsForGame, getRuleset } from '@webpob/data';
-import { rankSupportGemsForGroup } from '@webpob/calc';
+import { calculateBuild, rankSupportGemsForGroup } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
@@ -13,10 +13,40 @@ const GEM_COLOR_BADGE: Record<string, string> = {
   white: 'bg-zinc-200/20 text-zinc-100 border-zinc-400/40',
 };
 
+const FULL_DPS_SHARE_COLORS = [
+  '#f59e0b',
+  '#34d399',
+  '#38bdf8',
+  '#f472b6',
+  '#a78bfa',
+  '#fb923c',
+  '#22d3ee',
+  '#facc15',
+] as const;
+
+type GemPreset = '20/20' | '21/20' | 'q0';
+
+function formatDps(value: number): string {
+  return Math.round(value).toLocaleString('en-US');
+}
+
+const GEM_TAG_NOISE = new Set([
+  'strength',
+  'dexterity',
+  'intelligence',
+  'grants_active_skill',
+  'support',
+]);
+
+function displayGemTags(tags: string[]): string[] {
+  return tags.filter((tag) => !GEM_TAG_NOISE.has(tag.toLowerCase())).slice(0, 3);
+}
+
 export function SkillsTab() {
   const {
     locale,
     build,
+    calc,
     treeRevision,
     setMainSkillGroup,
     addSkillGroup,
@@ -49,6 +79,59 @@ export function SkillsTab() {
     return rankSupportGemsForGroup(build, optimizerGroupId, 8);
   }, [build, optimizerGroupId]);
   const gemsCatalog = getGemsForGame(build.game);
+
+  // Live standalone DPS per skill group (evaluates each group as the main skill group)
+  const groupDps = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const group of build.skills) {
+      if (!group.enabled) continue;
+      const hasActive = group.gems.some((gi) => {
+        if (!gi.enabled) return false;
+        const def = gemsCatalog.find((g) => g.id === gi.gemId);
+        return Boolean(def && def.category === 'active' && !def.isAuraOrBuff);
+      });
+      if (!hasActive) continue;
+      const result = calculateBuild({ ...build, mainSkillGroupId: group.id });
+      map.set(group.id, result.offence.totalDps);
+    }
+    return map;
+  }, [build]);
+
+  const fullDpsBreakdown = useMemo(() => {
+    const fullDps = calc.offence.fullDps ?? 0;
+    const breakdown = calc.offence.fullDpsBreakdown ?? [];
+    if (fullDps <= 0 || breakdown.length === 0) return null;
+    const rows = [...breakdown]
+      .filter((row) => row.dps > 0)
+      .sort((a, b) => b.dps - a.dps)
+      .map((row, index) => ({
+        ...row,
+        sharePct: fullDps > 0 ? (row.dps / fullDps) * 100 : 0,
+        color: FULL_DPS_SHARE_COLORS[index % FULL_DPS_SHARE_COLORS.length]!,
+      }));
+    if (rows.length === 0) return null;
+    return { fullDps, rows };
+  }, [calc]);
+
+  const applyGemPreset = (groupId: string, preset: GemPreset) => {
+    const target = build.skills.find((g) => g.id === groupId);
+    if (!target) return;
+    for (const gemInst of target.gems) {
+      const def = gemsCatalog.find((g) => g.id === gemInst.gemId);
+      const isActive = def?.category === 'active';
+      if (preset === '20/20') {
+        updateGem(groupId, gemInst.instanceId, { level: 20, quality: 20 });
+      } else if (preset === '21/20') {
+        updateGem(groupId, gemInst.instanceId, {
+          level: isActive ? 21 : 20,
+          quality: 20,
+        });
+      } else {
+        updateGem(groupId, gemInst.instanceId, { quality: 0 });
+      }
+    }
+  };
+
   const q = gemSearch.trim().toLowerCase();
   const filteredGems = q
     ? gemsCatalog.filter(
@@ -145,6 +228,53 @@ export function SkillsTab() {
         </div>
       </div>
 
+      {fullDpsBreakdown && (
+        <div className="rounded-lg border border-emerald-500/30 bg-[#0b1310] px-3 py-2.5 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-200">
+              <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+              {locale === 'zh-CN' ? '全技能总 DPS 贡献 (Full DPS Breakdown)' : 'Full DPS Breakdown'}
+              <span className="text-[10px] font-mono font-normal text-emerald-300/70">
+                {fullDpsBreakdown.rows.length} {locale === 'zh-CN' ? '组' : 'groups'}
+              </span>
+            </div>
+            <span className="font-mono text-[11px] font-bold text-emerald-300">
+              {formatDps(fullDpsBreakdown.fullDps)} <span className="text-[10px] font-normal text-emerald-300/70">Full DPS</span>
+            </span>
+          </div>
+          {/* Stacked proportional share bar */}
+          <div className="flex h-2 w-full overflow-hidden rounded-full bg-[#0f1720] border border-[#1d2a26]">
+            {fullDpsBreakdown.rows.map((row) => (
+              <div
+                key={`share-${row.groupId}`}
+                style={{ width: `${Math.max(0.5, row.sharePct)}%`, backgroundColor: row.color }}
+                title={`${row.label}: ${formatDps(row.dps)} DPS (${row.sharePct.toFixed(1)}%)`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {fullDpsBreakdown.rows.map((row) => (
+              <div key={`legend-${row.groupId}`} className="flex items-center gap-1.5 min-w-0">
+                <span
+                  className="w-2 h-2 rounded-sm shrink-0"
+                  style={{ backgroundColor: row.color }}
+                />
+                <span className="text-[11px] text-zinc-300 truncate max-w-[9rem]" title={row.label}>
+                  {row.label}
+                  {row.count > 1 && <span className="text-[10px] text-zinc-500"> ×{row.count}</span>}
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400 shrink-0">
+                  {formatDps(row.dps)}
+                </span>
+                <span className="text-[10px] font-mono font-semibold shrink-0" style={{ color: row.color }}>
+                  {row.sharePct.toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {build.skills.map((group) => {
           const isMain = group.id === build.mainSkillGroupId;
@@ -170,6 +300,44 @@ export function SkillsTab() {
                     onChange={(e) => updateSkillGroup(group.id, { label: e.target.value })}
                     className="pob-input rounded px-2 py-1 text-xs font-semibold w-44"
                   />
+                  {(() => {
+                    const dps = groupDps.get(group.id);
+                    if (dps === undefined) return null;
+                    const fullDps = calc.offence.fullDps ?? 0;
+                    const contrib = calc.offence.fullDpsBreakdown?.find(
+                      (row) => row.groupId === group.id,
+                    );
+                    const contributingGroups = calc.offence.fullDpsBreakdown?.length ?? 0;
+                    const share =
+                      group.includeInFullDps &&
+                      fullDps > 0 &&
+                      contrib &&
+                      contributingGroups > 1
+                        ? (contrib.dps / fullDps) * 100
+                        : null;
+                    const tone = group.enabled
+                      ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200'
+                      : 'bg-zinc-800/40 border-zinc-700 text-zinc-400';
+                    return (
+                      <div
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-mono shrink-0 ${tone}`}
+                        title={
+                          locale === 'zh-CN'
+                            ? '该技能组独立计算的总 DPS'
+                            : 'Standalone total DPS for this skill group'
+                        }
+                      >
+                        <Zap className="w-3 h-3 opacity-80" />
+                        <span className="font-bold">{formatDps(dps)}</span>
+                        <span className="text-[9px] opacity-70">DPS</span>
+                        {share !== null && (
+                          <span className="ml-0.5 pl-1 border-l border-current/30 text-[10px] font-semibold text-amber-200">
+                            {share.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -280,6 +448,38 @@ export function SkillsTab() {
                 </div>
               </div>
 
+              {/* Gem Level / Quality Quick Presets */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  {locale === 'zh-CN' ? '快捷预设' : 'Quick Presets'}
+                </span>
+                {(
+                  [
+                    { id: '20/20' as GemPreset, zh: '20/20', en: '20/20', tipZh: '全部宝石设为 20 级 20 品质', tipEn: 'All gems → Level 20 / Quality 20' },
+                    { id: '21/20' as GemPreset, zh: '21/20 主技能', en: '21/20 Act', tipZh: '主动技能 21/20，辅助 20/20', tipEn: 'Active gems 21/20, supports 20/20' },
+                    { id: 'q0' as GemPreset, zh: 'Q0', en: 'Q0', tipZh: '全部宝石品质归零', tipEn: 'Reset quality to 0 across group' },
+                  ]
+                ).map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    disabled={group.gems.length === 0}
+                    onClick={() => applyGemPreset(group.id, preset.id)}
+                    title={locale === 'zh-CN' ? preset.tipZh : preset.tipEn}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      preset.id === '21/20'
+                        ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border-amber-500/40'
+                        : preset.id === 'q0'
+                          ? 'bg-[#161c2b] hover:bg-[#1e263a] text-zinc-300 border-[#2a3147]'
+                          : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
+                    }`}
+                  >
+                    {locale === 'zh-CN' ? preset.zh : preset.en}
+                  </button>
+                ))}
+              </div>
+
               {/* Gems List */}
               <div className="space-y-1.5">
                 {group.gems.map((gemInst) => {
@@ -323,6 +523,18 @@ export function SkillsTab() {
                           <div className="text-[11px] text-zinc-400 truncate">
                             {def.stats.map((s) => localizeStatLine(s, locale)).join(' · ')}
                           </div>
+                          {displayGemTags(def.tags).length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                              {displayGemTags(def.tags).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="px-1 py-0 rounded text-[9px] font-mono uppercase tracking-wide bg-[#161c2b]/80 text-zinc-400 border border-[#262d42]"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
