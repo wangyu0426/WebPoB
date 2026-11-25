@@ -59,8 +59,19 @@ export function SidebarStats() {
             {fmtNum(offence.totalDps)}
           </span>
         </div>
-        <div className="text-[11px] text-zinc-400 truncate mt-0.5">
-          {localizeText(offence.mainSkillName, locale)}
+        <div className="flex items-center justify-between gap-1 text-[11px] text-zinc-400 mt-0.5">
+          <span className="truncate">{localizeText(offence.mainSkillName, locale)}</span>
+          {offence.mainSkillLevel !== undefined && (
+            <span className="font-mono text-[10px] shrink-0 text-zinc-400">
+              Lv.{offence.mainSkillLevel}
+              {offence.mainSkillBaseLevel !== undefined &&
+                offence.mainSkillLevel > offence.mainSkillBaseLevel && (
+                  <span className="text-cyan-300 font-semibold ml-0.5">
+                    (+{offence.mainSkillLevel - offence.mainSkillBaseLevel})
+                  </span>
+                )}
+            </span>
+          )}
         </div>
         {offence.fullDps !== undefined && offence.fullDps > 0 && (
           <div className="mt-2 pt-2 border-t border-emerald-500/30 space-y-1">

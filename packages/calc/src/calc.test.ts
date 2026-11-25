@@ -141,4 +141,28 @@ describe('@webpob/calc', () => {
       expect(rankedDps[i - 1]!.dpsDelta).toBeGreaterThanOrEqual(rankedDps[i]!.dpsDelta);
     }
   });
+
+  it('scales active skill and aura gem levels from English & Chinese +Gem Level mods', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const boostedEn = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods: '+1 to Level of all Skill Gems\n+2 to Level of all Lightning Spell Skill Gems',
+      },
+    });
+    const boostedZh = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods: '所有技能宝石等级 +1\n所有闪电法术技能等级 +2',
+      },
+    });
+    expect(boostedEn.offence.mainSkillLevel).toBe(23);
+    expect(boostedEn.offence.mainSkillBaseLevel).toBe(20);
+    expect(boostedEn.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps * 1.25);
+    expect(boostedZh.offence.mainSkillLevel).toBe(boostedEn.offence.mainSkillLevel);
+    expect(boostedZh.offence.totalDps).toBe(boostedEn.offence.totalDps);
+  });
 });

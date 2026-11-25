@@ -94,6 +94,10 @@ const CRAFT_AFFIX_POOL: Record<'weapon' | 'armour' | 'accessory', Array<{ en: st
     { en: 'Adds 35 to 75 Cold Damage to Spells', zh: '法术附加 35 - 75 点冰霜伤害' },
     { en: "Your Hits can't be Evaded", zh: '你的击中无法被闪避' },
     { en: '10% chance to deal Double Damage', zh: '10% 几率造成双倍伤害' },
+    { en: '+1 to Level of all Spell Skill Gems', zh: '所有法术技能宝石等级 +1' },
+    { en: '+2 to Level of all Lightning Spell Skills', zh: '所有闪电法术技能等级 +2' },
+    { en: '+2 to Level of all Projectile Skills', zh: '所有投射物技能等级 +2' },
+    { en: '+2 to Level of all Melee Skills', zh: '所有近战技能等级 +2' },
   ],
   armour: [
     { en: '+105 to maximum Life', zh: '最大生命 +105' },
@@ -124,6 +128,8 @@ const CRAFT_AFFIX_POOL: Record<'weapon' | 'armour' | 'accessory', Array<{ en: st
     { en: '18% increased Cast Speed', zh: '施法速度提高 18%' },
     { en: '15% increased Cooldown Recovery Rate', zh: '冷却回复速度提高 15%' },
     { en: '35% increased Elemental Damage with Attack Skills', zh: '攻击技能元素伤害提高 35%' },
+    { en: '+1 to Level of all Skill Gems', zh: '所有技能宝石等级 +1' },
+    { en: '+25% to Quality of all Skill Gems', zh: '所有技能宝石品质 +25%' },
   ],
 };
 

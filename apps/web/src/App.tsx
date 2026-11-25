@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Activity,
   Calculator,
   FileText,
   GitBranch,
   Import,
+  Loader2,
   Shield,
   Sliders,
   Sparkles,
@@ -16,12 +17,15 @@ import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
 import { TopBar } from './components/TopBar';
 import { SidebarStats } from './components/SidebarStats';
 import { PassiveTreeCanvas } from './components/PassiveTreeCanvas';
-import { SkillsTab } from './components/SkillsTab';
-import { ItemsTab } from './components/ItemsTab';
-import { CalcsTab } from './components/CalcsTab';
-import { ConfigTab } from './components/ConfigTab';
-import { ImportExportTab } from './components/ImportExportTab';
-import { NotesTab } from './components/NotesTab';
+
+const SkillsTab = lazy(() => import('./components/SkillsTab').then((m) => ({ default: m.SkillsTab })));
+const ItemsTab = lazy(() => import('./components/ItemsTab').then((m) => ({ default: m.ItemsTab })));
+const CalcsTab = lazy(() => import('./components/CalcsTab').then((m) => ({ default: m.CalcsTab })));
+const ConfigTab = lazy(() => import('./components/ConfigTab').then((m) => ({ default: m.ConfigTab })));
+const ImportExportTab = lazy(() =>
+  import('./components/ImportExportTab').then((m) => ({ default: m.ImportExportTab })),
+);
+const NotesTab = lazy(() => import('./components/NotesTab').then((m) => ({ default: m.NotesTab })));
 
 const NAV_TABS: Array<{ id: ActiveTab; labelKey: MessageKey; icon: typeof GitBranch }> = [
   { id: 'tree', labelKey: 'nav.tree', icon: GitBranch },
@@ -161,12 +165,23 @@ export function App() {
               </div>
             )}
             {activeTab === 'tree' && <PassiveTreeCanvas />}
-            {activeTab === 'skills' && <SkillsTab />}
-            {activeTab === 'items' && <ItemsTab />}
-            {activeTab === 'calcs' && <CalcsTab />}
-            {activeTab === 'config' && <ConfigTab />}
-            {activeTab === 'import' && <ImportExportTab />}
-            {activeTab === 'notes' && <NotesTab />}
+            {activeTab !== 'tree' && (
+              <Suspense
+                fallback={
+                  <div className="h-full w-full flex items-center justify-center text-xs text-zinc-400 gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>{locale === 'zh-CN' ? '加载面板中...' : 'Loading panel...'}</span>
+                  </div>
+                }
+              >
+                {activeTab === 'skills' && <SkillsTab />}
+                {activeTab === 'items' && <ItemsTab />}
+                {activeTab === 'calcs' && <CalcsTab />}
+                {activeTab === 'config' && <ConfigTab />}
+                {activeTab === 'import' && <ImportExportTab />}
+                {activeTab === 'notes' && <NotesTab />}
+              </Suspense>
+            )}
           </div>
         </main>
       </div>

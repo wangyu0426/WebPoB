@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GitCompare } from 'lucide-react';
+import { GitCompare, Zap } from 'lucide-react';
 import { DAMAGE_TYPES, type Build } from '@webpob/core';
 import { getSampleBuild } from '@webpob/data';
 import { calculateBuild } from '@webpob/calc';
@@ -51,6 +51,129 @@ export function CalcsTab() {
     [comparedTarget],
   );
 
+  // Live Quick Scenario What-If Analysis (Flasks, Charges, Pinnacle Boss, +2 Gem Level, Shock/Onslaught)
+  const scenarioRows = useMemo(() => {
+    const baseDps = calc.offence.fullDps ?? calc.offence.totalDps;
+    const baseEhp = calc.defence.effectiveHitPool;
+    const allFlaskSlots = (['Flask 1', 'Flask 2', 'Flask 3', 'Flask 4', 'Flask 5'] as const).reduce(
+      (acc, slot) => {
+        if (build.equipped[slot]) acc[slot] = true;
+        return acc;
+      },
+      {} as NonNullable<Build['activeFlaskSlots']>,
+    );
+
+    const scenarios: Array<{ id: string; labelEn: string; labelZh: string; mutate: (b: Build) => Build }> = [
+      {
+        id: 'plus2_gem',
+        labelEn: '+2 to All Skill Gems (What-If)',
+        labelZh: '假设所有技能宝石等级 +2',
+        mutate: (b) => ({
+          ...b,
+          config: {
+            ...b.config,
+            customMods: `${b.config.customMods ? `${b.config.customMods}\n` : ''}+2 to Level of all Skill Gems`,
+          },
+        }),
+      },
+      {
+        id: 'pinnacle',
+        labelEn: 'vs Pinnacle Boss (50% Ele / 30% Chaos Res)',
+        labelZh: '对阵巅峰 Boss（高抗性）',
+        mutate: (b) => ({
+          ...b,
+          config: {
+            ...b.config,
+            enemyIsBoss: 'Pinnacle',
+            enemyFireResist: 50,
+            enemyColdResist: 50,
+            enemyLightningResist: 50,
+            enemyChaosResist: 30,
+          },
+        }),
+      },
+      {
+        id: 'mapping',
+        labelEn: 'vs Normal Mapping Mob (0% Resist)',
+        labelZh: '对阵普通刷图怪物（0% 抗性）',
+        mutate: (b) => ({
+          ...b,
+          config: {
+            ...b.config,
+            enemyIsBoss: 'None',
+            enemyFireResist: 0,
+            enemyColdResist: 0,
+            enemyLightningResist: 0,
+            enemyChaosResist: 0,
+            enemyArmour: 0,
+          },
+        }),
+      },
+      {
+        id: 'no_charges',
+        labelEn: 'Without Any Charges / Onslaught',
+        labelZh: '无充能球与猛攻（裸状态）',
+        mutate: (b) => ({
+          ...b,
+          config: {
+            ...b.config,
+            usePowerCharges: false,
+            useFrenzyCharges: false,
+            useEnduranceCharges: false,
+            onslaught: false,
+          },
+        }),
+      },
+      {
+        id: 'full_buffs',
+        labelEn: 'Full Charges (3/3/3) + Onslaught + 20% Shock',
+        labelZh: '满三球 (3/3/3) + 猛攻 + 20% 感电',
+        mutate: (b) => ({
+          ...b,
+          config: {
+            ...b.config,
+            usePowerCharges: true,
+            powerCharges: Math.max(3, b.config.powerCharges),
+            useFrenzyCharges: true,
+            frenzyCharges: Math.max(3, b.config.frenzyCharges),
+            useEnduranceCharges: true,
+            enduranceCharges: Math.max(3, b.config.enduranceCharges),
+            onslaught: true,
+            enemyShocked: true,
+            shockValue: Math.max(20, b.config.shockValue),
+          },
+        }),
+      },
+      {
+        id: 'all_flasks',
+        labelEn: Object.keys(allFlaskSlots).length > 0 ? 'All Equipped Flasks Active' : 'No Equipped Flasks (Baseline)',
+        labelZh: Object.keys(allFlaskSlots).length > 0 ? '全部已装备药剂开启' : '未装备药剂（基准）',
+        mutate: (b) => ({
+          ...b,
+          activeFlaskSlots: allFlaskSlots,
+        }),
+      },
+    ];
+
+    return scenarios.map((sc) => {
+      const res = calculateBuild(sc.mutate(build));
+      const nextDps = res.offence.fullDps ?? res.offence.totalDps;
+      const nextEhp = res.defence.effectiveHitPool;
+      const dpsDelta = nextDps - baseDps;
+      const dpsPct = baseDps > 0 ? (dpsDelta / baseDps) * 100 : 0;
+      const ehpDelta = nextEhp - baseEhp;
+      const ehpPct = baseEhp > 0 ? (ehpDelta / baseEhp) * 100 : 0;
+      return {
+        id: sc.id,
+        label: locale === 'zh-CN' ? sc.labelZh : sc.labelEn,
+        nextDps,
+        dpsPct,
+        nextEhp,
+        ehpPct,
+      };
+    });
+  }, [build, calc, locale]);
+
   const selectedRow = calc.breakdowns[selectedIdx] ?? calc.breakdowns[0];
 
   return (
@@ -65,6 +188,15 @@ export function CalcsTab() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-amber-200 uppercase tracking-wider">
             {t(locale, 'calcs.damageBreakdown')} — {localizeText(calc.offence.mainSkillName, locale)}
+            {calc.offence.mainSkillLevel !== undefined && (
+              <span className="ml-2 font-mono text-[11px] font-normal text-cyan-300 normal-case">
+                Lv.{calc.offence.mainSkillLevel}
+                {calc.offence.mainSkillBaseLevel !== undefined &&
+                  calc.offence.mainSkillLevel > calc.offence.mainSkillBaseLevel &&
+                  ` (+${calc.offence.mainSkillLevel - calc.offence.mainSkillBaseLevel})`}
+                {calc.offence.mainSkillQuality ? ` · Q${calc.offence.mainSkillQuality}%` : ''}
+              </span>
+            )}
           </h3>
           <span className="text-xs font-mono text-amber-300">
             Total DPS: {Math.round(calc.offence.totalDps).toLocaleString()}
@@ -164,6 +296,58 @@ export function CalcsTab() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Quick Combat Scenario & What-If Simulator */}
+      <div className="pob-panel rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between border-b border-[#242a3c] pb-2">
+          <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+            <Zap className="w-4 h-4 text-amber-400" />
+            {locale === 'zh-CN' ? '快速情景与假设收益模拟 (What-If)' : 'Quick Combat Scenario & What-If Simulator'}
+          </h3>
+          <span className="text-[10px] text-zinc-400">
+            {locale === 'zh-CN' ? '基于当前构筑实时重算' : 'Simulated live from current build'}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          {scenarioRows.map((row) => (
+            <div
+              key={row.id}
+              className="rounded bg-[#0c0e15] border border-[#1f2436] px-3 py-2 flex flex-col justify-between gap-1.5"
+            >
+              <div className="text-xs text-zinc-200 font-medium">{row.label}</div>
+              <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
+                <span
+                  className={
+                    Math.abs(row.dpsPct) < 0.05
+                      ? 'text-zinc-500'
+                      : row.dpsPct > 0
+                        ? 'text-emerald-400 font-semibold'
+                        : 'text-rose-400 font-semibold'
+                  }
+                >
+                  DPS {row.dpsPct > 0 ? '+' : ''}
+                  {row.dpsPct.toFixed(1)}%
+                  <span className="text-[10px] text-zinc-400 font-normal ml-1">
+                    ({Math.round(row.nextDps).toLocaleString()})
+                  </span>
+                </span>
+                <span
+                  className={
+                    Math.abs(row.ehpPct) < 0.05
+                      ? 'text-zinc-500'
+                      : row.ehpPct > 0
+                        ? 'text-sky-300 font-semibold'
+                        : 'text-rose-400 font-semibold'
+                  }
+                >
+                  EHP {row.ehpPct > 0 ? '+' : ''}
+                  {row.ehpPct.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

@@ -311,7 +311,7 @@ local QUALITY_KEY_MAP = {
   ["attack_skills_elemental_damage_+%"] = "{v}% increased Elemental Damage with Attack Skills",
 }
 
-local SAMPLE_LEVELS = { 1, 5, 10, 15, 18, 19, 20, 21, 22, 23, 25, 30 }
+local SAMPLE_LEVELS = { 1, 5, 10, 15, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30 }
 
 local function extractLevelSnapshot(ge, ss, level)
   local ok, stats = pcall(function()

@@ -1,5 +1,6 @@
 import { KeywordFlag, ModFlag, type Mod, type ModType } from '@webpob/core';
 import { normalizeStatLineToEn } from '@webpob/i18n';
+import { normalizeGemFilterTokens } from './gemBonus.js';
 
 function mkMod(
   name: string,
@@ -683,6 +684,31 @@ const PARSER_RULES: ParserRule[] = [
   {
     pattern: /^3% more Spell Damage per Power Charge$/i,
     build: (_, src) => [mkMod('InnerConviction', 'FLAG', true, src)],
+  },
+  // Global Skill Gem Level & Quality Bonuses (PoE 1 & PoE 2)
+  {
+    pattern: /^\+(\d+) to Level of all (?:([A-Za-z ]+?) )?Support Gems?$/i,
+    build: (m, src) => {
+      const filterKey = normalizeGemFilterTokens(m[2]);
+      if (!filterKey) return [];
+      return [mkMod(`GemLevelSup:${filterKey}`, 'BASE', Number(m[1]), src)];
+    },
+  },
+  {
+    pattern: /^\+(\d+) to Level of all (?:([A-Za-z ]+?) )?(?:Skill Gems?|Skills?)$/i,
+    build: (m, src) => {
+      const filterKey = normalizeGemFilterTokens(m[2]);
+      if (!filterKey) return [];
+      return [mkMod(`GemLevel:${filterKey}`, 'BASE', Number(m[1]), src)];
+    },
+  },
+  {
+    pattern: /^\+(\d+)% to Quality of all (?:([A-Za-z ]+?) )?(?:Skill Gems?|Skills?)$/i,
+    build: (m, src) => {
+      const filterKey = normalizeGemFilterTokens(m[2]);
+      if (!filterKey) return [];
+      return [mkMod(`GemQuality:${filterKey}`, 'BASE', Number(m[1]), src)];
+    },
   },
 ];
 

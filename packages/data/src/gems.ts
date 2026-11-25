@@ -16,8 +16,8 @@ export const POE1_GEMS: GemDefinition[] = [
     castTime: 0.6,
     baseCritChance: 6,
     manaCost: 29,
-    // 7 remaining chains * 15% more Damage per remaining chain at Lv.20
-    stats: ['105% more Damage'],
+    // Remaining chains (4 + floor((lv-1)/5) + trunc(quality * 0.05)) * 15% more Damage are evaluated dynamically in engine.ts
+    stats: [],
     qualityStats: [],
   },
   {

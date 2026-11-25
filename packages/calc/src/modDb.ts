@@ -39,6 +39,16 @@ export class ModDB {
     return copy;
   }
 
+  entriesByPrefix(prefix: string): Array<[string, Mod[]]> {
+    const out: Array<[string, Mod[]]> = [];
+    for (const [key, list] of this.store.entries()) {
+      if (key.startsWith(prefix)) {
+        out.push([key, list]);
+      }
+    }
+    return out;
+  }
+
   private matches(mod: Mod, flags: number, keywordFlags: number): boolean {
     if (mod.flags !== 0 && (mod.flags & flags) !== mod.flags) {
       return false;

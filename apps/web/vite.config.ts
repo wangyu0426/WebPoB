@@ -14,6 +14,30 @@ export default defineConfig({
       '@webpob/calc': path.resolve(__dirname, '../../packages/calc/src/index.ts'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'lucide-icons';
+          }
+          if (id.includes('node_modules/pako') || id.includes('node_modules/zustand')) {
+            return 'utils-vendor';
+          }
+          if (id.includes('/packages/calc/')) {
+            return 'webpob-calc';
+          }
+          if (id.includes('/packages/data/') || id.includes('/packages/i18n/')) {
+            return 'webpob-data';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     host: '127.0.0.1',

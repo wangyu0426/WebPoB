@@ -250,6 +250,59 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     zhPattern: /^伤害穿透\s*(\d+)%\s*(火焰|冰霜|冰冷|闪电|元素)抗性$/,
     toEn: (_, v, el) => `Damage Penetrates ${v}% ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Resistance`,
   },
+  // Skill Gem Level & Quality bonuses (PoE 1 & PoE 2 Chinese clipboard / custom mods)
+  {
+    zhPattern: /^所有技能宝石等级\s*\+(\d+)$/,
+    toEn: (_, v) => `+${v} to Level of all Skill Gems`,
+  },
+  {
+    zhPattern: /^所有技能等级\s*\+(\d+)$/,
+    toEn: (_, v) => `+${v} to Level of all Skills`,
+  },
+  {
+    zhPattern: /^所有(火焰|冰霜|冰冷|闪电|物理|混沌|元素)法术技能(?:宝石)?等级\s*\+(\d+)$/,
+    toEn: (_, el, v) => `+${v} to Level of all ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Spell Skill Gems`,
+  },
+  {
+    zhPattern: /^所有(法术|攻击|近战|投射物|弓|召唤生物|光环|诅咒|火焰|冰霜|冰冷|闪电|物理|混沌|元素)技能(?:宝石)?等级\s*\+(\d+)$/,
+    toEn: (_, tag, v) => {
+      const map: Record<string, string> = {
+        法术: 'Spell',
+        攻击: 'Attack',
+        近战: 'Melee',
+        投射物: 'Projectile',
+        弓: 'Bow',
+        召唤生物: 'Minion',
+        光环: 'Aura',
+        诅咒: 'Curse',
+        ...ZH_DAMAGE_TYPE_TO_EN,
+      };
+      return `+${v} to Level of all ${map[tag] ?? tag} Skill Gems`;
+    },
+  },
+  {
+    zhPattern: /^所有技能宝石品质\s*\+(\d+)%$/,
+    toEn: (_, v) => `+${v}% to Quality of all Skill Gems`,
+  },
+  {
+    zhPattern: /^此物品上插槽中(?:(?:火焰|冰霜|冰冷|闪电|物理|混沌|元素|召唤生物|法术|攻击|光环|辅助|力量|敏捷|智慧)?)?(?:技能)?宝石等级\s*\+(\d+)$/,
+    toEn: (full, v) => {
+      const m = full.match(/插槽中(火焰|冰霜|冰冷|闪电|物理|混沌|元素|召唤生物|法术|攻击|光环|辅助|力量|敏捷|智慧)/);
+      const map: Record<string, string> = {
+        召唤生物: 'Minion',
+        法术: 'Spell',
+        攻击: 'Attack',
+        光环: 'Aura',
+        辅助: 'Support',
+        力量: 'Strength',
+        敏捷: 'Dexterity',
+        智慧: 'Intelligence',
+        ...ZH_DAMAGE_TYPE_TO_EN,
+      };
+      const tag = m?.[1] ? `${map[m[1]] ?? m[1]} ` : '';
+      return `+${v} to Level of Socketed ${tag}Gems`;
+    },
+  },
 ];
 
 const EN_TO_ZH_RULES: EnToZhRule[] = [
@@ -365,6 +418,58 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
   {
     enPattern: /^30% of Damage is taken from Mana before Life$/i,
     toZh: () => `承受伤害的 30% 优先从魔力扣除`,
+  },
+  {
+    enPattern: /^\+(\d+) to Level of all Skill Gems$/i,
+    toZh: (_, v) => `所有技能宝石等级 +${v}`,
+  },
+  {
+    enPattern: /^\+(\d+) to Level of all Skills$/i,
+    toZh: (_, v) => `所有技能等级 +${v}`,
+  },
+  {
+    enPattern: /^\+(\d+)% to Quality of all Skill Gems$/i,
+    toZh: (_, v) => `所有技能宝石品质 +${v}%`,
+  },
+  {
+    enPattern: /^\+(\d+) to Level of all (Fire|Cold|Lightning|Physical|Chaos|Elemental) Spell (?:Skill Gems|Skills)$/i,
+    toZh: (_, v, el) => {
+      const map: Record<string, string> = {
+        Fire: '火焰',
+        Cold: '冰霜',
+        Lightning: '闪电',
+        Physical: '物理',
+        Chaos: '混沌',
+        Elemental: '元素',
+      };
+      return `所有${map[el] ?? el}法术技能等级 +${v}`;
+    },
+  },
+  {
+    enPattern: /^\+(\d+) to Level of all (Spell|Attack|Melee|Projectile|Bow|Minion|Aura|Curse|Fire|Cold|Lightning|Physical|Chaos|Elemental) (?:Skill Gems|Skills)$/i,
+    toZh: (_, v, tag) => {
+      const map: Record<string, string> = {
+        Spell: '法术',
+        Attack: '攻击',
+        Melee: '近战',
+        Projectile: '投射物',
+        Bow: '弓',
+        Minion: '召唤生物',
+        Aura: '光环',
+        Curse: '诅咒',
+        Fire: '火焰',
+        Cold: '冰霜',
+        Lightning: '闪电',
+        Physical: '物理',
+        Chaos: '混沌',
+        Elemental: '元素',
+      };
+      return `所有${map[tag] ?? tag}技能等级 +${v}`;
+    },
+  },
+  {
+    enPattern: /^\+(\d+) to Level of Socketed Gems$/i,
+    toZh: (_, v) => `此物品上插槽中宝石等级 +${v}`,
   },
 ];
 

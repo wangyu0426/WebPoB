@@ -443,6 +443,9 @@ export interface DamageRange {
 
 export interface CalcOffenceOutput {
   mainSkillName: LocalizedText;
+  mainSkillLevel?: number;
+  mainSkillBaseLevel?: number;
+  mainSkillQuality?: number;
   skillType: 'Attack' | 'Spell' | 'None';
   damageByType: Record<DamageType, DamageRange>;
   averageHit: number;

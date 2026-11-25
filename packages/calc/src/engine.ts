@@ -29,6 +29,7 @@ import { normalizeStatLineToEn } from '@webpob/i18n';
 import { ModDB } from './modDb.js';
 import { parseModLines } from './modParser.js';
 import { resolveItemEffectiveStats } from './localItem.js';
+import { parseSocketedGemBonuses, resolveGemBonuses } from './gemBonus.js';
 
 function getActiveEquippedItems(build: Build): Array<{ slot: EquipmentSlotId; item: Item }> {
   const result: Array<{ slot: EquipmentSlotId; item: Item }> = [];
@@ -359,7 +360,7 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parseModLines(resolved.globalExplicits, src));
   }
 
-  // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs
+  // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs (with +Gem Level / Empower / Socketed scaling)
   const auraManaResList: number[] = [];
   let totalSpiritReserved = 0;
   for (const group of build.skills) {
@@ -367,11 +368,34 @@ export function calculateBuild(build: Build): CalcOutput {
     if (build.game === 'poe2' && group.weaponSets && !group.weaponSets.includes(build.activeWeaponSet)) {
       continue;
     }
+    const slotItem =
+      group.slot && build.equipped[group.slot] ? build.items[build.equipped[group.slot]!] : undefined;
+    const groupSocketedRules = slotItem
+      ? parseSocketedGemBonuses([...slotItem.implicits, ...slotItem.explicits])
+      : [];
+
+    // Check if Empower is linked in this aura/curse skill group
+    let groupEmpowerBonus = 0;
+    for (const supInst of group.gems) {
+      if (!supInst.enabled) continue;
+      const supDef = getGemById(build.game, supInst.gemId);
+      if (!supDef || supDef.category !== 'support') continue;
+      const lower = supDef.name.en.toLowerCase();
+      if (lower === 'empower' || lower === 'awakened empower') {
+        const supBon = resolveGemBonuses(supDef, db, groupSocketedRules);
+        groupEmpowerBonus += Math.max(0, supInst.level + supBon.levelBonus - 1);
+      }
+    }
+
     for (const gemInst of group.gems) {
       if (!gemInst.enabled) continue;
       const def = getGemById(build.game, gemInst.gemId);
       if (!def || !def.isAuraOrBuff) continue;
-      db.addMods(parseModLines(def.stats, `Aura/Buff: ${def.name.en}`));
+      const gemBon = resolveGemBonuses(def, db, groupSocketedRules);
+      const effLevel = Math.min(40, Math.max(1, gemInst.level + gemBon.levelBonus + groupEmpowerBonus));
+      const levelEntry = resolveGemLevelEntry(def, effLevel);
+      const auraStats = levelEntry?.stats ?? def.stats;
+      db.addMods(parseModLines(auraStats, `Aura/Buff: ${def.name.en}${effLevel !== gemInst.level ? ` (Lv.${effLevel})` : ''}`));
       if (def.manaReservationPct) {
         auraManaResList.push(def.manaReservationPct);
       }
@@ -903,24 +927,30 @@ function computeGroupOffence(
   }
 
   let activeDef: GemDefinition | undefined;
+  let activeBaseLevel = 20;
   let activeLevel = 20;
   let activeQuality = 0;
   let activeCount = 1;
   const skillDb = globalDb.clone();
 
-  // PoE 1 3.30 Matching Socket Quality Bonus (+10% quality when gem color matches socket color of slot item)
+  // Resolve slot item for PoE 1 matching socket quality bonus AND `+N to Level/Quality of Socketed Gems`
   let slotDefaultSocketColor: 'red' | 'green' | 'blue' | undefined;
-  if (build.game === 'poe1' && mainGroup.slot) {
-    const slotItemId = build.equipped[mainGroup.slot];
-    const slotItem = slotItemId ? build.items[slotItemId] : undefined;
-    if (slotItem?.armourStats) {
+  const slotItem =
+    mainGroup.slot && build.equipped[mainGroup.slot]
+      ? build.items[build.equipped[mainGroup.slot]!]
+      : undefined;
+  const socketedRules = slotItem
+    ? parseSocketedGemBonuses([...slotItem.implicits, ...slotItem.explicits])
+    : [];
+  if (build.game === 'poe1' && slotItem) {
+    if (slotItem.armourStats) {
       const a = slotItem.armourStats.armour ?? 0;
       const e = slotItem.armourStats.evasion ?? 0;
       const es = slotItem.armourStats.energyShield ?? 0;
       if (es > 0 && a === 0 && e === 0) slotDefaultSocketColor = 'blue';
       else if (a > 0 && e === 0 && es === 0) slotDefaultSocketColor = 'red';
       else if (e > 0 && a === 0 && es === 0) slotDefaultSocketColor = 'green';
-    } else if (slotItem?.weaponStats) {
+    } else if (slotItem.weaponStats) {
       const wt = slotItem.weaponStats.weaponType;
       if (wt === 'Wand' || wt === 'Staff') slotDefaultSocketColor = 'blue';
       else if (wt === 'Bow' || wt === 'Claw' || wt === 'Dagger') slotDefaultSocketColor = 'green';
@@ -961,20 +991,34 @@ function computeGroupOffence(
   const activeCandidates: Array<{
     inst: (typeof mainGroup.gems)[number];
     def: GemDefinition;
-    effectiveStats: string[];
   }> = [];
+
+  let empowerLevelBonus = 0;
+  let enhanceQualityBonus = 0;
 
   for (const gemInst of mainGroup.gems) {
     if (!gemInst.enabled) continue;
     const def = getGemById(build.game, gemInst.gemId);
     if (!def) continue;
-    const levelEntry = resolveGemLevelEntry(def, gemInst.level);
-    const effectiveStats = levelEntry?.stats ?? def.stats;
     if (def.category === 'active' && !def.isAuraOrBuff) {
-      activeCandidates.push({ inst: gemInst, def, effectiveStats });
+      activeCandidates.push({ inst: gemInst, def });
     } else if (def.category === 'support') {
+      const supBonus = resolveGemBonuses(def, globalDb, socketedRules);
+      const effSupLevel = Math.min(40, Math.max(1, gemInst.level + supBonus.levelBonus));
+      const effSupQuality = gemInst.quality + supBonus.qualityBonus;
+      const lower = def.name.en.toLowerCase();
+      if (lower === 'empower' || lower === 'awakened empower') {
+        empowerLevelBonus += Math.max(0, effSupLevel - 1);
+        continue;
+      }
+      if (lower === 'enhance' || lower === 'awakened enhance') {
+        enhanceQualityBonus += Math.max(0, effSupLevel - 1) * 8;
+        continue;
+      }
+      const levelEntry = resolveGemLevelEntry(def, effSupLevel);
+      const effectiveStats = levelEntry?.stats ?? def.stats;
       skillDb.addMods(parseModLines(effectiveStats, `Support: ${def.name.en}`));
-      applyGemQualityStats(def, gemInst.quality, 'Support');
+      applyGemQualityStats(def, effSupQuality, 'Support');
     }
   }
 
@@ -986,10 +1030,33 @@ function computeGroupOffence(
     );
     const chosen = activeCandidates[pickIdx]!;
     activeDef = chosen.def;
-    activeLevel = chosen.inst.level;
+    activeBaseLevel = chosen.inst.level;
+    const activeBonus = resolveGemBonuses(chosen.def, globalDb, socketedRules);
+    activeLevel = Math.min(40, Math.max(1, chosen.inst.level + activeBonus.levelBonus + empowerLevelBonus));
     activeCount = Math.max(1, chosen.inst.count ?? 1);
-    activeQuality = applyGemQualityStats(chosen.def, chosen.inst.quality, 'Skill');
-    skillDb.addMods(parseModLines(chosen.effectiveStats, `Skill: ${chosen.def.name.en}`));
+    const chosenLevelEntry = resolveGemLevelEntry(chosen.def, activeLevel);
+    const chosenEffectiveStats = chosenLevelEntry?.stats ?? chosen.def.stats;
+    activeQuality = applyGemQualityStats(
+      chosen.def,
+      chosen.inst.quality + activeBonus.qualityBonus + enhanceQualityBonus,
+      'Skill',
+    );
+    skillDb.addMods(parseModLines(chosenEffectiveStats, `Skill: ${chosen.def.name.en}`));
+    // Official PoE 1 Arc mechanic: 15% more Damage with Hits and Ailments per remaining Chain
+    // Base chains scale every 5 levels (Lv.1-5: 4, Lv.6-10: 5, Lv.11-15: 6, Lv.16-20: 7, Lv.21-25: 8, Lv.26-30: 9) + 0.05 chains per 1% quality
+    if (build.game === 'poe1' && chosen.def.id === 'poe1_arc') {
+      const baseChains = 4 + Math.floor((Math.max(1, Math.min(40, activeLevel)) - 1) / 5);
+      const qualityChains = Math.trunc(Math.max(0, activeQuality) * 0.05);
+      const totalChains = baseChains + qualityChains;
+      skillDb.addMod({
+        name: 'Damage',
+        type: 'MORE',
+        value: totalChains * 15,
+        flags: 0,
+        keywordFlags: 0,
+        source: `Arc (${totalChains} Remaining Chains)`,
+      });
+    }
     const companionAtk = activeCandidates.find(
       (c, i) => i !== pickIdx && (c.def.modFlags & ModFlag.Attack) !== 0,
     );
@@ -1516,13 +1583,16 @@ function computeGroupOffence(
   void dotMore;
 
   const totalDps = Math.round((hitDps + impaleDps + igniteDps + bleedDps + poisonDps) * 100) / 100;
-  const manaCost = activeDef.manaCost ?? 15;
+  const manaCost = activeLevelEntry?.manaCost ?? activeDef.manaCost ?? 15;
   const manaPerSecond = Math.round(manaCost * speed * 10) / 10;
 
   return {
     activeCount,
     offence: {
       mainSkillName: activeDef.name,
+      mainSkillLevel: activeLevel,
+      mainSkillBaseLevel: activeBaseLevel,
+      mainSkillQuality: activeQuality,
       skillType: isAttack ? 'Attack' : 'Spell',
       damageByType,
       averageHit: avgHitWithCrit,

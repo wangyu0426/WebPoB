@@ -204,6 +204,14 @@ function synthesizeGemDefinition(
 
   if (entry.cat === 'support') {
     const hasOfficialStats = Array.isArray(entry.st) && entry.st.length > 0;
+    const lowerEn = entry.en.toLowerCase();
+    const isSpecialLevelSupport =
+      lowerEn === 'empower' ||
+      lowerEn === 'awakened empower' ||
+      lowerEn === 'enhance' ||
+      lowerEn === 'awakened enhance' ||
+      lowerEn === 'enlighten' ||
+      lowerEn === 'awakened enlighten';
     const defaultStat = tagSet.has('fire')
       ? '25% more Fire Damage'
       : tagSet.has('cold')
@@ -226,7 +234,7 @@ function synthesizeGemDefinition(
       tags: entry.tags,
       modFlags,
       keywordFlags: kwFlags,
-      stats: hasOfficialStats ? entry.st! : [defaultStat],
+      stats: hasOfficialStats ? entry.st! : isSpecialLevelSupport ? [] : [defaultStat],
       ...(qualityStats ? { qualityStats } : {}),
       ...(levelScaling ? { levelScaling } : {}),
     };
