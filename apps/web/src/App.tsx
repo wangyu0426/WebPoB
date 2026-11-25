@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import {
   Activity,
   Calculator,
@@ -17,6 +17,10 @@ import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
 import { TopBar } from './components/TopBar';
 import { SidebarStats } from './components/SidebarStats';
 import { PassiveTreeCanvas } from './components/PassiveTreeCanvas';
+import {
+  CommandPaletteModal,
+  type CommandPaletteMode,
+} from './components/CommandPaletteModal';
 
 const SkillsTab = lazy(() => import('./components/SkillsTab').then((m) => ({ default: m.SkillsTab })));
 const ItemsTab = lazy(() => import('./components/ItemsTab').then((m) => ({ default: m.ItemsTab })));
@@ -42,14 +46,30 @@ export function App() {
     useWebPobStore();
   const [hashToast, setHashToast] = useState<string | null>(null);
   const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandPaletteMode, setCommandPaletteMode] = useState<CommandPaletteMode>('command');
+
+  const openCommandPalette = useCallback((mode: CommandPaletteMode = 'command') => {
+    setCommandPaletteMode(mode);
+    setCommandPaletteOpen(true);
+  }, []);
 
   useEffect(() => {
     void ensureOfficialDataLoaded(build.game);
   }, [build.game, ensureOfficialDataLoaded]);
 
-  // Global keyboard shortcuts (Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Shift+Z redo, 1-7 switch tabs)
+  // Global keyboard shortcuts (Ctrl/Cmd+K palette, ? cheatsheet, Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Shift+Z redo, 1-7 switch tabs)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((wasOpen) => {
+          if (!wasOpen) setCommandPaletteMode('command');
+          return !wasOpen;
+        });
+        return;
+      }
+      if (commandPaletteOpen) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if ((e.metaKey || e.ctrlKey) && !e.altKey) {
@@ -67,6 +87,11 @@ export function App() {
         return;
       }
       if (e.altKey) return;
+      if (e.key === '?') {
+        e.preventDefault();
+        openCommandPalette('shortcuts');
+        return;
+      }
       const idx = Number(e.key) - 1;
       if (idx >= 0 && idx < NAV_TABS.length) {
         setActiveTab(NAV_TABS[idx]!.id);
@@ -74,7 +99,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [setActiveTab, undo, redo]);
+  }, [commandPaletteOpen, setActiveTab, undo, redo]);
 
   // Auto-load shared build from URL hash (#pob=<base64url-code>) on mount and hashchange
   useEffect(() => {
@@ -111,7 +136,7 @@ export function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0b0d12] text-zinc-100 overflow-hidden">
-      <TopBar />
+      <TopBar onOpenCommandPalette={() => openCommandPalette('command')} />
 
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
         {/* Desktop fixed sidebar */}
@@ -199,6 +224,11 @@ export function App() {
           </div>
         </main>
       </div>
+      <CommandPaletteModal
+        open={commandPaletteOpen}
+        initialMode={commandPaletteMode}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
     </div>
   );
 }

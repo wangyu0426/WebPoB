@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, PlusCircle, Redo2, RotateCcw, Swords, Undo2 } from 'lucide-react';
+import { Check, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, PlusCircle, Redo2, RotateCcw, Search, Swords, Undo2 } from 'lucide-react';
 import { getClassesForGame } from '@webpob/data';
 import { encodeBuildToPobCode } from '@webpob/codec';
 import { localizeText, t } from '@webpob/i18n';
@@ -7,7 +7,11 @@ import { useWebPobStore } from '../store/useWebPobStore';
 import { buildSummaryToMarkdown, downloadBuildSummaryPng } from '../utils/exportBuildCard';
 import { BuildLibraryModal } from './BuildLibraryModal';
 
-export function TopBar() {
+interface TopBarProps {
+  onOpenCommandPalette?: () => void;
+}
+
+export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
   const {
     locale,
     build,
@@ -174,6 +178,20 @@ export function TopBar() {
 
       {/* Right: Actions & Bilingual Language Switch */}
       <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+        {onOpenCommandPalette && (
+          <button
+            type="button"
+            onClick={onOpenCommandPalette}
+            title={locale === 'zh-CN' ? '打开命令面板 (Ctrl/Cmd+K)' : 'Open Command Palette (Ctrl/Cmd+K)'}
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-zinc-300 bg-[#0a0c12] hover:bg-[#171d2b] border border-[#2c3348] hover:border-amber-500/40 transition cursor-pointer shrink-0"
+          >
+            <Search className="w-3.5 h-3.5 text-amber-300" />
+            <span className="hidden 2xl:inline">{locale === 'zh-CN' ? '搜索' : 'Search'}</span>
+            <kbd className="rounded border border-[#333c55] bg-[#121724] px-1 py-0.5 text-[9px] font-mono text-zinc-400 leading-none">
+              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}
+            </kbd>
+          </button>
+        )}
         <div className="flex items-center rounded bg-[#0a0c12] p-0.5 border border-[#252b3d]">
           <button
             type="button"
