@@ -50,9 +50,11 @@ export interface CompactGemsPayload {
     tags: string[];
     ct?: number;
     cd?: number;
+    dm?: number;
     cc?: number;
     asm?: number;
     mrp?: number;
+    mrf?: number;
     sr?: number;
     bd?: Partial<Record<'Physical' | 'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>>;
     am?: number;
@@ -177,7 +179,12 @@ function synthesizeGemDefinition(
   const tagSet = new Set(entry.tags.map((t) => t.toLowerCase()));
   const isSpell = tagSet.has('spell');
   const isAttack = tagSet.has('attack');
-  const isAura = tagSet.has('aura') || tagSet.has('herald') || (entry.mrp ?? 0) > 0 || (entry.sr ?? 0) > 0;
+  const isAura =
+    tagSet.has('aura') ||
+    tagSet.has('herald') ||
+    (entry.mrp ?? 0) > 0 ||
+    (entry.mrf ?? 0) > 0 ||
+    (entry.sr ?? 0) > 0;
 
   let modFlags = ModFlag.None;
   let kwFlags = KeywordFlag.None;
@@ -211,7 +218,11 @@ function synthesizeGemDefinition(
       lowerEn === 'enhance' ||
       lowerEn === 'awakened enhance' ||
       lowerEn === 'enlighten' ||
-      lowerEn === 'awakened enlighten';
+      lowerEn === 'awakened enlighten' ||
+      lowerEn === 'rage' ||
+      lowerEn === 'rage i' ||
+      lowerEn === 'rage ii' ||
+      lowerEn === 'rage iii';
     const defaultStat = tagSet.has('fire')
       ? '25% more Fire Damage'
       : tagSet.has('cold')
@@ -264,11 +275,15 @@ function synthesizeGemDefinition(
     keywordFlags: kwFlags,
     isAuraOrBuff: isAura,
     ...(entry.cd && entry.cd > 0 ? { cooldown: entry.cd } : {}),
+    ...(entry.dm && entry.dm > 1 ? { dpsMultiplier: entry.dm } : {}),
     ...(qualityStats ? { qualityStats } : {}),
     ...(levelScaling ? { levelScaling } : {}),
     ...(isAura
       ? {
-          manaReservationPct: entry.mrp ?? (game === 'poe1' ? 35 : undefined),
+          ...(entry.mrp !== undefined || (game === 'poe1' && !entry.mrf)
+            ? { manaReservationPct: entry.mrp ?? 35 }
+            : {}),
+          ...(entry.mrf !== undefined ? { manaReservationFlat: entry.mrf } : {}),
           spiritReservation: entry.sr ?? (game === 'poe2' ? 30 : undefined),
           stats: officialStats.length > 0 ? officialStats : [`15% more ${primaryDamageType} Damage`],
         }

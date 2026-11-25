@@ -269,6 +269,8 @@ local function modToStatLine(m, val)
     elseif name == "Life" and v > 0 then return "+" .. v .. " to maximum Life"
     elseif name == "Mana" and v > 0 then return "+" .. v .. " to maximum Mana"
     elseif name == "Accuracy" and v > 0 then return "+" .. v .. " to Accuracy Rating"
+    elseif name == "BlockChance" and v > 0 then return "+" .. v .. "% Chance to Block Attack Damage"
+    elseif name == "SpellBlockChance" and v > 0 then return "+" .. v .. "% Chance to Block Spell Damage"
     elseif name == "DoubleDamageChance" and v > 0 then return v .. "% chance to deal Double Damage"
     elseif name == "PhysicalDamageConvertToFire" then return v .. "% of Physical Damage Converted to Fire Damage"
     elseif name == "PhysicalDamageConvertToCold" then return v .. "% of Physical Damage Converted to Cold Damage"
@@ -433,6 +435,13 @@ for gemId, g in pairs(data.gems or {}) do
         if ge.castTime and ge.castTime > 0 then rec.ct = ge.castTime end
         local cd = (lvl20 and lvl20.cooldown) or (ssLvl20 and ssLvl20.cooldown)
         if cd and cd > 0 then rec.cd = cd end
+        if ge.baseMods and type(ge.baseMods) == "table" then
+          for _, bm in ipairs(ge.baseMods) do
+            if type(bm) == "table" and bm.name == "SkillData" and type(bm.value) == "table" and bm.value.key == "dpsMultiplier" and type(bm.value.value) == "number" and bm.value.value > 1 and bm[1] == nil then
+              rec.dm = bm.value.value
+            end
+          end
+        end
         local crit = (ssLvl20 and ssLvl20.critChance) or (lvl20 and lvl20.critChance)
         if crit and crit > 0 then rec.cc = crit end
         if lvl20 and lvl20.attackSpeedMultiplier and lvl20.attackSpeedMultiplier ~= 100 then
@@ -442,6 +451,9 @@ for gemId, g in pairs(data.gems or {}) do
         end
         if lvl20 and lvl20.manaReservationPercent and lvl20.manaReservationPercent > 0 then
           rec.mrp = lvl20.manaReservationPercent
+        end
+        if lvl20 and lvl20.manaReservationFlat and lvl20.manaReservationFlat > 0 then
+          rec.mrf = lvl20.manaReservationFlat
         end
         if lvl20 and lvl20.spiritReservationFlat and lvl20.spiritReservationFlat > 0 then
           rec.sr = lvl20.spiritReservationFlat

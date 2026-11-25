@@ -237,6 +237,7 @@ export function buildToPobXml(build: Build): string {
   if (cfg.enemyFireExposure) lines.push(`      <Input name="conditionEnemyFireExposure" boolean="true" />`);
   if (cfg.enemyColdExposure) lines.push(`      <Input name="conditionEnemyColdExposure" boolean="true" />`);
   if (cfg.enemyLightningExposure) lines.push(`      <Input name="conditionEnemyLightningExposure" boolean="true" />`);
+  if (cfg.rage && cfg.rage > 0) lines.push(`      <Input name="multiplierRage" number="${cfg.rage}" />`);
   if (cfg.customMods.trim()) {
     lines.push(`      <Placeholder name="customMods" string="${escapeXml(cfg.customMods)}" />`);
   }
@@ -516,6 +517,7 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'conditionEnemyFireExposure' && attrs.boolean) config.enemyFireExposure = attrs.boolean === 'true';
     if (key === 'conditionEnemyColdExposure' && attrs.boolean) config.enemyColdExposure = attrs.boolean === 'true';
     if (key === 'conditionEnemyLightningExposure' && attrs.boolean) config.enemyLightningExposure = attrs.boolean === 'true';
+    if (key === 'multiplierRage' && attrs.number) config.rage = Number(attrs.number);
     if (key === 'customMods' && attrs.string) config.customMods = attrs.string;
   }
 

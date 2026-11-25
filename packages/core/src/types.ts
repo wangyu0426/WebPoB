@@ -202,6 +202,8 @@ export interface GemDefinition {
   attackSpeedMultiplier?: number;
   /** Base skill cooldown in seconds (e.g., 5s for PoE 2 Explosive Grenade). */
   cooldown?: number;
+  /** Inherent hit multiplier per use (e.g., 2 for Double Strike / Dual Strike). */
+  dpsMultiplier?: number;
   /** Base critical strike chance percentage (e.g., 6 for spells, 0 for weapon-based attacks). */
   baseCritChance?: number;
   /** Mana cost at level 20. */
@@ -210,6 +212,8 @@ export interface GemDefinition {
   spiritReservation?: number;
   /** Mana reservation percentage (PoE 1 auras). */
   manaReservationPct?: number;
+  /** Flat mana reservation (PoE 1 Precision / Clarity / Vitality). */
+  manaReservationFlat?: number;
   /** Canonical stat lines granted by this gem (or support gem) to supported skill / player. */
   stats: string[];
   statsZh?: string[];
@@ -337,6 +341,8 @@ export interface BuildConfig {
   enemyFireExposure?: boolean;
   enemyColdExposure?: boolean;
   enemyLightningExposure?: boolean;
+  /** Current Rage stacks (0–30 base cap; 1% more Attack Damage per Rage in PoE 1 3.30 & PoE 2 0.5). */
+  rage?: number;
   /** Free-form custom modifiers (supports both English and Chinese lines!). */
   customMods: string;
 }

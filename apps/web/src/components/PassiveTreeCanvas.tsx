@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Camera,
   ChevronRight,
   Crosshair,
   Flame,
@@ -600,6 +601,51 @@ export function PassiveTreeCanvas() {
     },
     [camera],
   );
+
+  const exportTreePng = useCallback(() => {
+    const srcCanvas = canvasRef.current;
+    if (!srcCanvas || srcCanvas.width === 0 || srcCanvas.height === 0) return;
+    const out = document.createElement('canvas');
+    out.width = srcCanvas.width;
+    out.height = srcCanvas.height;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(srcCanvas, 0, 0);
+
+    // Subtle build header watermark overlay (HiDPI aware)
+    const dpr = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    const pad = 14;
+    const boxW = Math.min(460, srcCanvas.width / dpr - pad * 2);
+    ctx.fillStyle = 'rgba(11, 14, 22, 0.86)';
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(pad, pad, boxW, 52, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#fde68a';
+    ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`WebPoB · ${build.name}`, pad + 12, pad + 21, boxW - 24);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '11px ui-monospace, SFMono-Regular, monospace';
+    const dps = Math.round(calc.offence.fullDps ?? calc.offence.totalDps).toLocaleString();
+    ctx.fillText(
+      `${build.game.toUpperCase()} Lv.${build.level} ${build.classId}${build.ascendancyId !== 'None' ? ` (${build.ascendancyId})` : ''} · ${calc.allocatedPoints} pts · DPS ${dps}`,
+      pad + 12,
+      pad + 40,
+      boxW - 24,
+    );
+    ctx.restore();
+
+    const a = document.createElement('a');
+    a.href = out.toDataURL('image/png');
+    const safeName = build.name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]+/g, '_').slice(0, 48) || 'tree';
+    a.download = `WebPoB-Tree-${safeName}.png`;
+    a.click();
+  }, [build.name, build.game, build.level, build.classId, build.ascendancyId, calc]);
 
   // High-FPS Viewport-Culled Canvas Render
   useEffect(() => {
@@ -1474,6 +1520,15 @@ export function PassiveTreeCanvas() {
           >
             <Maximize2 className="w-3.5 h-3.5" />
             {locale === 'zh-CN' ? '全景' : 'Fit All'}
+          </button>
+          <button
+            type="button"
+            onClick={exportTreePng}
+            title={locale === 'zh-CN' ? '将当前天赋树画布导出为高清 PNG 图片' : 'Export current Passive Tree canvas as PNG'}
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-sky-500/35 text-xs text-sky-300 hover:bg-sky-950/40 cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            {locale === 'zh-CN' ? '导出树图' : 'PNG'}
           </button>
           <button
             type="button"

@@ -10,7 +10,13 @@ import {
   type CompactTreePayload,
   type CompactUniquesPayload,
 } from '@webpob/data';
-import { calculateBuild, computeNodePower, rankSupportGemsForGroup, rankUniqueUpgradesForSlot } from './index.js';
+import {
+  analyzeBuildDiagnostics,
+  calculateBuild,
+  computeNodePower,
+  rankSupportGemsForGroup,
+  rankUniqueUpgradesForSlot,
+} from './index.js';
 
 describe('@webpob/calc', () => {
   it('calculates PoE 1 sample Elementalist Arc build with coherent offence and defence', () => {
@@ -164,5 +170,16 @@ describe('@webpob/calc', () => {
     expect(boostedEn.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps * 1.25);
     expect(boostedZh.offence.mainSkillLevel).toBe(boostedEn.offence.mainSkillLevel);
     expect(boostedZh.offence.totalDps).toBe(boostedEn.offence.totalDps);
+  });
+
+  it('analyzes build diagnostics and surfaces actionable optimization warnings', () => {
+    const build = createSamplePoe1Build();
+    // Remove body armour + helmet to trigger uncapped resistances & low hit pool
+    delete build.equipped['Body Armour'];
+    delete build.equipped['Helmet'];
+    const out = calculateBuild(build);
+    const diags = analyzeBuildDiagnostics(build, out);
+    expect(diags.some((d) => d.id === 'uncapped_ele_res')).toBe(true);
+    expect(diags.some((d) => d.id === 'negative_chaos_res')).toBe(true);
   });
 });

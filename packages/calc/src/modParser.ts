@@ -710,6 +710,11 @@ const PARSER_RULES: ParserRule[] = [
       return [mkMod(`GemQuality:${filterKey}`, 'BASE', Number(m[1]), src)];
     },
   },
+  // Rage
+  {
+    pattern: /^\+(\d+) to Maximum Rage$/i,
+    build: (m, src) => [mkMod('MaximumRage', 'BASE', Number(m[1]), src)],
+  },
 ];
 
 /**

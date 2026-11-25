@@ -360,8 +360,8 @@ export function calculateBuild(build: Build): CalcOutput {
     db.addMods(parseModLines(resolved.globalExplicits, src));
   }
 
-  // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs (with +Gem Level / Empower / Socketed scaling)
-  const auraManaResList: number[] = [];
+  // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs (with +Gem Level / Empower / Enlighten / Socketed scaling)
+  const auraReservations: Array<{ pct: number; flat: number; mult: number }> = [];
   let totalSpiritReserved = 0;
   for (const group of build.skills) {
     if (!group.enabled) continue;
@@ -374,8 +374,9 @@ export function calculateBuild(build: Build): CalcOutput {
       ? parseSocketedGemBonuses([...slotItem.implicits, ...slotItem.explicits])
       : [];
 
-    // Check if Empower is linked in this aura/curse skill group
+    // Check if Empower or Enlighten is linked in this aura/curse skill group
     let groupEmpowerBonus = 0;
+    let groupEnlightenMult = 1;
     for (const supInst of group.gems) {
       if (!supInst.enabled) continue;
       const supDef = getGemById(build.game, supInst.gemId);
@@ -384,6 +385,11 @@ export function calculateBuild(build: Build): CalcOutput {
       if (lower === 'empower' || lower === 'awakened empower') {
         const supBon = resolveGemBonuses(supDef, db, groupSocketedRules);
         groupEmpowerBonus += Math.max(0, supInst.level + supBon.levelBonus - 1);
+      } else if (lower === 'enlighten' || lower === 'awakened enlighten') {
+        const supBon = resolveGemBonuses(supDef, db, groupSocketedRules);
+        const effEnlightenLv = Math.max(1, supInst.level + supBon.levelBonus);
+        // Official PoE 1 Enlighten multiplier: Lv.1=100%, Lv.2=96%, Lv.3=92%, Lv.4=88%, Lv.5=84%, Lv.6=80%...
+        groupEnlightenMult *= Math.max(0.5, 1 - Math.max(0, effEnlightenLv - 1) * 0.04);
       }
     }
 
@@ -396,8 +402,12 @@ export function calculateBuild(build: Build): CalcOutput {
       const levelEntry = resolveGemLevelEntry(def, effLevel);
       const auraStats = levelEntry?.stats ?? def.stats;
       db.addMods(parseModLines(auraStats, `Aura/Buff: ${def.name.en}${effLevel !== gemInst.level ? ` (Lv.${effLevel})` : ''}`));
-      if (def.manaReservationPct) {
-        auraManaResList.push(def.manaReservationPct);
+      if (def.manaReservationPct || def.manaReservationFlat) {
+        auraReservations.push({
+          pct: def.manaReservationPct ?? 0,
+          flat: def.manaReservationFlat ?? 0,
+          mult: groupEnlightenMult,
+        });
       }
       if (def.spiritReservation) {
         totalSpiritReserved += def.spiritReservation;
@@ -494,6 +504,21 @@ export function calculateBuild(build: Build): CalcOutput {
   if (cfg.enemyLightningExposure) {
     db.addMod({ name: 'EnemyLightningResist', type: 'BASE', value: exposurePenalty, flags: 0, keywordFlags: 0, source: 'Lightning Exposure' });
   }
+  if (cfg.rage && cfg.rage > 0) {
+    // Official PoE 1 (3.30) & PoE 2 (0.5) Rage: Base Maximum Rage = 30, grants 1% more Attack Damage per Rage
+    const maxRage = Math.max(0, 30 + Math.round(db.sum('BASE', 'MaximumRage')));
+    const rageStacks = Math.min(maxRage, Math.max(0, Math.round(cfg.rage)));
+    if (rageStacks > 0) {
+      db.addMod({
+        name: 'Damage',
+        type: 'MORE',
+        value: rageStacks,
+        flags: ModFlag.Attack,
+        keywordFlags: 0,
+        source: `Rage (${rageStacks})`,
+      });
+    }
+  }
   if (cfg.customMods.trim()) {
     const customLines = cfg.customMods
       .split(/\r?\n/)
@@ -586,11 +611,27 @@ export function calculateBuild(build: Build): CalcOutput {
   }
 
   const manaResEff = Math.max(-90, db.sum('INC', 'ManaReservationEfficiency'));
-  const totalManaReservedPct = auraManaResList.reduce(
-    (sum, pct) => sum + Math.ceil(pct / (1 + manaResEff / 100)),
-    0,
-  );
-  const manaUnreserved = Math.max(0, Math.round(mana * (1 - totalManaReservedPct / 100)));
+  let totalManaReservedFlat = 0;
+  let totalManaReservedPctExact = 0;
+  for (const res of auraReservations) {
+    if (res.pct > 0) {
+      // Matches PoB CalcPerform: basePercentVal = trunc(pct * 100 * mult); reservedPercent = round(basePercentVal / (1 + eff/100)) / 100
+      const basePercentVal = Math.trunc(res.pct * 100 * res.mult + 1e-6);
+      const effPct = Math.max(0, Math.round(basePercentVal / (1 + manaResEff / 100)) / 100);
+      totalManaReservedPctExact += effPct;
+      totalManaReservedFlat += Math.ceil(mana * (effPct / 100) - 1e-9);
+    }
+    if (res.flat > 0) {
+      const baseFlatVal = Math.trunc(res.flat * res.mult + 1e-6);
+      const effFlat = Math.max(0, Math.round(baseFlatVal / (1 + manaResEff / 100)));
+      totalManaReservedFlat += effFlat;
+    }
+  }
+  const totalManaReservedPct =
+    mana > 0
+      ? Math.round((totalManaReservedFlat / mana) * 1000) / 10
+      : Math.round(totalManaReservedPctExact * 10) / 10;
+  const manaUnreserved = Math.max(0, mana - totalManaReservedFlat);
   const spiritUnreserved = spirit - totalSpiritReserved;
 
   if (totalManaReservedPct > 100) {
@@ -1013,6 +1054,24 @@ function computeGroupOffence(
       }
       if (lower === 'enhance' || lower === 'awakened enhance') {
         enhanceQualityBonus += Math.max(0, effSupLevel - 1) * 8;
+        continue;
+      }
+      if (build.game === 'poe1' && lower === 'rage') {
+        // Official PoE 1 3.30 Rage Support: +(floor((lv+19)/2))% increased Attack Speed while at >= 10 Rage (Lv.20 = +19%)
+        const maxRage = Math.max(0, 30 + Math.round(globalDb.sum('BASE', 'MaximumRage')));
+        const activeRage = Math.min(maxRage, Math.max(0, Math.round(build.config.rage ?? 0)));
+        if (activeRage >= 10) {
+          const rageAs = Math.floor((effSupLevel + 19) / 2);
+          skillDb.addMod({
+            name: 'Speed',
+            type: 'INC',
+            value: rageAs,
+            flags: ModFlag.Attack,
+            keywordFlags: 0,
+            source: `Support: Rage (Lv.${effSupLevel}, >=10 Rage)`,
+          });
+        }
+        applyGemQualityStats(def, effSupQuality, 'Support');
         continue;
       }
       const levelEntry = resolveGemLevelEntry(def, effSupLevel);
@@ -1485,8 +1544,9 @@ function computeGroupOffence(
   }
   const speed = Math.round(speedExact * 100) / 100;
 
+  const dpsMult = activeDef.dpsMultiplier ?? 1;
   const avgHitWithCrit = Math.round(totalAvgHit * effectiveCritMultiplier * doubleDamageMult * 100) / 100;
-  const hitDps = Math.round(avgHitWithCrit * speedExact * (hitChance / 100) * 100) / 100;
+  const hitDps = Math.round(avgHitWithCrit * speedExact * dpsMult * (hitChance / 100) * 100) / 100;
 
   // Impale DPS (Physical Attacks: 10% stored phys * (1 + impaleEffect) * maxHits * impaleChance)
   const impaleChance = isAttack ? Math.min(100, Math.max(0, skillDb.sum('BASE', 'ImpaleChance', flags, kwFlags))) : 0;
@@ -1495,7 +1555,12 @@ function computeGroupOffence(
     const impaleEffect = skillDb.sum('INC', 'ImpaleEffect', flags, kwFlags);
     const maxImpaleHits = 5 + skillDb.sum('BASE', 'ImpaleStacksMax', flags, kwFlags);
     const physHitDps =
-      damageByType.Physical.average * effectiveCritMultiplier * doubleDamageMult * speedExact * (hitChance / 100);
+      damageByType.Physical.average *
+      effectiveCritMultiplier *
+      doubleDamageMult *
+      speedExact *
+      dpsMult *
+      (hitChance / 100);
     impaleDps =
       Math.round(physHitDps * 0.1 * (1 + impaleEffect / 100) * maxImpaleHits * (impaleChance / 100) * 100) / 100;
   }

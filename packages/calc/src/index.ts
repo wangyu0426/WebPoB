@@ -5,3 +5,4 @@ export * from './gemBonus.js';
 export * from './engine.js';
 export * from './supportOptimizer.js';
 export * from './itemOptimizer.js';
+export * from './diagnostics.js';

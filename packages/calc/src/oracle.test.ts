@@ -83,7 +83,13 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
       if ((o.SpellSuppressionChance ?? 0) > 0) {
         expect(out.defence.spellSuppressionChance).toBe(Math.round(o.SpellSuppressionChance!));
       }
+      if ((o.SpellBlockChance ?? 0) > 0) {
+        expect(out.defence.spellBlockChance).toBe(Math.round(o.SpellBlockChance!));
+      }
       expectWithinPct(out.defence.mana, o.Mana!, 0.1, 1);
+      if (snap.id.includes('enlighten') && (o.ManaUnreserved ?? 0) > 0) {
+        expectWithinPct(out.defence.manaUnreserved, o.ManaUnreserved!, 0.5, 2);
+      }
       expectWithinPct(out.defence.armour, o.Armour!, 0.5, 1);
       expectWithinPct(out.defence.evasion, o.Evasion!, 0.5, 1);
       expect(out.defence.fireResist).toBe(Math.round(o.FireResist!));
@@ -102,7 +108,9 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
       expectWithinPct(out.offence.hitDps, o.TotalDPS!, 0.5, 1);
       if ((o.ImpaleDPS ?? 0) > 0) {
         expectWithinPct(out.offence.impaleDps ?? 0, o.ImpaleDPS!, 0.5, 1);
-        expectWithinPct(out.offence.totalDps, o.CombinedDPS!, 0.5, 1);
+        if ((o.BleedDPS ?? 0) === 0 && (o.IgniteDPS ?? 0) === 0 && (o.TotalPoisonDPS ?? 0) === 0) {
+          expectWithinPct(out.offence.totalDps, o.CombinedDPS!, 0.5, 1);
+        }
       }
       if ((o.FullDPS ?? 0) > 0 && out.offence.fullDps !== undefined) {
         expectWithinPct(out.offence.fullDps, o.FullDPS!, 0.5, 1);

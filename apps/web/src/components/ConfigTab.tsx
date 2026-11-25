@@ -107,6 +107,24 @@ export function ConfigTab() {
             />
           </label>
 
+          <label className="flex items-center justify-between gap-2 pt-1">
+            <span className="text-orange-300">
+              {locale === 'zh-CN'
+                ? '怒火层数 (Rage, 每层 +1% 攻击总增)'
+                : 'Rage Stacks (1% more Attack Dmg each)'}
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={cfg.rage ?? 0}
+              onChange={(e) =>
+                updateConfig({ rage: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
+              }
+              className="pob-input rounded w-16 px-2 py-1 text-center font-mono"
+            />
+          </label>
+
           {build.game === 'poe1' && (
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#242a3c]">
               <span className="text-zinc-300">{t(locale, 'config.bandit')}</span>

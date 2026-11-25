@@ -1,4 +1,6 @@
-import { AlertTriangle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { analyzeBuildDiagnostics } from '@webpob/calc';
 import { localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
@@ -29,8 +31,10 @@ function StatRow({
 }
 
 export function SidebarStats() {
-  const { locale, build, calc, setMainSkillGroup } = useWebPobStore();
+  const { locale, build, calc, setMainSkillGroup, setActiveTab, toggleFlaskActive } = useWebPobStore();
   const { offence, defence } = calc;
+  const [diagOpen, setDiagOpen] = useState(true);
+  const diagnostics = useMemo(() => analyzeBuildDiagnostics(build, calc), [build, calc]);
 
   const resColor = (val: number, max: number) =>
     val >= max ? 'text-emerald-400' : val >= 50 ? 'text-amber-300' : 'text-rose-400';
@@ -247,20 +251,109 @@ export function SidebarStats() {
         </span>
       </div>
 
-      {/* Warnings */}
-      {calc.warnings.length > 0 && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-950/25 p-2.5 space-y-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-300">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            {t(locale, 'sidebar.warnings')}
-          </div>
-          {calc.warnings.map((w) => (
-            <p key={w.code} className="text-[11px] text-amber-200/85 leading-snug">
-              • {localizeText(w.message, locale)}
+      {/* Smart Build Health Diagnostics */}
+      <div
+        className={`rounded-md border p-2.5 space-y-1.5 ${
+          diagnostics.some((d) => d.severity === 'critical')
+            ? 'border-rose-500/45 bg-rose-950/25'
+            : diagnostics.length > 0
+              ? 'border-amber-500/40 bg-amber-950/20'
+              : 'border-emerald-500/35 bg-emerald-950/20'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setDiagOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-1.5 text-[11px] font-semibold cursor-pointer"
+        >
+          <span
+            className={`flex items-center gap-1.5 ${
+              diagnostics.some((d) => d.severity === 'critical')
+                ? 'text-rose-300'
+                : diagnostics.length > 0
+                  ? 'text-amber-300'
+                  : 'text-emerald-300'
+            }`}
+          >
+            {diagnostics.length > 0 ? (
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            )}
+            {locale === 'zh-CN'
+              ? `构筑体检诊断 (${diagnostics.length})`
+              : `Build Diagnostics (${diagnostics.length})`}
+          </span>
+          {diagOpen ? (
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
+          )}
+        </button>
+
+        {diagOpen && (
+          diagnostics.length === 0 ? (
+            <p className="text-[11px] text-emerald-200/80 leading-snug">
+              {locale === 'zh-CN'
+                ? '抗性、命中、保留与生命护盾状态良好！'
+                : 'Resists, hit chance, reservations, and hit pool look healthy!'}
             </p>
-          ))}
-        </div>
-      )}
+          ) : (
+            <div className="space-y-1.5 pt-0.5">
+              {diagnostics.map((d) => (
+                <div
+                  key={d.id}
+                  className={`rounded px-2 py-1.5 border text-[11px] space-y-1 ${
+                    d.severity === 'critical'
+                      ? 'bg-rose-950/40 border-rose-500/35 text-rose-200'
+                      : d.severity === 'warning'
+                        ? 'bg-amber-950/35 border-amber-500/30 text-amber-200'
+                        : 'bg-[#0e121c]/80 border-[#283046] text-zinc-300'
+                  }`}
+                >
+                  <div className="font-semibold leading-snug">{localizeText(d.title, locale)}</div>
+                  <p className="text-[10px] opacity-85 leading-snug">{localizeText(d.detail, locale)}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    {d.quickAction === 'activate_flasks' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          for (const slot of ['Flask 1', 'Flask 2', 'Flask 3', 'Flask 4', 'Flask 5'] as const) {
+                            if (build.equipped[slot] && !build.activeFlaskSlots?.[slot]) {
+                              toggleFlaskActive(slot);
+                            }
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-[10px] text-emerald-200 cursor-pointer"
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        {locale === 'zh-CN' ? '一键开启药剂' : 'Enable Flasks'}
+                      </button>
+                    )}
+                    {d.actionTab && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab(d.actionTab!)}
+                        className="px-1.5 py-0.5 rounded bg-[#1a2033] hover:bg-[#232b42] border border-[#323b56] text-[10px] text-amber-200 cursor-pointer"
+                      >
+                        {locale === 'zh-CN'
+                          ? d.actionTab === 'items'
+                            ? '去装备页修复 →'
+                            : d.actionTab === 'skills'
+                              ? '去技能页调整 →'
+                              : d.actionTab === 'tree'
+                                ? '去天赋树优化 →'
+                                : '去配置页 →'
+                          : `Fix in ${d.actionTab} →`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
     </aside>
   );
 }
