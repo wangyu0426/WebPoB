@@ -154,4 +154,39 @@ Energy Shield: 520 (augmented)
     expect(decoded.activeItemSetIndex).toBe(1);
     expect(Object.keys(decoded.equipped)).toEqual(['Weapon 1']);
   });
+
+  it('round-trips multiple Skill Sets and enemyBlinded config through PoB XML', () => {
+    const base = createSamplePoe1Build();
+    const bossSkills = [
+      {
+        id: 'boss_sg_1',
+        label: 'Boss Fireball',
+        enabled: true,
+        slot: 'Body Armour' as const,
+        gems: [
+          { instanceId: 'bg_1', gemId: 'poe1_fireball', level: 21, quality: 20, enabled: true },
+        ],
+      },
+    ];
+    const multiSkillBuild = {
+      ...base,
+      skills: bossSkills,
+      mainSkillGroupId: 'boss_sg_1',
+      skillSets: [
+        { id: '1', title: 'Clear', skills: base.skills, mainSkillGroupId: base.mainSkillGroupId },
+        { id: '2', title: 'Boss', skills: bossSkills, mainSkillGroupId: 'boss_sg_1' },
+      ],
+      activeSkillSetIndex: 1,
+      config: { ...base.config, enemyBlinded: true },
+    };
+
+    const code = encodeBuildToPobCode(multiSkillBuild);
+    const { build: decoded, xml } = importBuildFromCode(code);
+    expect(xml).toContain('<Skills activeSkillSet="2"');
+    expect(xml).toContain('name="conditionEnemyBlinded"');
+    expect(decoded.skillSets?.length).toBe(2);
+    expect(decoded.activeSkillSetIndex).toBe(1);
+    expect(decoded.skills[0]!.gems[0]!.gemId).toBe('poe1_fireball');
+    expect(decoded.config.enemyBlinded).toBe(true);
+  });
 });

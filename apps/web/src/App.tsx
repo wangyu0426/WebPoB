@@ -38,7 +38,7 @@ const NAV_TABS: Array<{ id: ActiveTab; labelKey: MessageKey; icon: typeof GitBra
 ];
 
 export function App() {
-  const { locale, activeTab, setActiveTab, build, calc, ensureOfficialDataLoaded, replaceBuild } =
+  const { locale, activeTab, setActiveTab, build, calc, ensureOfficialDataLoaded, replaceBuild, undo, redo } =
     useWebPobStore();
   const [hashToast, setHashToast] = useState<string | null>(null);
   const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
@@ -47,12 +47,26 @@ export function App() {
     void ensureOfficialDataLoaded(build.game);
   }, [build.game, ensureOfficialDataLoaded]);
 
-  // Global keyboard shortcuts (1-7 switch PoB workspace tabs when not typing in an input)
+  // Global keyboard shortcuts (Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Shift+Z redo, 1-7 switch tabs)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+          return;
+        }
+        if ((key === 'z' && e.shiftKey) || key === 'y') {
+          e.preventDefault();
+          redo();
+          return;
+        }
+        return;
+      }
+      if (e.altKey) return;
       const idx = Number(e.key) - 1;
       if (idx >= 0 && idx < NAV_TABS.length) {
         setActiveTab(NAV_TABS[idx]!.id);
@@ -60,7 +74,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [setActiveTab]);
+  }, [setActiveTab, undo, redo]);
 
   // Auto-load shared build from URL hash (#pob=<base64url-code>) on mount and hashchange
   useEffect(() => {

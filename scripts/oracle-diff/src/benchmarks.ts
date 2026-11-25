@@ -3595,4 +3595,226 @@ Adds 20 to 40 Physical Damage
   <Notes/>
 </PathOfBuilding2>`,
   },
+  // ─── Phase 15 Benchmarks (101..105): Inquisitor Inevitable Judgement, +All Max Res, Multi-SkillSet, Eldritch Battery & PoE 2 Archmage +4 Wand ───
+  {
+    id: 'poe1_inquisitor_inevitable_judgement_crit_arc',
+    title: 'PoE 1 — Lv.90 Templar Inquisitor (Righteous Providence + Inevitable Judgement) Crit Arc vs Pinnacle Boss',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Templar" ascendClassName="Inquisitor" mainSocketGroup="1" buildName="Oracle: Inquisitor Inevitable Judgement"/>
+  <Tree activeSpec="1">
+    <Spec title="Inquisitor" treeVersion="3_30" classId="5" ascendClassId="1" nodes="61525,61871,662,53884,37486,48214"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportIncreasedCriticalDamage" skillId="SupportIncreasedCriticalDamage" nameSpec="Increased Critical Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Judgement Rod
+Prophecy Wand
+Implicits: 0
+100% increased Critical Strike Chance for Spells
++35% to Global Critical Strike Multiplier
+60% increased Spell Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="enemyIsBoss" string="Pinnacle"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_all_max_ele_res_brass_dome_marauder',
+    title: 'PoE 1 — Lv.90 Marauder +5% to all maximum Elemental Resistances (80%/80%/80% Capped Ele Res)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: +5% All Max Ele Res"/>
+  <Tree activeSpec="1">
+    <Spec title="Marauder" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Heavy Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeavyStrike" skillId="HeavyStrike" nameSpec="Heavy Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Bastion Plate
+Glorious Plate
+Quality: 20
+Implicits: 0
++5% to all maximum Elemental Resistances
++100 to maximum Life
++45% to Fire Resistance
++45% to Cold Resistance
++45% to Lightning Resistance
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Prism Loop
+Prismatic Ring
+Implicits: 0
++45% to Fire Resistance
++45% to Cold Resistance
++45% to Lightning Resistance
+    </Item>
+    <Item id="3">
+Rarity: RARE
+Bastion Ring
+Prismatic Ring
+Implicits: 0
++50% to Fire Resistance
++50% to Cold Resistance
++50% to Lightning Resistance
+    </Item>
+    <Item id="4">
+Rarity: RARE
+Iron Cleaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Ring 1" itemId="2"/>
+      <Slot name="Ring 2" itemId="3"/>
+      <Slot name="Weapon 1" itemId="4"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_multi_skillset_arc_fireball_xml',
+    title: 'PoE 1 — Lv.90 Witch Multi-SkillSet XML (<Skills activeSkillSet="2">: Set 1 Arc -> Active Set 2 Fireball)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Multi-SkillSet XML"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="2" defaultGemQuality="0">
+    <SkillSet id="1" title="Clear">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+    <SkillSet id="2" title="Boss">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Fireball">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFireball" skillId="Fireball" nameSpec="Fireball" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportCombustion" skillId="SupportCombustion" nameSpec="Combustion" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_eldritch_battery_mom_witch_es',
+    title: 'PoE 1 — Lv.90 Witch Eldritch Battery Keystone + High-ES Vaal Regalia + Arc',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Eldritch Battery Witch"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch EB" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57226,21678,32210,8948,38176,49651,5296,33310,56075"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Eldritch Shroud
+Vaal Regalia
+Quality: 20
+Implicits: 0
++120 to maximum Energy Shield
+80% increased Energy Shield
++90 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_sorc_archmage_spark_plus4_wand_rapid_casting',
+    title: 'PoE 2 — Lv.90 Sorceress Archmage (100 Spirit) Spark + Elemental Focus + Rapid Casting I + +4 Lightning Wand',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Sorceress" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Archmage +4 Wand Spark"/>
+  <Tree activeSpec="1">
+    <Spec title="Sorceress" treeVersion="0_5" classId="7" classInternalId="7" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Spark">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSpark" skillId="SparkPlayer" nameSpec="Spark" variantId="Spark" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidCastingSupport" skillId="SupportRapidCastingPlayer" nameSpec="Rapid Casting I" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Archmage">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArchmage" skillId="ArchmagePlayer" nameSpec="Archmage" variantId="Archmage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Stormcaller
+Attuned Wand
+Implicits: 0
++4 to Level of all Lightning Spell Skills
+80% increased Spell Damage
++150 to maximum Mana
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Mind Vestment
+Hexer's Robe
+Implicits: 0
++200 to maximum Mana
++100 to Spirit
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Body Armour" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];

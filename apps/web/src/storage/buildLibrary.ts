@@ -116,3 +116,45 @@ export async function deleteSavedBuild(id: string): Promise<void> {
     }
   });
 }
+
+export async function exportLibraryJson(): Promise<string> {
+  const records = await listSavedBuilds();
+  return JSON.stringify(
+    {
+      format: 'webpob-library-v1',
+      exportedAt: new Date().toISOString(),
+      count: records.length,
+      records,
+    },
+    null,
+    2,
+  );
+}
+
+export async function importLibraryJson(jsonStr: string): Promise<number> {
+  const parsed = JSON.parse(jsonStr) as { records?: unknown } | SavedBuildRecord[];
+  const list = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.records)
+      ? (parsed.records as SavedBuildRecord[])
+      : [];
+  let imported = 0;
+  for (const item of list) {
+    if (
+      item &&
+      typeof item === 'object' &&
+      typeof item.id === 'string' &&
+      typeof item.name === 'string' &&
+      (item.game === 'poe1' || item.game === 'poe2') &&
+      item.build &&
+      typeof item.build === 'object'
+    ) {
+      await saveBuildRecord({
+        ...item,
+        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
+      });
+      imported++;
+    }
+  }
+  return imported;
+}

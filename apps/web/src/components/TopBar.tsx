@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, PlusCircle, RotateCcw, Swords } from 'lucide-react';
+import { Check, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, PlusCircle, Redo2, RotateCcw, Swords, Undo2 } from 'lucide-react';
 import { getClassesForGame } from '@webpob/data';
 import { encodeBuildToPobCode } from '@webpob/codec';
 import { localizeText, t } from '@webpob/i18n';
@@ -12,6 +12,10 @@ export function TopBar() {
     locale,
     build,
     calc,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
     setLocale,
     switchGame,
     setBuildMeta,
@@ -170,6 +174,26 @@ export function TopBar() {
 
       {/* Right: Actions & Bilingual Language Switch */}
       <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+        <div className="flex items-center rounded bg-[#0a0c12] p-0.5 border border-[#252b3d]">
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={undo}
+            title={locale === 'zh-CN' ? '撤销 (Ctrl/Cmd+Z)' : 'Undo (Ctrl/Cmd+Z)'}
+            className="p-1 rounded text-zinc-300 hover:bg-[#1a1f2e] disabled:opacity-35 disabled:cursor-not-allowed transition cursor-pointer"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={redo}
+            title={locale === 'zh-CN' ? '重做 (Ctrl/Cmd+Y)' : 'Redo (Ctrl/Cmd+Y)'}
+            className="p-1 rounded text-zinc-300 hover:bg-[#1a1f2e] disabled:opacity-35 disabled:cursor-not-allowed transition cursor-pointer"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => setLibraryOpen(true)}

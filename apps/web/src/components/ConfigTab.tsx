@@ -183,7 +183,16 @@ export function ConfigTab() {
             <span className="text-zinc-300">{t(locale, 'config.enemyType')}</span>
             <select
               value={cfg.enemyIsBoss}
-              onChange={(e) => updateConfig({ enemyIsBoss: e.target.value as BuildConfig['enemyIsBoss'] })}
+              onChange={(e) => {
+                const nextBoss = e.target.value as BuildConfig['enemyIsBoss'];
+                const preset =
+                  nextBoss === 'Pinnacle'
+                    ? { enemyFireResist: 50, enemyColdResist: 50, enemyLightningResist: 50, enemyChaosResist: 30 }
+                    : nextBoss === 'Guardian'
+                      ? { enemyFireResist: 40, enemyColdResist: 40, enemyLightningResist: 40, enemyChaosResist: 25 }
+                      : { enemyFireResist: 0, enemyColdResist: 0, enemyLightningResist: 0, enemyChaosResist: 0 };
+                updateConfig({ enemyIsBoss: nextBoss, ...preset });
+              }}
               className="pob-input rounded px-2 py-1 text-xs"
             >
               <option value="None">{t(locale, 'config.enemyNormal')}</option>
@@ -354,6 +363,18 @@ export function ConfigTab() {
             />
             <span className="text-yellow-300">
               {locale === 'zh-CN' ? '闪电曝露 (-10% 雷抗 / 元素使 -35%)' : 'Lightning Exposure (-10% Light Res)'}
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.enemyBlinded)}
+              onChange={(e) => updateConfig({ enemyBlinded: e.target.checked })}
+              className="accent-cyan-400"
+            />
+            <span className="text-cyan-200">
+              {locale === 'zh-CN' ? '敌人被致盲 (-20% 敌人命中, 提升闪避率)' : 'Enemy Blinded (-20% Enemy Accuracy)'}
             </span>
           </label>
         </div>

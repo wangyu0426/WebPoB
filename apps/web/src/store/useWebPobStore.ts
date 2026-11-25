@@ -7,6 +7,7 @@ import type {
   GameId,
   Item,
   Locale,
+  SkillSetSpec,
   WeaponSetId,
 } from '@webpob/core';
 import {
@@ -39,8 +40,14 @@ interface WebPobState {
   treeRevision: number;
   build: Build;
   calc: CalcOutput;
+  past: Build[];
+  future: Build[];
+  canUndo: boolean;
+  canRedo: boolean;
 
   // Actions
+  undo: () => void;
+  redo: () => void;
   ensureOfficialDataLoaded: (game?: GameId) => Promise<void>;
   setLocale: (locale: Locale) => void;
   setActiveTab: (tab: ActiveTab) => void;
@@ -70,6 +77,9 @@ interface WebPobState {
   addGemToGroup: (groupId: string, gemId: string) => void;
   removeGemFromGroup: (groupId: string, instanceId: string) => void;
   updateGem: (groupId: string, instanceId: string, patch: { level?: number; quality?: number; enabled?: boolean; count?: number }) => void;
+  switchSkillSet: (index: number) => void;
+  addSkillSet: (title: string, cloneCurrent?: boolean) => void;
+  deleteSkillSet: (index: number) => void;
 
   // Items
   addItem: (item: Item, autoEquipSlot?: EquipmentSlotId) => void;
@@ -114,8 +124,14 @@ function persistState(build: Build, locale: Locale): void {
 
 const initial = loadInitialBuild();
 
+const MAX_HISTORY = 40;
+
 export const useWebPobStore = create<WebPobState>((set, get) => {
-  const commitBuild = (rawNext: Build) => {
+  const commitBuild = (
+    rawNext: Build,
+    opts?: { recordHistory?: boolean; clearHistory?: boolean },
+  ) => {
+    const prevBuild = get().build;
     let nextBuild = rawNext;
     if (nextBuild.treeSpecs && nextBuild.treeSpecs.length > 0) {
       const idx = Math.max(0, Math.min(nextBuild.treeSpecs.length - 1, nextBuild.activeTreeSpecIndex ?? 0));
@@ -131,9 +147,25 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       );
       nextBuild = { ...nextBuild, itemSets: syncedSets, activeItemSetIndex: idx };
     }
+    if (nextBuild.skillSets && nextBuild.skillSets.length > 0) {
+      const idx = Math.max(0, Math.min(nextBuild.skillSets.length - 1, nextBuild.activeSkillSetIndex ?? 0));
+      const syncedSkillSets = nextBuild.skillSets.map((s, i) =>
+        i === idx
+          ? { ...s, skills: nextBuild.skills, mainSkillGroupId: nextBuild.mainSkillGroupId }
+          : s,
+      );
+      nextBuild = { ...nextBuild, skillSets: syncedSkillSets, activeSkillSetIndex: idx };
+    }
     const calc = calculateBuild(nextBuild);
     persistState(nextBuild, get().locale);
-    set({ build: nextBuild, calc });
+    if (opts?.clearHistory) {
+      set({ build: nextBuild, calc, past: [], future: [], canUndo: false, canRedo: false });
+    } else if (opts?.recordHistory !== false) {
+      const nextPast = [...get().past, prevBuild].slice(-MAX_HISTORY);
+      set({ build: nextBuild, calc, past: nextPast, future: [], canUndo: nextPast.length > 0, canRedo: false });
+    } else {
+      set({ build: nextBuild, calc });
+    }
   };
 
   return {
@@ -145,6 +177,46 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
     treeRevision: 0,
     build: initial.build,
     calc: calculateBuild(initial.build),
+    past: [],
+    future: [],
+    canUndo: false,
+    canRedo: false,
+
+    undo: () => {
+      const { past, future, build } = get();
+      if (past.length === 0) return;
+      const previous = past[past.length - 1]!;
+      const nextPast = past.slice(0, -1);
+      const nextFuture = [build, ...future].slice(0, MAX_HISTORY);
+      const calc = calculateBuild(previous);
+      persistState(previous, get().locale);
+      set({
+        build: previous,
+        calc,
+        past: nextPast,
+        future: nextFuture,
+        canUndo: nextPast.length > 0,
+        canRedo: nextFuture.length > 0,
+      });
+    },
+
+    redo: () => {
+      const { past, future, build } = get();
+      if (future.length === 0) return;
+      const next = future[0]!;
+      const nextFuture = future.slice(1);
+      const nextPast = [...past, build].slice(-MAX_HISTORY);
+      const calc = calculateBuild(next);
+      persistState(next, get().locale);
+      set({
+        build: next,
+        calc,
+        past: nextPast,
+        future: nextFuture,
+        canUndo: nextPast.length > 0,
+        canRedo: nextFuture.length > 0,
+      });
+    },
 
     ensureOfficialDataLoaded: async (gameArg) => {
       const game = gameArg ?? get().build.game;
@@ -169,7 +241,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
             if (cur.id === 'sample-poe1-arc' || cur.id === 'sample-poe2-spark') {
               const upgraded = getSampleBuild(game);
               set({ treeRevision: get().treeRevision + 1, dataLoading: false });
-              commitBuild(upgraded);
+              commitBuild(upgraded, { clearHistory: true });
               return;
             }
             const startId = tree.classStartNodeIds[cur.classId] ?? Object.values(tree.classStartNodeIds)[0]!;
@@ -184,11 +256,11 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
               },
             };
             set({ treeRevision: get().treeRevision + 1, dataLoading: false });
-            commitBuild(nextBuild);
+            commitBuild(nextBuild, { clearHistory: true });
             return;
           }
           set({ treeRevision: get().treeRevision + 1, dataLoading: false });
-          commitBuild(cur);
+          commitBuild(cur, { recordHistory: false });
         } else {
           set({ treeRevision: get().treeRevision + 1, dataLoading: false });
         }
@@ -211,25 +283,25 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       if (get().build.game === game) return;
       const sample = getSampleBuild(game);
       set({ treePaintMode: 'shared' });
-      commitBuild(sample);
+      commitBuild(sample, { clearHistory: true });
       void get().ensureOfficialDataLoaded(game);
     },
 
     loadSampleBuild: (game) => {
       const targetGame = game ?? get().build.game;
       set({ treePaintMode: 'shared' });
-      commitBuild(getSampleBuild(targetGame));
+      commitBuild(getSampleBuild(targetGame), { clearHistory: true });
     },
 
     createNewBuild: (game) => {
       const targetGame = game ?? get().build.game;
       set({ treePaintMode: 'shared' });
-      commitBuild(createEmptyBuild(targetGame));
+      commitBuild(createEmptyBuild(targetGame), { clearHistory: true });
     },
 
     replaceBuild: (nextBuild) => {
       set({ treePaintMode: 'shared' });
-      commitBuild(nextBuild);
+      commitBuild(nextBuild, { clearHistory: true });
     },
 
     setBuildMeta: (patch) => {
@@ -493,6 +565,91 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
               }
             : g,
         ),
+      });
+    },
+
+    switchSkillSet: (index) => {
+      const cur = get().build;
+      const sets: SkillSetSpec[] =
+        cur.skillSets && cur.skillSets.length > 0
+          ? cur.skillSets
+          : [{ id: '1', title: 'Default', skills: cur.skills, mainSkillGroupId: cur.mainSkillGroupId }];
+      if (index < 0 || index >= sets.length) return;
+      const target = sets[index]!;
+      const clonedSkills = target.skills.map((g) => ({
+        ...g,
+        gems: g.gems.map((gem) => ({ ...gem })),
+      }));
+      commitBuild({
+        ...cur,
+        skills: clonedSkills,
+        mainSkillGroupId: target.mainSkillGroupId || clonedSkills[0]?.id || '',
+        skillSets: sets,
+        activeSkillSetIndex: index,
+      });
+    },
+
+    addSkillSet: (title, cloneCurrent = true) => {
+      const cur = get().build;
+      const sets: SkillSetSpec[] =
+        cur.skillSets && cur.skillSets.length > 0
+          ? [...cur.skillSets]
+          : [{ id: '1', title: 'Default', skills: cur.skills, mainSkillGroupId: cur.mainSkillGroupId }];
+      const curIdx = Math.max(0, Math.min(sets.length - 1, cur.activeSkillSetIndex ?? 0));
+      sets[curIdx] = {
+        ...sets[curIdx]!,
+        skills: cur.skills,
+        mainSkillGroupId: cur.mainSkillGroupId,
+      };
+      const defaultGem = getGemsForGame(cur.game)[0]!;
+      const stamp = Date.now();
+      const newSkills = cloneCurrent
+        ? cur.skills.map((g, gi) => ({
+            ...g,
+            id: `sg_${stamp}_${gi}`,
+            gems: g.gems.map((gem, j) => ({ ...gem, instanceId: `g_${stamp}_${gi}_${j}` })),
+          }))
+        : [
+            {
+              id: `sg_${stamp}_0`,
+              label: 'Main Skill',
+              enabled: true,
+              slot: cur.game === 'poe1' ? ('Body Armour' as EquipmentSlotId) : undefined,
+              weaponSets: cur.game === 'poe2' ? ([1, 2] as WeaponSetId[]) : undefined,
+              gems: [{ instanceId: `g_${stamp}_0_0`, gemId: defaultGem.id, level: 20, quality: 0, enabled: true }],
+            },
+          ];
+      const curMainIdx = Math.max(0, cur.skills.findIndex((g) => g.id === cur.mainSkillGroupId));
+      const newMainId = newSkills[curMainIdx]?.id ?? newSkills[0]?.id ?? '';
+      const newSet: SkillSetSpec = {
+        id: String(stamp),
+        title,
+        skills: newSkills,
+        mainSkillGroupId: newMainId,
+      };
+      const nextSets = [...sets, newSet];
+      commitBuild({
+        ...cur,
+        skills: newSkills,
+        mainSkillGroupId: newMainId,
+        skillSets: nextSets,
+        activeSkillSetIndex: nextSets.length - 1,
+      });
+    },
+
+    deleteSkillSet: (index) => {
+      const cur = get().build;
+      const sets = cur.skillSets && cur.skillSets.length > 0 ? [...cur.skillSets] : [];
+      if (sets.length <= 1 || index < 0 || index >= sets.length) return;
+      sets.splice(index, 1);
+      const nextIdx = Math.max(0, Math.min(sets.length - 1, index > 0 ? index - 1 : 0));
+      const nextActive = sets[nextIdx]!;
+      commitBuild({
+        ...cur,
+        skills: nextActive.skills,
+        mainSkillGroupId: nextActive.mainSkillGroupId || nextActive.skills[0]?.id || '',
+        skillSets: sets,
+        activeSkillSetIndex: nextIdx,
       });
     },
 

@@ -7,6 +7,7 @@ import type {
   Item,
   ItemSetSpec,
   SkillGroup,
+  SkillSetSpec,
   TreeSpec,
   WeaponSetId,
 } from '@webpob/core';
@@ -179,31 +180,49 @@ export function buildToPobXml(build: Build): string {
   }
   lines.push(`  </Tree>`);
 
-  // <Skills>
-  lines.push(`  <Skills activeSkillSet="1" defaultGemQuality="0">`);
-  lines.push(`    <SkillSet id="1">`);
-  for (const group of build.skills) {
-    const slotAttr = group.slot ? ` slot="${escapeXml(group.slot)}"` : '';
-    const wsAttr =
-      group.weaponSets && group.weaponSets.length > 0
-        ? ` weaponSets="${group.weaponSets.join(',')}"`
-        : '';
-    const mainActive = group.mainActiveSkillIndex ?? 1;
-    const fullDpsAttr = group.includeInFullDps ? ' includeInFullDPS="true"' : '';
-    lines.push(
-      `      <Skill enabled="${group.enabled}" mainActiveSkill="${mainActive}" mainActiveSkillCalcs="${mainActive}"${fullDpsAttr} label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
-    );
-    for (const gem of group.gems) {
-      const def = gemsCatalog.find((g) => g.id === gem.gemId);
-      const nameSpec = def ? def.name.en.replace(/\s+Support$/i, '') : gem.gemId;
-      const countAttr = gem.count && gem.count > 1 ? ` count="${gem.count}"` : '';
+  // <Skills> (supports multiple <SkillSet> loadouts with activeSkillSet)
+  const skillSetsToWrite: SkillSetSpec[] =
+    build.skillSets && build.skillSets.length > 0
+      ? build.skillSets.map((setSpec, i) =>
+          i === (build.activeSkillSetIndex ?? 0)
+            ? { ...setSpec, skills: build.skills, mainSkillGroupId: build.mainSkillGroupId }
+            : setSpec,
+        )
+      : [{ id: '1', title: 'Default', skills: build.skills, mainSkillGroupId: build.mainSkillGroupId }];
+  const activeSkillSetIdx = Math.max(
+    0,
+    Math.min(skillSetsToWrite.length - 1, build.activeSkillSetIndex ?? 0),
+  );
+  const activeSkillSetId = skillSetsToWrite[activeSkillSetIdx]?.id || String(activeSkillSetIdx + 1);
+
+  lines.push(`  <Skills activeSkillSet="${escapeXml(activeSkillSetId)}" defaultGemQuality="0">`);
+  skillSetsToWrite.forEach((setSpec, idx) => {
+    const setId = setSpec.id || String(idx + 1);
+    const titleAttr = setSpec.title ? ` title="${escapeXml(setSpec.title)}"` : '';
+    lines.push(`    <SkillSet id="${escapeXml(setId)}"${titleAttr}>`);
+    for (const group of setSpec.skills) {
+      const slotAttr = group.slot ? ` slot="${escapeXml(group.slot)}"` : '';
+      const wsAttr =
+        group.weaponSets && group.weaponSets.length > 0
+          ? ` weaponSets="${group.weaponSets.join(',')}"`
+          : '';
+      const mainActive = group.mainActiveSkillIndex ?? 1;
+      const fullDpsAttr = group.includeInFullDps ? ' includeInFullDPS="true"' : '';
       lines.push(
-        `        <Gem gemId="${escapeXml(gem.gemId)}" nameSpec="${escapeXml(nameSpec)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}"${countAttr} />`,
+        `      <Skill enabled="${group.enabled}" mainActiveSkill="${mainActive}" mainActiveSkillCalcs="${mainActive}"${fullDpsAttr} label="${escapeXml(group.label)}"${slotAttr}${wsAttr}>`,
       );
+      for (const gem of group.gems) {
+        const def = gemsCatalog.find((g) => g.id === gem.gemId);
+        const nameSpec = def ? def.name.en.replace(/\s+Support$/i, '') : gem.gemId;
+        const countAttr = gem.count && gem.count > 1 ? ` count="${gem.count}"` : '';
+        lines.push(
+          `        <Gem gemId="${escapeXml(gem.gemId)}" nameSpec="${escapeXml(nameSpec)}" level="${gem.level}" quality="${gem.quality}" enabled="${gem.enabled}"${countAttr} />`,
+        );
+      }
+      lines.push(`      </Skill>`);
     }
-    lines.push(`      </Skill>`);
-  }
-  lines.push(`    </SkillSet>`);
+    lines.push(`    </SkillSet>`);
+  });
   lines.push(`  </Skills>`);
 
   // <Items> (supports multiple <ItemSet> loadouts with activeItemSet)
@@ -270,6 +289,7 @@ export function buildToPobXml(build: Build): string {
   if (cfg.buffTailwind) lines.push(`      <Input name="buffTailwind" boolean="true" />`);
   if (cfg.enemyIntimidated) lines.push(`      <Input name="conditionEnemyIntimidated" boolean="true" />`);
   if (cfg.enemyUnnerved) lines.push(`      <Input name="conditionEnemyUnnerved" boolean="true" />`);
+  if (cfg.enemyBlinded) lines.push(`      <Input name="conditionEnemyBlinded" boolean="true" />`);
   if (cfg.witheredStacks) lines.push(`      <Input name="multiplierWitheredStackCount" number="${cfg.witheredStacks}" />`);
   if (cfg.enemyFireExposure) lines.push(`      <Input name="conditionEnemyFireExposure" boolean="true" />`);
   if (cfg.enemyColdExposure) lines.push(`      <Input name="conditionEnemyColdExposure" boolean="true" />`);
@@ -497,69 +517,108 @@ export function xmlToBuild(xml: string): Build {
   const activeTreeSpecIndex = Math.max(0, Math.min(treeSpecs.length - 1, requestedSpecIdx));
   const activeTreeSpec = treeSpecs[activeTreeSpecIndex]!;
 
-  // Parse <Skill> groups
-  const skills: SkillGroup[] = [];
-  const skillRegex = /<Skill\b([^>]*)>([\s\S]*?)<\/Skill>/gi;
-  let skillMatch: RegExpExecArray | null;
-  let groupCounter = 1;
-  while ((skillMatch = skillRegex.exec(xml)) !== null) {
-    const attrs = parseAttributes(skillMatch[1]!);
-    const inner = skillMatch[2]!;
-    const gems: GemInstance[] = [];
-    const gemRegex = /<Gem\b([^>]*)\/?>/gi;
-    let gemMatch: RegExpExecArray | null;
-    let gemCounter = 1;
-    while ((gemMatch = gemRegex.exec(inner)) !== null) {
-      const gAttrs = parseAttributes(gemMatch[1]!);
-      const matchedId = matchGemId(game, gAttrs.gemId, gAttrs.nameSpec, gAttrs.skillId);
-      if (matchedId) {
-        const parsedCount = Number(gAttrs.count ?? 1);
-        gems.push({
-          instanceId: `imp_g_${groupCounter}_${gemCounter++}`,
-          gemId: matchedId,
-          level: Number(gAttrs.level ?? 20) || 20,
-          quality: Number(gAttrs.quality ?? 0) || 0,
-          enabled: gAttrs.enabled !== 'false',
-          ...(Number.isFinite(parsedCount) && parsedCount > 1 ? { count: Math.round(parsedCount) } : {}),
+  // Parse <Skills activeSkillSet="..."> & all <SkillSet> blocks
+  const parseSkillGroupsFromBlock = (blockXml: string, prefix: string): SkillGroup[] => {
+    const parsed: SkillGroup[] = [];
+    const skillRegex = /<Skill\b([^>]*)>([\s\S]*?)<\/Skill>/gi;
+    let skillMatch: RegExpExecArray | null;
+    let groupCounter = 1;
+    while ((skillMatch = skillRegex.exec(blockXml)) !== null) {
+      const attrs = parseAttributes(skillMatch[1]!);
+      const inner = skillMatch[2]!;
+      const gems: GemInstance[] = [];
+      const gemRegex = /<Gem\b([^>]*)\/?>/gi;
+      let gemMatch: RegExpExecArray | null;
+      let gemCounter = 1;
+      while ((gemMatch = gemRegex.exec(inner)) !== null) {
+        const gAttrs = parseAttributes(gemMatch[1]!);
+        const matchedId = matchGemId(game, gAttrs.gemId, gAttrs.nameSpec, gAttrs.skillId);
+        if (matchedId) {
+          const parsedCount = Number(gAttrs.count ?? 1);
+          gems.push({
+            instanceId: `${prefix}_g_${groupCounter}_${gemCounter++}`,
+            gemId: matchedId,
+            level: Number(gAttrs.level ?? 20) || 20,
+            quality: Number(gAttrs.quality ?? 0) || 0,
+            enabled: gAttrs.enabled !== 'false',
+            ...(Number.isFinite(parsedCount) && parsedCount > 1 ? { count: Math.round(parsedCount) } : {}),
+          });
+        }
+      }
+      if (gems.length > 0) {
+        const weaponSets = attrs.weaponSets
+          ? (attrs.weaponSets
+              .split(',')
+              .map((v) => Number(v.trim()))
+              .filter((v): v is WeaponSetId => v === 1 || v === 2))
+          : undefined;
+        const mainActiveRaw = Number(attrs.mainActiveSkill ?? attrs.mainActiveSkillCalcs ?? 1);
+        parsed.push({
+          id: `${prefix}_sg_${groupCounter}`,
+          label: attrs.label || `Skill Group ${groupCounter}`,
+          enabled: attrs.enabled !== 'false',
+          ...(attrs.includeInFullDPS === 'true' ? { includeInFullDps: true } : {}),
+          slot: attrs.slot as EquipmentSlotId | undefined,
+          weaponSets: weaponSets && weaponSets.length > 0 ? weaponSets : game === 'poe2' ? [1, 2] : undefined,
+          ...(Number.isFinite(mainActiveRaw) && mainActiveRaw > 1 ? { mainActiveSkillIndex: mainActiveRaw } : {}),
+          gems,
         });
+        groupCounter++;
       }
     }
-    if (gems.length > 0) {
-      const weaponSets = attrs.weaponSets
-        ? (attrs.weaponSets
-            .split(',')
-            .map((v) => Number(v.trim()))
-            .filter((v): v is WeaponSetId => v === 1 || v === 2))
-        : undefined;
-      const mainActiveRaw = Number(attrs.mainActiveSkill ?? attrs.mainActiveSkillCalcs ?? 1);
-      skills.push({
-        id: `imp_sg_${groupCounter}`,
-        label: attrs.label || `Skill Group ${groupCounter}`,
-        enabled: attrs.enabled !== 'false',
-        ...(attrs.includeInFullDPS === 'true' ? { includeInFullDps: true } : {}),
-        slot: attrs.slot as EquipmentSlotId | undefined,
-        weaponSets: weaponSets && weaponSets.length > 0 ? weaponSets : game === 'poe2' ? [1, 2] : undefined,
-        ...(Number.isFinite(mainActiveRaw) && mainActiveRaw > 1 ? { mainActiveSkillIndex: mainActiveRaw } : {}),
-        gems,
-      });
-      groupCounter++;
-    }
-  }
+    return parsed;
+  };
 
-  // Fallback skill group if XML had custom gems not yet in MVP catalog
-  if (skills.length === 0) {
+  const makeFallbackSkillGroup = (prefix: string): SkillGroup => {
     const fallbackGem = getGemsForGame(game)[0]!;
-    skills.push({
-      id: 'imp_sg_1',
+    return {
+      id: `${prefix}_sg_1`,
       label: 'Main Skill',
       enabled: true,
       slot: game === 'poe1' ? 'Body Armour' : undefined,
       weaponSets: game === 'poe2' ? [1, 2] : undefined,
-      gems: [{ instanceId: 'imp_g_1', gemId: fallbackGem.id, level: 20, quality: 20, enabled: true }],
+      gems: [{ instanceId: `${prefix}_g_1`, gemId: fallbackGem.id, level: 20, quality: 20, enabled: true }],
+    };
+  };
+
+  const skillsHeaderMatch = xml.match(/<Skills\b([^>]*)>/i);
+  const skillsHeaderAttrs = skillsHeaderMatch ? parseAttributes(skillsHeaderMatch[1]!) : {};
+  const requestedSkillSetId = skillsHeaderAttrs.activeSkillSet || '1';
+  const skillSets: SkillSetSpec[] = [];
+  const skillSetBlockRegex = /<SkillSet\b([^>]*?)(?:\/>|>([\s\S]*?)<\/SkillSet>)/gi;
+  let ssMatch: RegExpExecArray | null;
+  while ((ssMatch = skillSetBlockRegex.exec(xml)) !== null) {
+    const ssAttrs = parseAttributes(ssMatch[1]!);
+    const ssInner = ssMatch[2] ?? '';
+    const setId = ssAttrs.id || String(skillSets.length + 1);
+    const parsedGroups = parseSkillGroupsFromBlock(ssInner, `imp_ss${setId}`);
+    const setSkills = parsedGroups.length > 0 ? parsedGroups : [makeFallbackSkillGroup(`imp_ss${setId}`)];
+    skillSets.push({
+      id: setId,
+      title: ssAttrs.title || (skillSets.length === 0 ? 'Default' : `Skill Set ${skillSets.length + 1}`),
+      skills: setSkills,
+      mainSkillGroupId: setSkills[mainSocketGroupIdx - 1]?.id ?? setSkills[0]!.id,
     });
   }
 
-  const mainSkillGroupId = skills[mainSocketGroupIdx - 1]?.id ?? skills[0]!.id;
+  let activeSkillSetIndex = 0;
+  let skills: SkillGroup[];
+  let mainSkillGroupId: string;
+  if (skillSets.length > 0) {
+    activeSkillSetIndex = skillSets.findIndex((s) => s.id === requestedSkillSetId);
+    if (activeSkillSetIndex < 0) {
+      const numericIdx = Number(requestedSkillSetId) - 1;
+      activeSkillSetIndex =
+        Number.isFinite(numericIdx) && numericIdx >= 0 && numericIdx < skillSets.length ? numericIdx : 0;
+    }
+    const activeSkillSet = skillSets[activeSkillSetIndex]!;
+    skills = activeSkillSet.skills;
+    mainSkillGroupId = activeSkillSet.skills[mainSocketGroupIdx - 1]?.id ?? activeSkillSet.skills[0]!.id;
+  } else {
+    const parsedGroups = parseSkillGroupsFromBlock(xml, 'imp');
+    skills = parsedGroups.length > 0 ? parsedGroups : [makeFallbackSkillGroup('imp')];
+    mainSkillGroupId = skills[mainSocketGroupIdx - 1]?.id ?? skills[0]!.id;
+  }
 
   // Parse <Config> inputs using clean official PoB defaults (all optional buffs OFF unless specified in XML)
   const ruleset = getRuleset(game);
@@ -612,6 +671,7 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'buffTailwind' && attrs.boolean) config.buffTailwind = attrs.boolean === 'true';
     if (key === 'conditionEnemyIntimidated' && attrs.boolean) config.enemyIntimidated = attrs.boolean === 'true';
     if (key === 'conditionEnemyUnnerved' && attrs.boolean) config.enemyUnnerved = attrs.boolean === 'true';
+    if (key === 'conditionEnemyBlinded' && attrs.boolean) config.enemyBlinded = attrs.boolean === 'true';
     if (key === 'multiplierWitheredStackCount' && attrs.number) config.witheredStacks = Number(attrs.number);
     if (key === 'conditionEnemyFireExposure' && attrs.boolean) config.enemyFireExposure = attrs.boolean === 'true';
     if (key === 'conditionEnemyColdExposure' && attrs.boolean) config.enemyColdExposure = attrs.boolean === 'true';
@@ -639,6 +699,7 @@ export function xmlToBuild(xml: string): Build {
     ...(treeSpecs.length > 1 ? { treeSpecs, activeTreeSpecIndex } : {}),
     skills,
     mainSkillGroupId,
+    ...(skillSets.length > 1 ? { skillSets, activeSkillSetIndex } : {}),
     items,
     equipped,
     ...(Object.keys(activeFlaskSlots).length > 0 ? { activeFlaskSlots } : {}),

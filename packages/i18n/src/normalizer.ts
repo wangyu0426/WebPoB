@@ -285,6 +285,10 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `+${v}% to Quality of all Skill Gems`,
   },
   {
+    zhPattern: /^所有元素抗性上限\s*\+(\d+)%$/,
+    toEn: (_, v) => `+${v}% to all maximum Elemental Resistances`,
+  },
+  {
     zhPattern: /^此物品上插槽中(?:(?:火焰|冰霜|冰冷|闪电|物理|混沌|元素|召唤生物|法术|攻击|光环|辅助|力量|敏捷|智慧)?)?(?:技能)?宝石等级\s*\+(\d+)$/,
     toEn: (full, v) => {
       const m = full.match(/插槽中(火焰|冰霜|冰冷|闪电|物理|混沌|元素|召唤生物|法术|攻击|光环|辅助|力量|敏捷|智慧)/);
@@ -470,6 +474,10 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
   {
     enPattern: /^\+(\d+) to Level of Socketed Gems$/i,
     toZh: (_, v) => `此物品上插槽中宝石等级 +${v}`,
+  },
+  {
+    enPattern: /^\+(\d+)% to all maximum Elemental Resistances$/i,
+    toZh: (_, v) => `所有元素抗性上限 +${v}%`,
   },
 ];
 

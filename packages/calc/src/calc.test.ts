@@ -182,4 +182,53 @@ describe('@webpob/calc', () => {
     expect(diags.some((d) => d.id === 'uncapped_ele_res')).toBe(true);
     expect(diags.some((d) => d.id === 'negative_chaos_res')).toBe(true);
   });
+
+  it('applies +all max ele res, Inquisitor Inevitable Judgement, Eldritch Battery, and Enemy Blinded', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        enemyIsBoss: 'Pinnacle',
+        enemyLightningResist: 75,
+        customMods: '+100% to all Elemental Resistances',
+      },
+    });
+    const maxResOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        enemyIsBoss: 'Pinnacle',
+        enemyLightningResist: 75,
+        customMods: '+100% to all Elemental Resistances\n+5% to all maximum Elemental Resistances',
+      },
+    });
+    expect(maxResOut.defence.fireResist).toBe(80);
+    expect(maxResOut.defence.coldResist).toBe(80);
+    expect(maxResOut.defence.lightningResist).toBe(80);
+
+    const inqOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        enemyIsBoss: 'Pinnacle',
+        enemyLightningResist: 75,
+        customMods:
+          'Critical Strikes ignore Enemy Monster Elemental Resistances\nNon-Critical Strikes Penetrate 10% of Enemy Elemental Resistances\n1% increased Critical Strike Chance per point of Strength or Intelligence, whichever is lower',
+      },
+    });
+    expect(inqOut.offence.critChance).toBeGreaterThan(baseOut.offence.critChance);
+    expect(inqOut.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps * 1.15);
+
+    const ebOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        enemyBlinded: true,
+        customMods: 'Energy Shield protects Mana instead of Life',
+      },
+    });
+    expect(ebOut.defence.effectiveHitPool).toBeLessThan(baseOut.defence.effectiveHitPool);
+    expect(ebOut.defence.evadeChance).toBeGreaterThanOrEqual(baseOut.defence.evadeChance);
+  });
 });

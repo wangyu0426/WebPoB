@@ -1,4 +1,4 @@
-const CACHE_NAME = 'webpob-offline-v1';
+const CACHE_NAME = 'webpob-offline-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

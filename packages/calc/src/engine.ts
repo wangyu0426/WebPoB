@@ -554,6 +554,19 @@ export function calculateBuild(build: Build): CalcOutput {
   if (ruleset.esPctPerIntelligence > 0) {
     db.addMod({ name: 'EnergyShield', type: 'INC', value: Math.floor(int * ruleset.esPctPerIntelligence), flags: 0, keywordFlags: 0, source: `Intelligence (${int})` });
   }
+  if (db.flag('CritChancePerLowerStrInt')) {
+    const lowerAttr = Math.min(str, int);
+    if (lowerAttr > 0) {
+      db.addMod({
+        name: 'CritChance',
+        type: 'INC',
+        value: lowerAttr,
+        flags: 0,
+        keywordFlags: 0,
+        source: `Righteous Providence (min Str/Int = ${lowerAttr})`,
+      });
+    }
+  }
 
   // 7. Compute Defence Output (including Iron Reflexes, Ward, Corrupted Soul / Life->ES & Reservation Efficiency)
   const rawLifeEval = db.calcStat('Life');
@@ -685,8 +698,9 @@ export function calculateBuild(build: Build): CalcOutput {
   const flatPdr = db.sum('BASE', 'PhysDamageReduction');
   const physDamageReduction = Math.min(90, Math.round((armourMit + flatPdr) * 10) / 10);
 
-  // Evasion chance against level-scaled enemy accuracy
-  const enemyAcc = 200 + cfg.enemyLevel * 12;
+  // Evasion chance against level-scaled enemy accuracy (Blind reduces enemy Accuracy by 20%)
+  const rawEnemyAcc = 200 + cfg.enemyLevel * 12;
+  const enemyAcc = cfg.enemyBlinded ? rawEnemyAcc * 0.8 : rawEnemyAcc;
   const evadeChance =
     evasion > 0
       ? Math.min(95, Math.max(0, Math.round((1 - (1.25 * enemyAcc) / (enemyAcc + Math.pow(evasion / 5, 0.9))) * 100)))
@@ -703,10 +717,16 @@ export function calculateBuild(build: Build): CalcOutput {
   const manaRegenInc = db.sum('INC', 'ManaRegen');
   const manaRegen = Math.round(mana * 0.0175 * (1 + manaRegenInc / 100) * 10) / 10;
 
-  // Effective Hit Pool & Max Hit Taken (including Ward & Divine Flesh Ele-Taken-as-Chaos)
+  // Effective Hit Pool & Max Hit Taken (including Ward, Eldritch Battery & Divine Flesh Ele-Taken-as-Chaos)
+  const eldritchBattery = db.flag('EldritchBattery');
+  const esProtectingLife = eldritchBattery ? 0 : energyShield;
+  const esProtectingMana = eldritchBattery ? energyShield : 0;
   const momPct = Math.min(100, db.sum('BASE', 'DamageTakenFromManaBeforeLife'));
-  const effectiveManaBuffer = momPct > 0 ? Math.min(manaUnreserved, Math.round((life * momPct) / (100 - momPct + 0.01))) : 0;
-  const totalPool = life + energyShield + ward + effectiveManaBuffer;
+  const effectiveManaBuffer =
+    momPct > 0
+      ? Math.min(manaUnreserved + esProtectingMana, Math.round((life * momPct) / (100 - momPct + 0.01)))
+      : 0;
+  const totalPool = life + esProtectingLife + ward + effectiveManaBuffer;
 
   const avgEleRes = (fireResist + coldResist + lightningResist) / 3;
   const eleAsChaosFrac = Math.min(1, Math.max(0, db.sum('BASE', 'EleTakenAsChaos') / 100));
@@ -1322,8 +1342,8 @@ function computeGroupOffence(
   }
 
   // Step C: Apply Increased & More multipliers + Enemy Resistances / Curses / Penetration + Shock/DamageTaken
-  const enemyBossResistBonus =
-    build.config.enemyIsBoss === 'Pinnacle' ? 20 : build.config.enemyIsBoss === 'Guardian' ? 10 : 0;
+  // Official PoB uses enemyFire/Cold/Lightning/ChaosResist directly (Pinnacle default = 50% Ele / 30% Chaos).
+  const enemyBossResistBonus = 0;
 
   const shockVal = build.config.enemyShocked ? Math.max(0, Math.min(100, build.config.shockValue)) : 0;
   const enemyGlobalDmgTaken = skillDb.sum('INC', 'EnemyDamageTaken', flags, kwFlags);
@@ -1435,21 +1455,27 @@ function computeGroupOffence(
           enemyFactor = 1 - pdrNonCrit;
         }
       }
-    } else if (dt === 'Fire') {
-      const effRes =
-        Math.min(75, build.config.enemyFireResist + enemyBossResistBonus + curseFireRes) -
-        skillDb.sum('BASE', 'FirePenetration', flags, kwFlags);
-      enemyFactor = 1 - effRes / 100;
-    } else if (dt === 'Cold') {
-      const effRes =
-        Math.min(75, build.config.enemyColdResist + enemyBossResistBonus + curseColdRes) -
-        skillDb.sum('BASE', 'ColdPenetration', flags, kwFlags);
-      enemyFactor = 1 - effRes / 100;
-    } else if (dt === 'Lightning') {
-      const effRes =
-        Math.min(75, build.config.enemyLightningResist + enemyBossResistBonus + curseLightRes) -
-        skillDb.sum('BASE', 'LightningPenetration', flags, kwFlags);
-      enemyFactor = 1 - effRes / 100;
+    } else if (dt === 'Fire' || dt === 'Cold' || dt === 'Lightning') {
+      const baseEnemyRes =
+        dt === 'Fire'
+          ? build.config.enemyFireResist + enemyBossResistBonus + curseFireRes
+          : dt === 'Cold'
+            ? build.config.enemyColdResist + enemyBossResistBonus + curseColdRes
+            : build.config.enemyLightningResist + enemyBossResistBonus + curseLightRes;
+      const pen = skillDb.sum('BASE', `${dt}Penetration`, flags, kwFlags);
+      const critIgnoresEleRes = skillDb.flag('CritIgnoresEleRes', flags, kwFlags);
+      const nonCritElePen = skillDb.sum('BASE', 'NonCritElePen', flags, kwFlags);
+      const nonCritRes = Math.min(75, baseEnemyRes) - pen - nonCritElePen;
+      const critRes = critIgnoresEleRes ? 0 : Math.min(75, baseEnemyRes) - pen;
+      if (critIgnoresEleRes || nonCritElePen !== 0) {
+        const critFactor = neverCrit || noCritExtra ? 1 : Math.max(1, critMultiplier / 100);
+        const critFrac = neverCrit || noCritExtra ? 0 : critChance / 100;
+        const nonCritMult = Math.max(0.05, 1 - nonCritRes / 100);
+        const critMult = Math.max(0.05, 1 - critRes / 100);
+        enemyFactor = ((1 - critFrac) * nonCritMult + critFrac * critFactor * critMult) / effectiveCritMultiplier;
+      } else {
+        enemyFactor = 1 - nonCritRes / 100;
+      }
     } else if (dt === 'Chaos') {
       typeDmgTaken += enemyChaosDmgTaken;
       const effRes = Math.min(75, build.config.enemyChaosResist + enemyBossResistBonus / 2 + curseChaosRes);

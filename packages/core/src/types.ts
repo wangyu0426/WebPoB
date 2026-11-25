@@ -346,6 +346,8 @@ export interface BuildConfig {
   /** Fortification buff (PoE 1: 1% less Damage taken from Hits per stack, default 20). */
   fortified?: boolean;
   fortificationStacks?: number;
+  /** Enemy is Blinded (20% less Enemy Accuracy, increasing Evade Chance). */
+  enemyBlinded?: boolean;
   /** Free-form custom modifiers (supports both English and Chinese lines!). */
   customMods: string;
 }
@@ -372,6 +374,13 @@ export interface ItemSetSpec {
   activeFlaskSlots?: Partial<Record<EquipmentSlotId, boolean>>;
 }
 
+export interface SkillSetSpec {
+  id: string;
+  title: string;
+  skills: SkillGroup[];
+  mainSkillGroupId: string;
+}
+
 export interface Build {
   id: string;
   name: string;
@@ -387,6 +396,9 @@ export interface Build {
   activeTreeSpecIndex?: number;
   skills: SkillGroup[];
   mainSkillGroupId: string;
+  /** Optional multi-skill loadout sets (PoB `<Skills activeSkillSet="N">` `<SkillSet>` list). Active set stays synced with `skills`. */
+  skillSets?: SkillSetSpec[];
+  activeSkillSetIndex?: number;
   items: Record<string, Item>;
   equipped: Partial<Record<EquipmentSlotId, string>>;
   /** Which Flask slots are currently active in calculations (matches PoB `<Slot active="true">`). */

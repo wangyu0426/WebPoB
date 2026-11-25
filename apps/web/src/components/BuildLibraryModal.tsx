@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Copy, FolderOpen, Save, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Copy, Download, FolderOpen, Save, Trash2, Upload, X } from 'lucide-react';
 import type { GameId } from '@webpob/core';
 import { useWebPobStore } from '../store/useWebPobStore';
 import {
   deleteSavedBuild,
+  exportLibraryJson,
+  importLibraryJson,
   listSavedBuilds,
   saveBuildRecord,
   type SavedBuildRecord,
@@ -20,6 +22,7 @@ export function BuildLibraryModal({
   const [records, setRecords] = useState<SavedBuildRecord[]>([]);
   const [filter, setFilter] = useState<'all' | GameId>('all');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const refresh = useCallback(async () => {
     const list = await listSavedBuilds();
@@ -76,6 +79,41 @@ export function BuildLibraryModal({
   const handleDelete = async (id: string) => {
     await deleteSavedBuild(id);
     await refresh();
+  };
+
+  const handleExportBackup = async () => {
+    const json = await exportLibraryJson();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `webpob-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatusMsg(
+      locale === 'zh-CN'
+        ? `已导出 ${records.length} 套 BD 备份 (.json)`
+        : `Exported ${records.length} builds backup (.json)`,
+    );
+  };
+
+  const handleImportBackup = async (file: File) => {
+    try {
+      const text = await file.text();
+      const count = await importLibraryJson(text);
+      await refresh();
+      setStatusMsg(
+        locale === 'zh-CN'
+          ? `已从备份文件导入 ${count} 套 BD`
+          : `Imported ${count} builds from backup file`,
+      );
+    } catch {
+      setStatusMsg(
+        locale === 'zh-CN'
+          ? '导入失败：备份 JSON 格式无效'
+          : 'Import failed: invalid backup JSON format',
+      );
+    }
   };
 
   const filtered = filter === 'all' ? records : records.filter((r) => r.game === filter);
@@ -136,22 +174,53 @@ export function BuildLibraryModal({
           </div>
         )}
 
-        {/* Filter Tabs */}
-        <div className="px-4 pt-2.5 pb-1.5 flex items-center gap-1.5 text-xs">
-          {(['all', 'poe1', 'poe2'] as const).map((tab) => (
+        {/* Filter Tabs & Backup Actions */}
+        <div className="px-4 pt-2.5 pb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5">
+            {(['all', 'poe1', 'poe2'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setFilter(tab)}
+                className={`px-2.5 py-1 rounded font-semibold cursor-pointer ${
+                  filter === tab
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+                    : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+                }`}
+              >
+                {tab === 'all' ? (locale === 'zh-CN' ? '全部' : 'All') : tab === 'poe1' ? 'PoE 1' : 'PoE 2'}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleImportBackup(f);
+                e.target.value = '';
+              }}
+            />
             <button
-              key={tab}
               type="button"
-              onClick={() => setFilter(tab)}
-              className={`px-2.5 py-1 rounded font-semibold cursor-pointer ${
-                filter === tab
-                  ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
-                  : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
-              }`}
+              onClick={() => void handleExportBackup()}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 cursor-pointer"
             >
-              {tab === 'all' ? (locale === 'zh-CN' ? '全部' : 'All') : tab === 'poe1' ? 'PoE 1' : 'PoE 2'}
+              <Download className="w-3 h-3" />
+              {locale === 'zh-CN' ? '导出备份' : 'Export JSON'}
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 cursor-pointer"
+            >
+              <Upload className="w-3 h-3" />
+              {locale === 'zh-CN' ? '导入备份' : 'Import JSON'}
+            </button>
+          </div>
         </div>
 
         {/* Saved Builds List */}

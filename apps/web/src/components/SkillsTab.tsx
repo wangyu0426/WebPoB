@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search, Sparkles, Star, Trash2 } from 'lucide-react';
+import { Copy, Plus, Search, Sparkles, Star, Trash2 } from 'lucide-react';
 import type { EquipmentSlotId, WeaponSetId } from '@webpob/core';
 import { getGemsForGame, getRuleset } from '@webpob/data';
 import { rankSupportGemsForGroup } from '@webpob/calc';
@@ -26,7 +26,19 @@ export function SkillsTab() {
     addGemToGroup,
     removeGemFromGroup,
     updateGem,
+    switchSkillSet,
+    addSkillSet,
+    deleteSkillSet,
   } = useWebPobStore();
+
+  const skillSets =
+    build.skillSets && build.skillSets.length > 0
+      ? build.skillSets
+      : [{ id: '1', title: 'Default', skills: build.skills, mainSkillGroupId: build.mainSkillGroupId }];
+  const activeSkillSetIndex = Math.max(
+    0,
+    Math.min(skillSets.length - 1, build.activeSkillSetIndex ?? 0),
+  );
 
   const [gemSearch, setGemSearch] = useState('');
   const [optimizerGroupId, setOptimizerGroupId] = useState<string | null>(null);
@@ -68,7 +80,50 @@ export function SkillsTab() {
             {gemsCatalog.length} {locale === 'zh-CN' ? '颗官方技能宝石' : 'official gems'}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Multi-SkillSet Switcher */}
+          <div className="flex items-center gap-1 rounded bg-[#0c0f18] border border-[#262d42] px-2 py-1 text-xs">
+            <span className="text-[10px] text-zinc-400">
+              {locale === 'zh-CN' ? '技能方案:' : 'Skill Set:'}
+            </span>
+            <select
+              value={activeSkillSetIndex}
+              onChange={(e) => switchSkillSet(Number(e.target.value))}
+              className="pob-input rounded px-1.5 py-0.5 text-xs"
+            >
+              {skillSets.map((ss, idx) => (
+                <option key={ss.id || idx} value={idx}>
+                  {ss.title || `Set ${idx + 1}`}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() =>
+                addSkillSet(
+                  locale === 'zh-CN'
+                    ? `方案 ${skillSets.length + 1}`
+                    : `Set ${skillSets.length + 1}`,
+                  true,
+                )
+              }
+              title={locale === 'zh-CN' ? '克隆当前技能组为新方案' : 'Clone current skills into new Skill Set'}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#181e2f] hover:bg-[#232b42] text-amber-200 border border-[#2b344d] text-[11px] cursor-pointer"
+            >
+              <Copy className="w-3 h-3" />
+              <span>{locale === 'zh-CN' ? '克隆' : 'Clone'}</span>
+            </button>
+            {skillSets.length > 1 && (
+              <button
+                type="button"
+                onClick={() => deleteSkillSet(activeSkillSetIndex)}
+                title={locale === 'zh-CN' ? '删除当前技能方案' : 'Delete active Skill Set'}
+                className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input

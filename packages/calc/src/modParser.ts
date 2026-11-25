@@ -165,6 +165,17 @@ const PARSER_RULES: ParserRule[] = [
     },
   },
   {
+    pattern: /^\+(\d+)% to all maximum Elemental Resistances$/i,
+    build: (m, src) => {
+      const v = Number(m[1]);
+      return [
+        mkMod('FireResistMax', 'BASE', v, src),
+        mkMod('ColdResistMax', 'BASE', v, src),
+        mkMod('LightningResistMax', 'BASE', v, src),
+      ];
+    },
+  },
+  {
     pattern: /^\+(\d+)% to maximum (Fire|Cold|Lightning|Chaos) Resistance$/i,
     build: (m, src) => [mkMod(`${m[2]}ResistMax`, 'BASE', Number(m[1]), src)],
   },
@@ -721,6 +732,23 @@ const PARSER_RULES: ParserRule[] = [
   {
     pattern: /^\+(\d+) to Maximum Rage$/i,
     build: (m, src) => [mkMod('MaximumRage', 'BASE', Number(m[1]), src)],
+  },
+  // Ascendancy & Keystone Mechanics (Inquisitor / Eldritch Battery)
+  {
+    pattern: /^Critical Strikes ignore Enemy Monster Elemental Resistances$/i,
+    build: (_, src) => [mkMod('CritIgnoresEleRes', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Non-Critical Strikes Penetrate (\d+)% of Enemy Elemental Resistances$/i,
+    build: (m, src) => [mkMod('NonCritElePen', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^1% increased Critical Strike Chance per point of Strength or Intelligence, whichever is lower$/i,
+    build: (_, src) => [mkMod('CritChancePerLowerStrInt', 'FLAG', true, src)],
+  },
+  {
+    pattern: /^Energy Shield protects Mana instead of Life$/i,
+    build: (_, src) => [mkMod('EldritchBattery', 'FLAG', true, src)],
   },
 ];
 
