@@ -125,6 +125,37 @@ export function ConfigTab() {
             />
           </label>
 
+          <label className="flex items-center justify-between gap-2 pt-1">
+            <span className="flex items-center gap-2 text-amber-200">
+              <input
+                type="checkbox"
+                checked={Boolean(cfg.fortified)}
+                onChange={(e) =>
+                  updateConfig({
+                    fortified: e.target.checked,
+                    fortificationStacks: cfg.fortificationStacks ?? 20,
+                  })
+                }
+                className="accent-amber-500"
+              />
+              {locale === 'zh-CN'
+                ? '护体层数 (Fortify, 每层 -1% 击中承伤)'
+                : 'Fortified (1% less Hit Dmg Taken / stack)'}
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={40}
+              value={cfg.fortificationStacks ?? 20}
+              onChange={(e) =>
+                updateConfig({
+                  fortificationStacks: Math.max(0, Math.min(40, Number(e.target.value) || 0)),
+                })
+              }
+              className="pob-input rounded w-16 px-2 py-1 text-center font-mono"
+            />
+          </label>
+
           {build.game === 'poe1' && (
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#242a3c]">
               <span className="text-zinc-300">{t(locale, 'config.bandit')}</span>

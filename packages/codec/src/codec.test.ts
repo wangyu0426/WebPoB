@@ -116,4 +116,42 @@ Energy Shield: 520 (augmented)
     expect(imported.skills[0]!.gems.length).toBe(2);
     expect(imported.skills[0]!.gems[0]!.level).toBe(21);
   });
+
+  it('round-trips multiple Tree Specs and multiple Item Sets through PoB XML', () => {
+    const base = createSamplePoe1Build();
+    const spec2 = {
+      ...base.tree,
+      title: 'Endgame Lv.95',
+      allocatedNodeIds: base.tree.allocatedNodeIds.slice(0, 5),
+    };
+    const set2 = {
+      id: '2',
+      title: 'Bossing Gear',
+      equipped: { 'Weapon 1': base.equipped['Weapon 1'] },
+    };
+    const multiBuild = {
+      ...base,
+      tree: spec2,
+      treeSpecs: [base.tree, spec2],
+      activeTreeSpecIndex: 1,
+      equipped: set2.equipped,
+      itemSets: [
+        { id: '1', title: 'Mapping', equipped: base.equipped, activeFlaskSlots: base.activeFlaskSlots },
+        set2,
+      ],
+      activeItemSetIndex: 1,
+    };
+
+    const code = encodeBuildToPobCode(multiBuild);
+    const { build: decoded, xml } = importBuildFromCode(code);
+    expect(xml).toContain('<Tree activeSpec="2">');
+    expect(xml).toContain('<Items activeItemSet="2">');
+    expect(decoded.treeSpecs?.length).toBe(2);
+    expect(decoded.activeTreeSpecIndex).toBe(1);
+    expect(decoded.tree.title).toBe('Endgame Lv.95');
+    expect(decoded.tree.allocatedNodeIds).toEqual(spec2.allocatedNodeIds);
+    expect(decoded.itemSets?.length).toBe(2);
+    expect(decoded.activeItemSetIndex).toBe(1);
+    expect(Object.keys(decoded.equipped)).toEqual(['Weapon 1']);
+  });
 });

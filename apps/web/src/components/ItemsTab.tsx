@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ClipboardPaste, ExternalLink, Hammer, Search, Shield, Sparkles, TrendingUp, X } from 'lucide-react';
+import { ClipboardPaste, Copy, ExternalLink, Hammer, Search, Shield, Sparkles, Trash2, TrendingUp, X } from 'lucide-react';
 import type { EquipmentSlotId, Item } from '@webpob/core';
 import {
   getPresetItemsForGame,
@@ -151,6 +151,9 @@ export function ItemsTab() {
     equipItem,
     unequipSlot,
     toggleFlaskActive,
+    switchItemSet,
+    addItemSet,
+    deleteItemSet,
   } = useWebPobStore();
   const [pasteText, setPasteText] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -328,11 +331,92 @@ export function ItemsTab() {
     return rankUniqueUpgradesForSlot(build, selectedSlot, advisorSort, 8);
   }, [advisorOpen, build, selectedSlot, advisorSort, treeRevision]);
 
+  const itemSets = useMemo(
+    () =>
+      build.itemSets && build.itemSets.length > 0
+        ? build.itemSets
+        : [{ id: '1', title: locale === 'zh-CN' ? '默认配装' : 'Default Set', equipped: build.equipped, activeFlaskSlots: build.activeFlaskSlots }],
+    [build.itemSets, build.equipped, build.activeFlaskSlots, locale],
+  );
+  const activeItemSetIdx = Math.max(0, Math.min(itemSets.length - 1, build.activeItemSetIndex ?? 0));
+
+  const itemSetBaselineDelta = useMemo(() => {
+    if (itemSets.length <= 1 || activeItemSetIdx === 0) return null;
+    const baseSet = itemSets[0]!;
+    const baseCalc = calculateBuild({
+      ...build,
+      equipped: baseSet.equipped,
+      activeFlaskSlots: baseSet.activeFlaskSlots ?? {},
+    });
+    const baseDps = baseCalc.offence.fullDps ?? baseCalc.offence.totalDps;
+    const curDps = calc.offence.fullDps ?? calc.offence.totalDps;
+    const baseEhp = Math.max(1, baseCalc.defence.effectiveHitPool);
+    return {
+      dpsPct: baseDps > 0 ? ((curDps - baseDps) / baseDps) * 100 : 0,
+      ehpPct: ((calc.defence.effectiveHitPool - baseEhp) / baseEhp) * 100,
+    };
+  }, [itemSets, activeItemSetIdx, build, calc]);
+
   return (
     <div className="h-full overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
       {/* Left: Equipment Slots */}
       <div className="lg:col-span-5 space-y-2.5">
-        <h2 className="text-base font-bold text-amber-200">{t(locale, 'items.title')}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-bold text-amber-200">{t(locale, 'items.title')}</h2>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={activeItemSetIdx}
+              onChange={(e) => switchItemSet(Number(e.target.value))}
+              className="pob-input rounded px-2 py-1 text-xs max-w-[140px]"
+              title={locale === 'zh-CN' ? '切换配装方案' : 'Switch Item Set'}
+            >
+              {itemSets.map((s, idx) => (
+                <option key={s.id} value={idx}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() =>
+                addItemSet(
+                  locale === 'zh-CN' ? `配装方案 ${itemSets.length + 1}` : `Item Set ${itemSets.length + 1}`,
+                  true,
+                )
+              }
+              title={locale === 'zh-CN' ? '复制当前配装为新方案' : 'Clone current loadout as new Item Set'}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-[#161c2b] hover:bg-[#1e263a] border border-[#2a3147] text-amber-200 cursor-pointer"
+            >
+              <Copy className="w-3 h-3" />
+              {locale === 'zh-CN' ? '新方案' : 'Clone'}
+            </button>
+            {itemSets.length > 1 && (
+              <button
+                type="button"
+                onClick={() => deleteItemSet(activeItemSetIdx)}
+                title={locale === 'zh-CN' ? '删除当前配装方案' : 'Delete active Item Set'}
+                className="p-1 rounded text-zinc-400 hover:text-rose-400 border border-[#2a3147] cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        {itemSetBaselineDelta && (
+          <div className="rounded bg-[#111624] border border-sky-500/30 px-2.5 py-1.5 text-[11px] flex items-center justify-between gap-2 font-mono">
+            <span className="font-sans text-zinc-400">
+              {locale === 'zh-CN' ? `对比「${itemSets[0]!.title}」:` : `vs "${itemSets[0]!.title}":`}
+            </span>
+            <span className="flex items-center gap-2">
+              <span className={itemSetBaselineDelta.dpsPct >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                DPS {itemSetBaselineDelta.dpsPct >= 0 ? '+' : ''}{itemSetBaselineDelta.dpsPct.toFixed(1)}%
+              </span>
+              <span className={itemSetBaselineDelta.ehpPct >= 0 ? 'text-sky-300 font-semibold' : 'text-rose-400 font-semibold'}>
+                EHP {itemSetBaselineDelta.ehpPct >= 0 ? '+' : ''}{itemSetBaselineDelta.ehpPct.toFixed(1)}%
+              </span>
+            </span>
+          </div>
+        )}
         <div className="space-y-1.5">
           {ruleset.equipmentSlots.map((slot) => {
             const itemId = build.equipped[slot];

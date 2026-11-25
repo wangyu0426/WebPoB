@@ -343,6 +343,9 @@ export interface BuildConfig {
   enemyLightningExposure?: boolean;
   /** Current Rage stacks (0–30 base cap; 1% more Attack Damage per Rage in PoE 1 3.30 & PoE 2 0.5). */
   rage?: number;
+  /** Fortification buff (PoE 1: 1% less Damage taken from Hits per stack, default 20). */
+  fortified?: boolean;
+  fortificationStacks?: number;
   /** Free-form custom modifiers (supports both English and Chinese lines!). */
   customMods: string;
 }
@@ -362,6 +365,13 @@ export interface TreeSpec {
   socketedJewels?: Record<number, string>;
 }
 
+export interface ItemSetSpec {
+  id: string;
+  title: string;
+  equipped: Partial<Record<EquipmentSlotId, string>>;
+  activeFlaskSlots?: Partial<Record<EquipmentSlotId, boolean>>;
+}
+
 export interface Build {
   id: string;
   name: string;
@@ -372,12 +382,18 @@ export interface Build {
   /** Active weapon set for calculation (especially meaningful in PoE 2). */
   activeWeaponSet: WeaponSetId;
   tree: TreeSpec;
+  /** Optional multi-spec passive trees (PoB `<Tree activeSpec="N">` `<Spec>` list). Active spec stays synced with `tree`. */
+  treeSpecs?: TreeSpec[];
+  activeTreeSpecIndex?: number;
   skills: SkillGroup[];
   mainSkillGroupId: string;
   items: Record<string, Item>;
   equipped: Partial<Record<EquipmentSlotId, string>>;
   /** Which Flask slots are currently active in calculations (matches PoB `<Slot active="true">`). */
   activeFlaskSlots?: Partial<Record<EquipmentSlotId, boolean>>;
+  /** Optional multi-item equipment sets (PoB `<Items activeItemSet="N">` `<ItemSet>` list). Active set stays synced with `equipped`. */
+  itemSets?: ItemSetSpec[];
+  activeItemSetIndex?: number;
   config: BuildConfig;
   notes: string;
   /** Bandits (PoE 1) or Campaign Buffs. */

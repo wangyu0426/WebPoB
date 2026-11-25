@@ -710,11 +710,14 @@ export function calculateBuild(build: Build): CalcOutput {
 
   const avgEleRes = (fireResist + coldResist + lightningResist) / 3;
   const eleAsChaosFrac = Math.min(1, Math.max(0, db.sum('BASE', 'EleTakenAsChaos') / 100));
-  const eleTakenFactor = Math.max(
-    0.1,
-    (1 - eleAsChaosFrac) * (1 - avgEleRes / 100) + eleAsChaosFrac * (1 - chaosResist / 100),
-  );
-  const physTakenFactor = Math.max(0.1, 1 - physDamageReduction / 100);
+  const fortifyStacks = cfg.fortified ? Math.min(40, Math.max(0, Math.round(cfg.fortificationStacks ?? 20))) : 0;
+  const fortifyTakenMult = 1 - fortifyStacks / 100;
+  const eleTakenFactor =
+    Math.max(
+      0.1,
+      (1 - eleAsChaosFrac) * (1 - avgEleRes / 100) + eleAsChaosFrac * (1 - chaosResist / 100),
+    ) * fortifyTakenMult;
+  const physTakenFactor = Math.max(0.1, 1 - physDamageReduction / 100) * fortifyTakenMult;
   const avoidanceFactor = Math.max(0.15, (1 - evadeChance / 100) * (1 - blockChance / 100));
 
   const maxPhysHitTaken = Math.round(totalPool / physTakenFactor);

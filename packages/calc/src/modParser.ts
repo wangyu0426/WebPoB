@@ -169,6 +169,13 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [mkMod(`${m[2]}ResistMax`, 'BASE', Number(m[1]), src)],
   },
   {
+    pattern: /^\+(\d+)% to (Fire|Cold|Lightning) and (Fire|Cold|Lightning) Resistances$/i,
+    build: (m, src) => [
+      mkMod(`${m[2]}Resist`, 'BASE', Number(m[1]), src),
+      mkMod(`${m[3]}Resist`, 'BASE', Number(m[1]), src),
+    ],
+  },
+  {
     pattern: /^([+-]?\d+)% to (Fire|Cold|Lightning|Chaos) Resistance$/i,
     build: (m, src) => [mkMod(`${m[2]}Resist`, 'BASE', Number(m[1]), src)],
   },

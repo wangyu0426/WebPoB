@@ -57,6 +57,9 @@ interface WebPobState {
   setMasteryEffect: (nodeId: number, effectText: string | null) => void;
   socketJewel: (nodeId: number, item: Item | null) => void;
   resetPassiveTree: () => void;
+  switchTreeSpec: (index: number) => void;
+  addTreeSpec: (title: string, cloneCurrent?: boolean) => void;
+  deleteTreeSpec: (index: number) => void;
 
   // Skills
   setMainSkillGroup: (groupId: string) => void;
@@ -73,6 +76,9 @@ interface WebPobState {
   equipItem: (slot: EquipmentSlotId, itemId: string) => void;
   unequipSlot: (slot: EquipmentSlotId) => void;
   toggleFlaskActive: (slot: EquipmentSlotId) => void;
+  switchItemSet: (index: number) => void;
+  addItemSet: (title: string, cloneCurrent?: boolean) => void;
+  deleteItemSet: (index: number) => void;
 
   // Config
   updateConfig: (patch: Partial<BuildConfig>) => void;
@@ -109,7 +115,22 @@ function persistState(build: Build, locale: Locale): void {
 const initial = loadInitialBuild();
 
 export const useWebPobStore = create<WebPobState>((set, get) => {
-  const commitBuild = (nextBuild: Build) => {
+  const commitBuild = (rawNext: Build) => {
+    let nextBuild = rawNext;
+    if (nextBuild.treeSpecs && nextBuild.treeSpecs.length > 0) {
+      const idx = Math.max(0, Math.min(nextBuild.treeSpecs.length - 1, nextBuild.activeTreeSpecIndex ?? 0));
+      const syncedSpecs = nextBuild.treeSpecs.map((s, i) => (i === idx ? nextBuild.tree : s));
+      nextBuild = { ...nextBuild, treeSpecs: syncedSpecs, activeTreeSpecIndex: idx };
+    }
+    if (nextBuild.itemSets && nextBuild.itemSets.length > 0) {
+      const idx = Math.max(0, Math.min(nextBuild.itemSets.length - 1, nextBuild.activeItemSetIndex ?? 0));
+      const syncedSets = nextBuild.itemSets.map((s, i) =>
+        i === idx
+          ? { ...s, equipped: nextBuild.equipped, activeFlaskSlots: nextBuild.activeFlaskSlots }
+          : s,
+      );
+      nextBuild = { ...nextBuild, itemSets: syncedSets, activeItemSetIndex: idx };
+    }
     const calc = calculateBuild(nextBuild);
     persistState(nextBuild, get().locale);
     set({ build: nextBuild, calc });
@@ -506,6 +527,135 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
           ...(cur.activeFlaskSlots ?? {}),
           [slot]: !currentActive,
         },
+      });
+    },
+
+    switchTreeSpec: (index) => {
+      const cur = get().build;
+      const specs = cur.treeSpecs && cur.treeSpecs.length > 0 ? cur.treeSpecs : [cur.tree];
+      if (index < 0 || index >= specs.length) return;
+      const target = specs[index]!;
+      commitBuild({
+        ...cur,
+        tree: {
+          ...target,
+          allocatedNodeIds: [...target.allocatedNodeIds],
+          weaponSet1NodeIds: [...target.weaponSet1NodeIds],
+          weaponSet2NodeIds: [...target.weaponSet2NodeIds],
+          masteryEffects: { ...target.masteryEffects },
+          ...(target.socketedJewels ? { socketedJewels: { ...target.socketedJewels } } : {}),
+        },
+        treeSpecs: specs,
+        activeTreeSpecIndex: index,
+      });
+    },
+
+    addTreeSpec: (title, cloneCurrent = true) => {
+      const cur = get().build;
+      const specs = cur.treeSpecs && cur.treeSpecs.length > 0 ? [...cur.treeSpecs] : [cur.tree];
+      const curIdx = Math.max(0, Math.min(specs.length - 1, cur.activeTreeSpecIndex ?? 0));
+      specs[curIdx] = cur.tree;
+      const tree = getTreeForGame(cur.game);
+      const startId = tree.classStartNodeIds[cur.classId] ?? cur.tree.allocatedNodeIds[0] ?? 0;
+      const newSpec = cloneCurrent
+        ? {
+            ...cur.tree,
+            title,
+            allocatedNodeIds: [...cur.tree.allocatedNodeIds],
+            weaponSet1NodeIds: [...cur.tree.weaponSet1NodeIds],
+            weaponSet2NodeIds: [...cur.tree.weaponSet2NodeIds],
+            masteryEffects: { ...cur.tree.masteryEffects },
+            ...(cur.tree.socketedJewels ? { socketedJewels: { ...cur.tree.socketedJewels } } : {}),
+          }
+        : {
+            title,
+            treeVersion: tree.version,
+            allocatedNodeIds: startId ? [startId] : [],
+            weaponSet1NodeIds: [],
+            weaponSet2NodeIds: [],
+            masteryEffects: {},
+          };
+      const nextSpecs = [...specs, newSpec];
+      commitBuild({
+        ...cur,
+        tree: newSpec,
+        treeSpecs: nextSpecs,
+        activeTreeSpecIndex: nextSpecs.length - 1,
+      });
+    },
+
+    deleteTreeSpec: (index) => {
+      const cur = get().build;
+      const specs = cur.treeSpecs && cur.treeSpecs.length > 0 ? [...cur.treeSpecs] : [cur.tree];
+      if (specs.length <= 1 || index < 0 || index >= specs.length) return;
+      specs.splice(index, 1);
+      const nextIdx = Math.max(0, Math.min(specs.length - 1, index > 0 ? index - 1 : 0));
+      commitBuild({
+        ...cur,
+        tree: specs[nextIdx]!,
+        treeSpecs: specs,
+        activeTreeSpecIndex: nextIdx,
+      });
+    },
+
+    switchItemSet: (index) => {
+      const cur = get().build;
+      const sets =
+        cur.itemSets && cur.itemSets.length > 0
+          ? cur.itemSets
+          : [{ id: '1', title: 'Default', equipped: cur.equipped, activeFlaskSlots: cur.activeFlaskSlots }];
+      if (index < 0 || index >= sets.length) return;
+      const target = sets[index]!;
+      commitBuild({
+        ...cur,
+        equipped: { ...target.equipped },
+        activeFlaskSlots: target.activeFlaskSlots ? { ...target.activeFlaskSlots } : {},
+        itemSets: sets,
+        activeItemSetIndex: index,
+      });
+    },
+
+    addItemSet: (title, cloneCurrent = true) => {
+      const cur = get().build;
+      const sets =
+        cur.itemSets && cur.itemSets.length > 0
+          ? [...cur.itemSets]
+          : [{ id: '1', title: 'Default', equipped: { ...cur.equipped }, activeFlaskSlots: { ...(cur.activeFlaskSlots ?? {}) } }];
+      const curIdx = Math.max(0, Math.min(sets.length - 1, cur.activeItemSetIndex ?? 0));
+      sets[curIdx] = {
+        ...sets[curIdx]!,
+        equipped: { ...cur.equipped },
+        activeFlaskSlots: { ...(cur.activeFlaskSlots ?? {}) },
+      };
+      const newSet = {
+        id: String(Date.now()),
+        title,
+        equipped: cloneCurrent ? { ...cur.equipped } : {},
+        activeFlaskSlots: cloneCurrent ? { ...(cur.activeFlaskSlots ?? {}) } : {},
+      };
+      const nextSets = [...sets, newSet];
+      commitBuild({
+        ...cur,
+        equipped: { ...newSet.equipped },
+        activeFlaskSlots: { ...newSet.activeFlaskSlots },
+        itemSets: nextSets,
+        activeItemSetIndex: nextSets.length - 1,
+      });
+    },
+
+    deleteItemSet: (index) => {
+      const cur = get().build;
+      const sets = cur.itemSets && cur.itemSets.length > 0 ? [...cur.itemSets] : [];
+      if (sets.length <= 1 || index < 0 || index >= sets.length) return;
+      sets.splice(index, 1);
+      const nextIdx = Math.max(0, Math.min(sets.length - 1, index > 0 ? index - 1 : 0));
+      const nextActive = sets[nextIdx]!;
+      commitBuild({
+        ...cur,
+        equipped: { ...nextActive.equipped },
+        activeFlaskSlots: nextActive.activeFlaskSlots ? { ...nextActive.activeFlaskSlots } : {},
+        itemSets: sets,
+        activeItemSetIndex: nextIdx,
       });
     },
 

@@ -2,14 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
   ChevronRight,
+  Copy,
   Crosshair,
   Flame,
+  GitCompare,
   Loader2,
   Maximize2,
   Plus,
   RotateCcw,
   Search,
   Sparkles,
+  Trash2,
   X,
   ZoomIn,
   ZoomOut,
@@ -79,6 +82,9 @@ export function PassiveTreeCanvas() {
     setMasteryEffect,
     socketJewel,
     resetPassiveTree,
+    switchTreeSpec,
+    addTreeSpec,
+    deleteTreeSpec,
   } = useWebPobStore();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -113,6 +119,44 @@ export function PassiveTreeCanvas() {
   const [heatmapMap, setHeatmapMap] = useState<Map<number, NodePowerHeatItem>>(new Map());
   const [heatmapSort, setHeatmapSort] = useState<'dpsPerPoint' | 'dps' | 'ehpPerPoint' | 'ehp'>('dpsPerPoint');
   const [powerDrawerOpen, setPowerDrawerOpen] = useState(true);
+  const [compareSpecIdx, setCompareSpecIdx] = useState<number | null>(null);
+
+  const treeSpecs = useMemo(
+    () => (build.treeSpecs && build.treeSpecs.length > 0 ? build.treeSpecs : [build.tree]),
+    [build.treeSpecs, build.tree],
+  );
+  const activeTreeSpecIdx = Math.max(0, Math.min(treeSpecs.length - 1, build.activeTreeSpecIndex ?? 0));
+
+  const { diffAddedSet, diffRemovedSet } = useMemo(() => {
+    const added = new Set<number>();
+    const removed = new Set<number>();
+    if (
+      compareSpecIdx === null ||
+      compareSpecIdx === activeTreeSpecIdx ||
+      compareSpecIdx < 0 ||
+      compareSpecIdx >= treeSpecs.length
+    ) {
+      return { diffAddedSet: added, diffRemovedSet: removed };
+    }
+    const baseSpec = treeSpecs[compareSpecIdx]!;
+    const curSet = new Set<number>([
+      ...build.tree.allocatedNodeIds,
+      ...build.tree.weaponSet1NodeIds,
+      ...build.tree.weaponSet2NodeIds,
+    ]);
+    const cmpSet = new Set<number>([
+      ...baseSpec.allocatedNodeIds,
+      ...baseSpec.weaponSet1NodeIds,
+      ...baseSpec.weaponSet2NodeIds,
+    ]);
+    for (const id of curSet) {
+      if (!cmpSet.has(id)) added.add(id);
+    }
+    for (const id of cmpSet) {
+      if (!curSet.has(id)) removed.add(id);
+    }
+    return { diffAddedSet: added, diffRemovedSet: removed };
+  }, [compareSpecIdx, activeTreeSpecIdx, treeSpecs, build.tree]);
   const dragRef = useRef<{
     active: boolean;
     moved: boolean;
@@ -831,6 +875,27 @@ export function PassiveTreeCanvas() {
       const isHovered = hoveredNodeId === node.id;
       const isSearchHit = matchedSearchIds.has(node.id);
 
+      // Spec Diff Overlay Rings (+ emerald added, - rose dashed removed)
+      if (diffAddedSet.has(node.id)) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r + 15 * (isOfficialFull ? 2 : 0.7), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.22)';
+        ctx.fill();
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = Math.max(5, 2.4 * invZoom);
+        ctx.stroke();
+      } else if (diffRemovedSet.has(node.id)) {
+        ctx.beginPath();
+        ctx.setLineDash([10 * invZoom * 0.5, 8 * invZoom * 0.5]);
+        ctx.arc(node.x, node.y, r + 15 * (isOfficialFull ? 2 : 0.7), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.16)';
+        ctx.fill();
+        ctx.strokeStyle = '#fb7185';
+        ctx.lineWidth = Math.max(5, 2.2 * invZoom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
       // Search glow ring
       if (isSearchHit) {
         ctx.beginPath();
@@ -1089,6 +1154,8 @@ export function PassiveTreeCanvas() {
     clusterSubGraphs,
     heatmapEnabled,
     heatmapMap,
+    diffAddedSet,
+    diffRemovedSet,
   ]);
 
   // Resize observer
@@ -1542,8 +1609,80 @@ export function PassiveTreeCanvas() {
       </div>
 
       {/* Bottom Hint Bar */}
-      <div className="absolute bottom-3 left-3 pointer-events-none rounded bg-[#0d1018]/85 border border-[#252b3d] px-3 py-1 text-[11px] text-zinc-400">
+      <div className="hidden md:block absolute bottom-3 left-3 pointer-events-none rounded bg-[#0d1018]/85 border border-[#252b3d] px-3 py-1 text-[11px] text-zinc-400">
         {t(locale, 'tree.hint')}
+      </div>
+
+      {/* Bottom-Right Multi-Spec Tree Switcher & Visual Diff Bar */}
+      <div className="absolute bottom-3 right-3 z-10 pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-md bg-[#0e121c]/92 border border-[#2a3147] px-2.5 py-1.5 shadow-xl text-xs">
+        <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+          {locale === 'zh-CN' ? '天赋方案' : 'Spec'}
+        </span>
+        <select
+          value={activeTreeSpecIdx}
+          onChange={(e) => switchTreeSpec(Number(e.target.value))}
+          className="pob-input rounded px-2 py-0.5 text-xs max-w-[140px]"
+        >
+          {treeSpecs.map((spec, idx) => (
+            <option key={`${spec.title}_${idx}`} value={idx}>
+              {spec.title} ({Math.max(0, spec.allocatedNodeIds.length - 1)}p)
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() =>
+            addTreeSpec(
+              locale === 'zh-CN' ? `方案 ${treeSpecs.length + 1}` : `Spec ${treeSpecs.length + 1}`,
+              true,
+            )
+          }
+          title={locale === 'zh-CN' ? '复制当前天赋树为新方案' : 'Clone active tree into a new Spec'}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#161c2b] hover:bg-[#1e263a] border border-[#2e364f] text-[11px] text-amber-200 cursor-pointer"
+        >
+          <Copy className="w-3 h-3" />
+          {locale === 'zh-CN' ? '新方案' : 'Clone'}
+        </button>
+        {treeSpecs.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                deleteTreeSpec(activeTreeSpecIdx);
+                setCompareSpecIdx(null);
+              }}
+              title={locale === 'zh-CN' ? '删除当前天赋方案' : 'Delete active Tree Spec'}
+              className="p-1 rounded text-zinc-400 hover:text-rose-400 border border-[#2e364f] cursor-pointer"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+            <span className="h-4 w-px bg-[#2a3147] mx-0.5" />
+            <GitCompare className="w-3.5 h-3.5 text-emerald-400" />
+            <select
+              value={compareSpecIdx === null ? '' : String(compareSpecIdx)}
+              onChange={(e) =>
+                setCompareSpecIdx(e.target.value === '' ? null : Number(e.target.value))
+              }
+              className="pob-input rounded px-2 py-0.5 text-xs max-w-[130px]"
+              title={locale === 'zh-CN' ? '叠加高亮对比另一套天赋方案的增减节点' : 'Highlight node diff against another Spec'}
+            >
+              <option value="">{locale === 'zh-CN' ? '对比差异: 关闭' : 'Diff: Off'}</option>
+              {treeSpecs.map((spec, idx) =>
+                idx === activeTreeSpecIdx ? null : (
+                  <option key={`cmp_${idx}`} value={idx}>
+                    vs {spec.title}
+                  </option>
+                ),
+              )}
+            </select>
+            {compareSpecIdx !== null && compareSpecIdx !== activeTreeSpecIdx && (
+              <span className="font-mono text-[11px] flex items-center gap-1.5 pl-0.5">
+                <span className="text-emerald-400 font-semibold">+{diffAddedSet.size}</span>
+                <span className="text-rose-400 font-semibold">-{diffRemovedSet.size}</span>
+              </span>
+            )}
+          </>
+        )}
       </div>
 
       {/* Floating Top Power Nodes Efficiency Drawer (when Heatmap is active) */}

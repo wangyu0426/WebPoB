@@ -1,5 +1,15 @@
 import { deflate, inflate } from 'pako';
-import type { Build, EquipmentSlotId, GameId, GemInstance, Item, SkillGroup, WeaponSetId } from '@webpob/core';
+import type {
+  Build,
+  EquipmentSlotId,
+  GameId,
+  GemInstance,
+  Item,
+  ItemSetSpec,
+  SkillGroup,
+  TreeSpec,
+  WeaponSetId,
+} from '@webpob/core';
 import { createDefaultConfig, getClassesForGame, getGemsForGame, getRuleset, getTreeForGame } from '@webpob/data';
 import { formatItemToPobText, parseItemText } from './itemParser.js';
 
@@ -118,48 +128,54 @@ export function buildToPobXml(build: Build): string {
     idToNum.set(item.id, index + 1);
   });
 
-  // <Tree>
-  const allNodesSet = new Set<number>(build.tree.allocatedNodeIds);
-  if (build.game === 'poe2') {
-    for (const id of build.tree.weaponSet1NodeIds) allNodesSet.add(id);
-    for (const id of build.tree.weaponSet2NodeIds) allNodesSet.add(id);
-  }
-  const nodesStr = [...allNodesSet].join(',');
-  const ws1Str = build.tree.weaponSet1NodeIds.join(',');
-  const ws2Str = build.tree.weaponSet2NodeIds.join(',');
-  const wsAttrs =
-    build.game === 'poe2'
-      ? ` weaponSet1Nodes="${ws1Str}" weaponSet2Nodes="${ws2Str}"`
-      : '';
-  const jewelSockets = Object.entries(build.tree.socketedJewels ?? {})
-    .map(([nodeId, itemId]) => ({ nodeId, numId: idToNum.get(itemId) }))
-    .filter((s): s is { nodeId: string; numId: number } => Boolean(s.numId));
-  const hasWsChildren =
-    build.game === 'poe2' && (build.tree.weaponSet1NodeIds.length > 0 || build.tree.weaponSet2NodeIds.length > 0);
+  // <Tree> (supports multiple <Spec> plans with activeSpec index)
+  const specsToWrite: TreeSpec[] =
+    build.treeSpecs && build.treeSpecs.length > 0
+      ? build.treeSpecs.map((s, i) => (i === (build.activeTreeSpecIndex ?? 0) ? build.tree : s))
+      : [build.tree];
+  const activeSpecAttr = Math.max(1, Math.min(specsToWrite.length, (build.activeTreeSpecIndex ?? 0) + 1));
 
-  lines.push(`  <Tree activeSpec="1">`);
-  if (jewelSockets.length > 0 || hasWsChildren) {
-    lines.push(
-      `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs}>`,
-    );
-    if (build.game === 'poe2' && build.tree.weaponSet1NodeIds.length > 0) {
-      lines.push(`      <WeaponSet1 nodes="${ws1Str}" />`);
+  lines.push(`  <Tree activeSpec="${activeSpecAttr}">`);
+  for (const spec of specsToWrite) {
+    const allNodesSet = new Set<number>(spec.allocatedNodeIds);
+    if (build.game === 'poe2') {
+      for (const id of spec.weaponSet1NodeIds) allNodesSet.add(id);
+      for (const id of spec.weaponSet2NodeIds) allNodesSet.add(id);
     }
-    if (build.game === 'poe2' && build.tree.weaponSet2NodeIds.length > 0) {
-      lines.push(`      <WeaponSet2 nodes="${ws2Str}" />`);
-    }
-    if (jewelSockets.length > 0) {
-      lines.push(`      <Sockets>`);
-      for (const s of jewelSockets) {
-        lines.push(`        <Socket nodeId="${s.nodeId}" itemId="${s.numId}" />`);
+    const nodesStr = [...allNodesSet].join(',');
+    const ws1Str = spec.weaponSet1NodeIds.join(',');
+    const ws2Str = spec.weaponSet2NodeIds.join(',');
+    const wsAttrs =
+      build.game === 'poe2' ? ` weaponSet1Nodes="${ws1Str}" weaponSet2Nodes="${ws2Str}"` : '';
+    const jewelSockets = Object.entries(spec.socketedJewels ?? {})
+      .map(([nodeId, itemId]) => ({ nodeId, numId: idToNum.get(itemId) }))
+      .filter((s): s is { nodeId: string; numId: number } => Boolean(s.numId));
+    const hasWsChildren =
+      build.game === 'poe2' && (spec.weaponSet1NodeIds.length > 0 || spec.weaponSet2NodeIds.length > 0);
+
+    if (jewelSockets.length > 0 || hasWsChildren) {
+      lines.push(
+        `    <Spec title="${escapeXml(spec.title)}" treeVersion="${escapeXml(spec.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs}>`,
+      );
+      if (build.game === 'poe2' && spec.weaponSet1NodeIds.length > 0) {
+        lines.push(`      <WeaponSet1 nodes="${ws1Str}" />`);
       }
-      lines.push(`      </Sockets>`);
+      if (build.game === 'poe2' && spec.weaponSet2NodeIds.length > 0) {
+        lines.push(`      <WeaponSet2 nodes="${ws2Str}" />`);
+      }
+      if (jewelSockets.length > 0) {
+        lines.push(`      <Sockets>`);
+        for (const s of jewelSockets) {
+          lines.push(`        <Socket nodeId="${s.nodeId}" itemId="${s.numId}" />`);
+        }
+        lines.push(`      </Sockets>`);
+      }
+      lines.push(`    </Spec>`);
+    } else {
+      lines.push(
+        `    <Spec title="${escapeXml(spec.title)}" treeVersion="${escapeXml(spec.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs} />`,
+      );
     }
-    lines.push(`    </Spec>`);
-  } else {
-    lines.push(
-      `    <Spec title="${escapeXml(build.tree.title)}" treeVersion="${escapeXml(build.tree.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs} />`,
-    );
   }
   lines.push(`  </Tree>`);
 
@@ -190,27 +206,48 @@ export function buildToPobXml(build: Build): string {
   lines.push(`    </SkillSet>`);
   lines.push(`  </Skills>`);
 
-  // <Items>
-  lines.push(`  <Items activeItemSet="1">`);
+  // <Items> (supports multiple <ItemSet> loadouts with activeItemSet)
+  const itemSetsToWrite: ItemSetSpec[] =
+    build.itemSets && build.itemSets.length > 0
+      ? build.itemSets.map((setSpec, i) =>
+          i === (build.activeItemSetIndex ?? 0)
+            ? { ...setSpec, equipped: build.equipped, activeFlaskSlots: build.activeFlaskSlots }
+            : setSpec,
+        )
+      : [{ id: '1', title: 'Default', equipped: build.equipped, activeFlaskSlots: build.activeFlaskSlots }];
+  const activeItemSetIdx = Math.max(
+    0,
+    Math.min(itemSetsToWrite.length - 1, build.activeItemSetIndex ?? 0),
+  );
+  const activeItemSetId = itemSetsToWrite[activeItemSetIdx]?.id || String(activeItemSetIdx + 1);
+
+  lines.push(`  <Items activeItemSet="${escapeXml(activeItemSetId)}">`);
   itemEntries.forEach((item, index) => {
     const numId = index + 1;
     const body = escapeXml(formatItemToPobText(item));
     lines.push(`    <Item id="${numId}">\n${body}\n    </Item>`);
   });
-  const itemSetWsAttr = build.game === 'poe2' && build.activeWeaponSet === 2 ? ' useSecondWeaponSet="true"' : '';
-  lines.push(`    <ItemSet id="1"${itemSetWsAttr}>`);
-  for (const [slot, itemId] of Object.entries(build.equipped)) {
-    if (!itemId) continue;
-    const numId = idToNum.get(itemId);
-    if (numId) {
-      const isActiveFlask =
-        slot.startsWith('Flask ') && build.activeFlaskSlots?.[slot as EquipmentSlotId];
-      lines.push(
-        `      <Slot name="${escapeXml(slot)}" itemId="${numId}"${isActiveFlask ? ' active="true"' : ''} />`,
-      );
+  itemSetsToWrite.forEach((setSpec, idx) => {
+    const setId = setSpec.id || String(idx + 1);
+    const titleAttr = setSpec.title ? ` title="${escapeXml(setSpec.title)}"` : '';
+    const itemSetWsAttr =
+      idx === activeItemSetIdx && build.game === 'poe2' && build.activeWeaponSet === 2
+        ? ' useSecondWeaponSet="true"'
+        : '';
+    lines.push(`    <ItemSet id="${escapeXml(setId)}"${titleAttr}${itemSetWsAttr}>`);
+    for (const [slot, itemId] of Object.entries(setSpec.equipped)) {
+      if (!itemId) continue;
+      const numId = idToNum.get(itemId);
+      if (numId) {
+        const isActiveFlask =
+          slot.startsWith('Flask ') && setSpec.activeFlaskSlots?.[slot as EquipmentSlotId];
+        lines.push(
+          `      <Slot name="${escapeXml(slot)}" itemId="${numId}"${isActiveFlask ? ' active="true"' : ''} />`,
+        );
+      }
     }
-  }
-  lines.push(`    </ItemSet>`);
+    lines.push(`    </ItemSet>`);
+  });
   lines.push(`  </Items>`);
 
   // <Config>
@@ -238,6 +275,12 @@ export function buildToPobXml(build: Build): string {
   if (cfg.enemyColdExposure) lines.push(`      <Input name="conditionEnemyColdExposure" boolean="true" />`);
   if (cfg.enemyLightningExposure) lines.push(`      <Input name="conditionEnemyLightningExposure" boolean="true" />`);
   if (cfg.rage && cfg.rage > 0) lines.push(`      <Input name="multiplierRage" number="${cfg.rage}" />`);
+  if (cfg.fortified) {
+    lines.push(`      <Input name="buffFortification" boolean="true" />`);
+    if (cfg.fortificationStacks !== undefined && cfg.fortificationStacks !== 20) {
+      lines.push(`      <Input name="overrideFortification" number="${cfg.fortificationStacks}" />`);
+    }
+  }
   if (cfg.customMods.trim()) {
     lines.push(`      <Placeholder name="customMods" string="${escapeXml(cfg.customMods)}" />`);
   }
@@ -325,32 +368,134 @@ export function xmlToBuild(xml: string): Build {
     classes[0]!;
   const level = Math.max(1, Math.min(100, Number(buildAttrs.level ?? 90) || 90));
   const ascendancyId = buildAttrs.ascendClassName || buildAttrs.ascendancyName || '';
-  const itemSetTag = xml.match(/<ItemSet\b([^>]*)\/?>/i);
-  const itemSetAttrs = itemSetTag ? parseAttributes(itemSetTag[1]!) : {};
-  const activeWeaponSet: WeaponSetId =
-    buildAttrs.activeWeaponSet === '2' || itemSetAttrs.useSecondWeaponSet === 'true' ? 2 : 1;
   const mainSocketGroupIdx = Math.max(1, Number(buildAttrs.mainSocketGroup ?? 1) || 1);
 
-  // Parse <Spec> (supports both WebPoB weaponSet1Nodes attributes AND official PoB2 <WeaponSet1 nodes="..."/> children)
-  const tree = getTreeForGame(game);
-  const specTag = xml.match(/<Spec\b([^>]*)\/?>/i);
-  const specAttrs = specTag ? parseAttributes(specTag[1]!) : {};
-  const ws1ChildMatch = xml.match(/<WeaponSet1\b[^>]*\bnodes="([^"]*)"/i);
-  const ws2ChildMatch = xml.match(/<WeaponSet2\b[^>]*\bnodes="([^"]*)"/i);
-  const weaponSet1NodeIds = parseNodeList(ws1ChildMatch?.[1] ?? specAttrs.weaponSet1Nodes).filter((id) =>
-    Boolean(tree.nodes[id]),
-  );
-  const weaponSet2NodeIds = parseNodeList(ws2ChildMatch?.[1] ?? specAttrs.weaponSet2Nodes).filter((id) =>
-    Boolean(tree.nodes[id]),
-  );
-  const wsExclusiveSet = new Set<number>([...weaponSet1NodeIds, ...weaponSet2NodeIds]);
-  let allocatedNodeIds = parseNodeList(specAttrs.nodes).filter(
-    (id) => Boolean(tree.nodes[id]) && !wsExclusiveSet.has(id),
-  );
-  const startNodeId = tree.classStartNodeIds[classDef.id];
-  if (startNodeId && !allocatedNodeIds.includes(startNodeId)) {
-    allocatedNodeIds = [startNodeId, ...allocatedNodeIds];
+  // Parse <Item> elements first so both <Tree><Spec><Sockets> and <Items><ItemSet> can resolve itemIds
+  const items: Record<string, Item> = {};
+  const numIdToItemId = new Map<string, string>();
+  const itemRegex = /<Item\b([^>]*)>([\s\S]*?)<\/Item>/gi;
+  let itemMatch: RegExpExecArray | null;
+  while ((itemMatch = itemRegex.exec(xml)) !== null) {
+    const attrs = parseAttributes(itemMatch[1]!);
+    const numId = attrs.id ?? String(numIdToItemId.size + 1);
+    const body = unescapeXml(itemMatch[2] ?? '').trim();
+    const itemId = `imp_item_${numId}`;
+    const parsed = parseItemText(body, itemId, game);
+    if (parsed) {
+      items[itemId] = parsed;
+      numIdToItemId.set(numId, itemId);
+    }
   }
+
+  // Parse <Items activeItemSet="..."> & all <ItemSet> blocks
+  const itemsHeaderMatch = xml.match(/<Items\b([^>]*)>/i);
+  const itemsHeaderAttrs = itemsHeaderMatch ? parseAttributes(itemsHeaderMatch[1]!) : {};
+  const requestedItemSetId = itemsHeaderAttrs.activeItemSet || '1';
+  const itemSets: ItemSetSpec[] = [];
+  const itemSetWsFlags: boolean[] = [];
+  const itemSetBlockRegex = /<ItemSet\b([^>]*?)(?:\/>|>([\s\S]*?)<\/ItemSet>)/gi;
+  let isMatch: RegExpExecArray | null;
+  while ((isMatch = itemSetBlockRegex.exec(xml)) !== null) {
+    const isAttrs = parseAttributes(isMatch[1]!);
+    const isInner = isMatch[2] ?? '';
+    const eq: Partial<Record<EquipmentSlotId, string>> = {};
+    const fl: Partial<Record<EquipmentSlotId, boolean>> = {};
+    const slotRegex = /<Slot\b([^>]*)\/?>/gi;
+    let slotMatch: RegExpExecArray | null;
+    while ((slotMatch = slotRegex.exec(isInner)) !== null) {
+      const attrs = parseAttributes(slotMatch[1]!);
+      const slotName = attrs.name as EquipmentSlotId | undefined;
+      const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
+      if (slotName && itemId) {
+        eq[slotName] = itemId;
+        if (slotName.startsWith('Flask ') && attrs.active === 'true') {
+          fl[slotName] = true;
+        }
+      }
+    }
+    itemSets.push({
+      id: isAttrs.id || String(itemSets.length + 1),
+      title: isAttrs.title || (itemSets.length === 0 ? 'Default' : `Set ${itemSets.length + 1}`),
+      equipped: eq,
+      ...(Object.keys(fl).length > 0 ? { activeFlaskSlots: fl } : {}),
+    });
+    itemSetWsFlags.push(isAttrs.useSecondWeaponSet === 'true');
+  }
+  let activeItemSetIndex = itemSets.findIndex((s) => s.id === requestedItemSetId);
+  if (activeItemSetIndex < 0) {
+    const numericIdx = Number(requestedItemSetId) - 1;
+    activeItemSetIndex =
+      Number.isFinite(numericIdx) && numericIdx >= 0 && numericIdx < itemSets.length ? numericIdx : 0;
+  }
+  const activeItemSet = itemSets[activeItemSetIndex];
+  const equipped: Partial<Record<EquipmentSlotId, string>> = activeItemSet ? { ...activeItemSet.equipped } : {};
+  const activeFlaskSlots: Partial<Record<EquipmentSlotId, boolean>> = activeItemSet?.activeFlaskSlots
+    ? { ...activeItemSet.activeFlaskSlots }
+    : {};
+  const activeWeaponSet: WeaponSetId =
+    buildAttrs.activeWeaponSet === '2' || itemSetWsFlags[activeItemSetIndex] ? 2 : 1;
+
+  // Parse <Tree activeSpec="..."> & ALL <Spec> elements (supports PoB multi-spec trees!)
+  const tree = getTreeForGame(game);
+  const startNodeId = tree.classStartNodeIds[classDef.id];
+  const treeHeaderMatch = xml.match(/<Tree\b([^>]*)>/i);
+  const treeHeaderAttrs = treeHeaderMatch ? parseAttributes(treeHeaderMatch[1]!) : {};
+  const requestedSpecIdx = Math.max(1, Number(treeHeaderAttrs.activeSpec ?? 1) || 1) - 1;
+
+  const treeSpecs: TreeSpec[] = [];
+  const specBlockRegex = /<Spec\b([^>]*?)(?:\/>|>([\s\S]*?)<\/Spec>)/gi;
+  let spMatch: RegExpExecArray | null;
+  while ((spMatch = specBlockRegex.exec(xml)) !== null) {
+    const specAttrs = parseAttributes(spMatch[1]!);
+    const specInner = spMatch[2] ?? '';
+    const ws1ChildMatch = specInner.match(/<WeaponSet1\b[^>]*\bnodes="([^"]*)"/i);
+    const ws2ChildMatch = specInner.match(/<WeaponSet2\b[^>]*\bnodes="([^"]*)"/i);
+    const weaponSet1NodeIds = parseNodeList(ws1ChildMatch?.[1] ?? specAttrs.weaponSet1Nodes).filter((id) =>
+      Boolean(tree.nodes[id]),
+    );
+    const weaponSet2NodeIds = parseNodeList(ws2ChildMatch?.[1] ?? specAttrs.weaponSet2Nodes).filter((id) =>
+      Boolean(tree.nodes[id]),
+    );
+    const wsExclusiveSet = new Set<number>([...weaponSet1NodeIds, ...weaponSet2NodeIds]);
+    let allocatedNodeIds = parseNodeList(specAttrs.nodes).filter(
+      (id) => Boolean(tree.nodes[id]) && !wsExclusiveSet.has(id),
+    );
+    if (startNodeId && !allocatedNodeIds.includes(startNodeId)) {
+      allocatedNodeIds = [startNodeId, ...allocatedNodeIds];
+    }
+    const specJewels: Record<number, string> = {};
+    const jewelSocketRegex = /<Socket\b([^>]*)\/?>/gi;
+    let jsMatch: RegExpExecArray | null;
+    while ((jsMatch = jewelSocketRegex.exec(specInner)) !== null) {
+      const attrs = parseAttributes(jsMatch[1]!);
+      const nodeId = Number(attrs.nodeId);
+      const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
+      if (Number.isFinite(nodeId) && nodeId > 0 && itemId) {
+        specJewels[nodeId] = itemId;
+      }
+    }
+    treeSpecs.push({
+      title: specAttrs.title || (treeSpecs.length === 0 ? 'Default' : `Spec ${treeSpecs.length + 1}`),
+      treeVersion: specAttrs.treeVersion || tree.version,
+      allocatedNodeIds,
+      weaponSet1NodeIds,
+      weaponSet2NodeIds,
+      masteryEffects: {},
+      ...(Object.keys(specJewels).length > 0 ? { socketedJewels: specJewels } : {}),
+    });
+  }
+  if (treeSpecs.length === 0) {
+    treeSpecs.push({
+      title: 'Default',
+      treeVersion: tree.version,
+      allocatedNodeIds: startNodeId ? [startNodeId] : [],
+      weaponSet1NodeIds: [],
+      weaponSet2NodeIds: [],
+      masteryEffects: {},
+    });
+  }
+  const activeTreeSpecIndex = Math.max(0, Math.min(treeSpecs.length - 1, requestedSpecIdx));
+  const activeTreeSpec = treeSpecs[activeTreeSpecIndex]!;
 
   // Parse <Skill> groups
   const skills: SkillGroup[] = [];
@@ -416,52 +561,6 @@ export function xmlToBuild(xml: string): Build {
 
   const mainSkillGroupId = skills[mainSocketGroupIdx - 1]?.id ?? skills[0]!.id;
 
-  // Parse <Item> elements and <Slot> mappings
-  const items: Record<string, Item> = {};
-  const numIdToItemId = new Map<string, string>();
-  const itemRegex = /<Item\b([^>]*)>([\s\S]*?)<\/Item>/gi;
-  let itemMatch: RegExpExecArray | null;
-  while ((itemMatch = itemRegex.exec(xml)) !== null) {
-    const attrs = parseAttributes(itemMatch[1]!);
-    const numId = attrs.id ?? String(numIdToItemId.size + 1);
-    const body = unescapeXml(itemMatch[2] ?? '').trim();
-    const itemId = `imp_item_${numId}`;
-    const parsed = parseItemText(body, itemId, game);
-    if (parsed) {
-      items[itemId] = parsed;
-      numIdToItemId.set(numId, itemId);
-    }
-  }
-
-  const equipped: Partial<Record<EquipmentSlotId, string>> = {};
-  const activeFlaskSlots: Partial<Record<EquipmentSlotId, boolean>> = {};
-  const slotRegex = /<Slot\b([^>]*)\/?>/gi;
-  let slotMatch: RegExpExecArray | null;
-  while ((slotMatch = slotRegex.exec(xml)) !== null) {
-    const attrs = parseAttributes(slotMatch[1]!);
-    const slotName = attrs.name as EquipmentSlotId | undefined;
-    const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
-    if (slotName && itemId) {
-      equipped[slotName] = itemId;
-      if (slotName.startsWith('Flask ') && attrs.active === 'true') {
-        activeFlaskSlots[slotName] = true;
-      }
-    }
-  }
-
-  // Parse passive tree <Socket nodeId="..." itemId="..."/> jewel assignments
-  const socketedJewels: Record<number, string> = {};
-  const jewelSocketRegex = /<Socket\b([^>]*)\/?>/gi;
-  let jsMatch: RegExpExecArray | null;
-  while ((jsMatch = jewelSocketRegex.exec(xml)) !== null) {
-    const attrs = parseAttributes(jsMatch[1]!);
-    const nodeId = Number(attrs.nodeId);
-    const itemId = attrs.itemId ? numIdToItemId.get(attrs.itemId) : undefined;
-    if (Number.isFinite(nodeId) && nodeId > 0 && itemId) {
-      socketedJewels[nodeId] = itemId;
-    }
-  }
-
   // Parse <Config> inputs using clean official PoB defaults (all optional buffs OFF unless specified in XML)
   const ruleset = getRuleset(game);
   const config: Build['config'] = {
@@ -518,6 +617,8 @@ export function xmlToBuild(xml: string): Build {
     if (key === 'conditionEnemyColdExposure' && attrs.boolean) config.enemyColdExposure = attrs.boolean === 'true';
     if (key === 'conditionEnemyLightningExposure' && attrs.boolean) config.enemyLightningExposure = attrs.boolean === 'true';
     if (key === 'multiplierRage' && attrs.number) config.rage = Number(attrs.number);
+    if (key === 'buffFortification' && attrs.boolean) config.fortified = attrs.boolean === 'true';
+    if (key === 'overrideFortification' && attrs.number) config.fortificationStacks = Number(attrs.number);
     if (key === 'customMods' && attrs.string) config.customMods = attrs.string;
   }
 
@@ -534,20 +635,14 @@ export function xmlToBuild(xml: string): Build {
     ascendancyId,
     activeWeaponSet,
     bandit: banditFromConfig ?? (buildAttrs.bandit as Build['bandit']) ?? 'None',
-    tree: {
-      title: specAttrs.title || 'Imported Tree',
-      treeVersion: specAttrs.treeVersion || tree.version,
-      allocatedNodeIds,
-      weaponSet1NodeIds,
-      weaponSet2NodeIds,
-      masteryEffects: {},
-      ...(Object.keys(socketedJewels).length > 0 ? { socketedJewels } : {}),
-    },
+    tree: activeTreeSpec,
+    ...(treeSpecs.length > 1 ? { treeSpecs, activeTreeSpecIndex } : {}),
     skills,
     mainSkillGroupId,
     items,
     equipped,
     ...(Object.keys(activeFlaskSlots).length > 0 ? { activeFlaskSlots } : {}),
+    ...(itemSets.length > 1 ? { itemSets, activeItemSetIndex } : {}),
     config,
     notes,
   };

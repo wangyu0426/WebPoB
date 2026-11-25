@@ -2990,4 +2990,609 @@ Adds 18 to 34 Physical Damage
   <Notes/>
 </PathOfBuilding2>`,
   },
+  // ─── Phase 14 Benchmarks (86..100 — 100/100 MILESTONE!): Purity Auras, Fortify, Multi-Spec/ItemSet & PoE 2 Mastery ───
+  {
+    id: 'poe1_purity_of_elements_fire_max_res',
+    title: 'PoE 1 — Lv.90 Marauder Purity of Elements (+34% All Res) + Purity of Fire (+41% Fire, +4% Max Fire = 79%)',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Purity Max Fire Res"/>
+  <Tree activeSpec="1">
+    <Spec title="Marauder" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Heavy Strike">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeavyStrike" skillId="HeavyStrike" nameSpec="Heavy Strike" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Purity Auras">
+        <Gem gemId="Metadata/Items/Gems/SkillGemPurityOfElements" skillId="PurityOfElements" nameSpec="Purity of Elements" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemPurityOfFire" skillId="PurityOfFire" nameSpec="Purity of Fire" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Ember Mail
+Glorious Plate
+Quality: 20
+Implicits: 0
++90 to maximum Life
++45% to Fire Resistance
++45% to Cold Resistance
++45% to Lightning Resistance
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Ruby Loop
+Ruby Ring
+Implicits: 1
++30% to Fire Resistance
++40% to Fire Resistance
++40% to Cold Resistance
++40% to Lightning Resistance
+    </Item>
+    <Item id="3">
+Rarity: RARE
+Iron Cleaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1"/>
+      <Slot name="Ring 1" itemId="2"/>
+      <Slot name="Weapon 1" itemId="3"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_fortify_20_marauder_earthshatter',
+    title: 'PoE 1 — Lv.90 Marauder Earthshatter + Brutality + Melee Phys + 20 Fortification + Rare Vaal Axe',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Fortified Earthshatter"/>
+  <Tree activeSpec="1">
+    <Spec title="Marauder" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Earthshatter">
+        <Gem gemId="Metadata/Items/Gems/SkillGemEarthshatter" skillId="Earthshatter" nameSpec="Earthshatter" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportBrutality" skillId="SupportBrutality" nameSpec="Brutality" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportMeleePhysicalDamage" skillId="SupportMeleePhysicalDamage" nameSpec="Melee Physical Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Quake Cleaver
+Vaal Axe
+Quality: 20
+Implicits: 0
+150% increased Physical Damage
+Adds 20 to 40 Physical Damage
+18% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="buffFortification" boolean="true"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_frost_blades_cold_pen_wed_claw',
+    title: 'PoE 1 — Lv.90 Shadow Frost Blades (60% Phys->Cold) + WED + Cold Penetration + Added Cold + Imperial Claw',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Shadow" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Frost Blades Claw"/>
+  <Tree activeSpec="1">
+    <Spec title="Shadow" treeVersion="3_30" classId="6" ascendClassId="0" nodes="44683"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Frost Blades">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFrostBlades" skillId="FrostBlades" nameSpec="Frost Blades" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportElementalDamageWithAttacks" skillId="SupportElementalDamageWithAttacks" nameSpec="Elemental Damage with Attacks" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportColdPenetration" skillId="SupportColdPenetration" nameSpec="Cold Penetration" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportAddedColdDamage" skillId="SupportAddedColdDamage" nameSpec="Added Cold Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Glacier Fang
+Imperial Claw
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+Adds 18 to 34 Physical Damage
+20% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_ethereal_knives_hatred_herald_ash_phys_spell',
+    title: 'PoE 1 — Lv.90 Shadow Ethereal Knives (Pure Phys Spell) + Added Fire + Controlled Destruction + Hatred + Herald of Ash',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Shadow" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: EK Hatred Herald of Ash"/>
+  <Tree activeSpec="1">
+    <Spec title="Shadow" treeVersion="3_30" classId="6" ascendClassId="0" nodes="44683"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ethereal Knives">
+        <Gem gemId="Metadata/Items/Gems/SkillGemEtherealKnives" skillId="EtherealKnives" nameSpec="Ethereal Knives" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportAddedFireDamage" skillId="SupportAddedFireDamage" nameSpec="Added Fire Damage" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportControlledDestruction" skillId="SupportControlledDestruction" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Auras">
+        <Gem gemId="Metadata/Items/Gems/SkillGemHatred" skillId="Hatred" nameSpec="Hatred" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemHeraldOfAsh" skillId="HeraldOfAsh" nameSpec="Herald of Ash" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_split_arrow_brutality_vicious_impale_bow',
+    title: 'PoE 1 — Lv.90 Ranger Split Arrow + Brutality + Vicious Projectiles + Impale + Rare Imperial Bow',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Ranger" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Split Arrow Impale Bow"/>
+  <Tree activeSpec="1">
+    <Spec title="Ranger" treeVersion="3_30" classId="2" ascendClassId="0" nodes="50459"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Split Arrow">
+        <Gem gemId="Metadata/Items/Gems/SkillGemSplitArrow" skillId="SplitArrow" nameSpec="Split Arrow" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportBrutality" skillId="SupportBrutality" nameSpec="Brutality" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportViciousProjectiles" skillId="SupportViciousProjectiles" nameSpec="Vicious Projectiles" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportImpale" skillId="SupportImpale" nameSpec="Impale" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Steelstring
+Imperial Bow
+Quality: 20
+Implicits: 0
+150% increased Physical Damage
+Adds 20 to 40 Physical Damage
+16% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_ground_slam_conc_brutality_melee_phys_mace',
+    title: 'PoE 1 — Lv.90 Marauder Ground Slam + Concentrated Effect + Brutality + Melee Phys + Karui Maul',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Ground Slam Karui Maul"/>
+  <Tree activeSpec="1">
+    <Spec title="Marauder" treeVersion="3_30" classId="1" ascendClassId="0" nodes="47175"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Ground Slam">
+        <Gem gemId="Metadata/Items/Gems/SkillGemGroundSlam" skillId="GroundSlam" nameSpec="Ground Slam" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportConcentratedEffect" skillId="SupportConcentratedEffect" nameSpec="Concentrated Effect" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportBrutality" skillId="SupportBrutality" nameSpec="Brutality" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportMeleePhysicalDamage" skillId="SupportMeleePhysicalDamage" nameSpec="Melee Physical Damage" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Titan Hammer
+Karui Maul
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+Adds 20 to 40 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_bladefall_phys_to_light_wrath',
+    title: 'PoE 1 — Lv.90 Witch Bladefall + Physical to Lightning + Lightning Penetration + Controlled Destruction + Wrath',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Bladefall Phys-to-Light"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Bladefall">
+        <Gem gemId="Metadata/Items/Gems/SkillGemBladefall" skillId="Bladefall" nameSpec="Bladefall" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportPhysicalToLightning" skillId="SupportPhysicalToLightning" nameSpec="Physical to Lightning" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportLightningPenetration" skillId="SupportLightningPenetration" nameSpec="Lightning Penetration" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportControlledDestruction" skillId="SupportControlledDestruction" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Wrath">
+        <Gem gemId="Metadata/Items/Gems/SkillGemWrath" skillId="Wrath" nameSpec="Wrath" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_purity_of_ice_lightning_max_res_templar',
+    title: 'PoE 1 — Lv.90 Templar Arc + Purity of Ice (+4% Max Cold) + Purity of Lightning (+4% Max Light) -> 79%/79% Res',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Templar" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Purity Ice &amp; Lightning Max Res"/>
+  <Tree activeSpec="1">
+    <Spec title="Templar" treeVersion="3_30" classId="5" ascendClassId="0" nodes="61525"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+      </Skill>
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Helmet" label="Purities">
+        <Gem gemId="Metadata/Items/Gems/SkillGemPurityOfIce" skillId="PurityOfIce" nameSpec="Purity of Ice" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemPurityOfLightning" skillId="PurityOfLightning" nameSpec="Purity of Lightning" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Storm Band
+Two-Stone Ring
+Implicits: 1
++16% to Cold and Lightning Resistances
++45% to Cold Resistance
++45% to Lightning Resistance
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Frost Belt
+Leather Belt
+Implicits: 1
++40 to maximum Life
++45% to Cold Resistance
++45% to Lightning Resistance
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Ring 1" itemId="1"/>
+      <Slot name="Belt" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe1_multi_spec_multi_itemset_arc_empower',
+    title: 'PoE 1 — Multi-Spec (<Tree activeSpec="2">) + Multi-ItemSet (<Items activeItemSet="2">) Arc + Empower Lv.4 + +1 Wand',
+    game: 'poe1',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: Multi-Spec &amp; Multi-ItemSet"/>
+  <Tree activeSpec="2">
+    <Spec title="Leveling" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447"/>
+    <Spec title="Endgame" treeVersion="3_30" classId="3" ascendClassId="0" nodes="54447,57264,37569,36542,4397,11420"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" slot="Body Armour" label="Arc">
+        <Gem gemId="Metadata/Items/Gems/SkillGemArc" skillId="Arc" nameSpec="Arc" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemSupportEmpower" skillId="SupportEmpower" nameSpec="Empower" level="4" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="2">
+    <Item id="1">
+Rarity: RARE
+Starter Twig
+Driftwood Wand
+Implicits: 0
+20% increased Spell Damage
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Endgame Rod
+Prophecy Wand
+Implicits: 0
++1 to Level of all Spell Skill Gems
+70% increased Spell Damage
+18% increased Cast Speed
+    </Item>
+    <ItemSet id="1" title="Leveling Gear">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+    <ItemSet id="2" title="Endgame Gear">
+      <Slot name="Weapon 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding>`,
+  },
+  {
+    id: 'poe2_sorc_fireball_plus3_wand_supports',
+    title: 'PoE 2 — Lv.90 Sorceress Fireball + Elemental Focus + Rapid Casting I + Controlled Destruction + +3 Fire Wand',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Sorceress" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Fireball +3 Wand"/>
+  <Tree activeSpec="1">
+    <Spec title="Sorceress" treeVersion="0_5" classId="7" classInternalId="7" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Fireball">
+        <Gem gemId="Metadata/Items/Gems/SkillGemFireball" skillId="FireballPlayer" nameSpec="Fireball" variantId="Fireball" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidCastingSupport" skillId="SupportRapidCastingPlayer" nameSpec="Rapid Casting I" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemControlledDestructionSupport" skillId="SupportControlledDestructionPlayer" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Cinder Rod
+Attuned Wand
+Implicits: 0
++3 to Level of all Fire Spell Skills
+65% increased Spell Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_witch_ice_nova_plus3_cold_wand',
+    title: 'PoE 2 — Lv.90 Witch Ice Nova + Controlled Destruction + Concentrated Area + Elemental Focus + +3 Cold Wand',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Witch" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Ice Nova +3 Cold Wand"/>
+  <Tree activeSpec="1">
+    <Spec title="Witch" treeVersion="0_5" classId="1" classInternalId="1" ascendClassId="0" nodes="54447"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Ice Nova">
+        <Gem gemId="Metadata/Items/Gems/SkillGemIceNova" skillId="IceNovaPlayer" nameSpec="Ice Nova" variantId="IceNova" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemControlledDestructionSupport" skillId="SupportControlledDestructionPlayer" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemConcentratedAreaSupport" skillId="SupportConcentratedAreaPlayer" nameSpec="Concentrated Area" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Frost Sceptre
+Bone Wand
+Implicits: 0
++3 to Level of all Cold Spell Skills
+55% increased Spell Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_huntress_lightning_spear_plus2_proj_supports',
+    title: 'PoE 2 — Lv.90 Huntress Lightning Spear + Elemental Focus + Rapid Attacks I + +2 Projectile Akoyan Spear',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Huntress" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Huntress +2 Lightning Spear"/>
+  <Tree activeSpec="1">
+    <Spec title="Huntress" treeVersion="0_5" classId="8" classInternalId="8" ascendClassId="0" nodes="50459"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Lightning Spear">
+        <Gem gemId="Metadata/Items/Gems/SkillGemLightningSpear" skillId="LightningSpearPlayer" nameSpec="Lightning Spear" variantId="LightningSpear" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidAttacksSupport" skillId="SupportRapidAttacksPlayer" nameSpec="Rapid Attacks I" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Storm Lance
+Akoyan Spear
+Quality: 20
+Implicits: 0
++2 to Level of all Projectile Skills
+130% increased Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_mercenary_explosive_grenade_conc_ele_focus',
+    title: 'PoE 2 — Lv.90 Mercenary Explosive Grenade + Concentrated Area + Elemental Focus + Rare Bombard Crossbow',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Mercenary" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Mercenary Grenade Supports"/>
+  <Tree activeSpec="1">
+    <Spec title="Mercenary" treeVersion="0_5" classId="9" classInternalId="9" ascendClassId="0" nodes="50986"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Explosive Grenade">
+        <Gem gemId="Metadata/Items/Gems/SkillGemExplosiveGrenade" skillId="ExplosiveGrenadePlayer" nameSpec="Explosive Grenade" variantId="ExplosiveGrenade" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemConcentratedAreaSupport" skillId="SupportConcentratedAreaPlayer" nameSpec="Concentrated Area" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Siege Repeater
+Bombard Crossbow
+Quality: 20
+Implicits: 0
+140% increased Physical Damage
+Adds 15 to 30 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_druid_volcano_plus3_fire_wand_supports',
+    title: 'PoE 2 — Lv.90 Druid Volcano + Elemental Focus + Concentrated Area + Controlled Destruction + +3 Fire Wand',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Druid" ascendClassName="None" mainSocketGroup="1" buildName="Oracle: PoE2 Druid Volcano +3 Wand"/>
+  <Tree activeSpec="1">
+    <Spec title="Druid" treeVersion="0_5" classId="11" classInternalId="11" ascendClassId="0" nodes="61525"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Volcano">
+        <Gem gemId="Metadata/Items/Gems/SkillGemVolcano" skillId="VolcanoPlayer" nameSpec="Volcano" variantId="Volcano" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemElementalFocusSupport" skillId="SupportElementalFocusPlayer" nameSpec="Elemental Focus" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemConcentratedAreaSupport" skillId="SupportConcentratedAreaPlayer" nameSpec="Concentrated Area" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemControlledDestructionSupport" skillId="SupportControlledDestructionPlayer" nameSpec="Controlled Destruction" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Magma Wand
+Attuned Wand
+Implicits: 0
++3 to Level of all Fire Spell Skills
+60% increased Spell Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1"><ConfigSet id="1"/></Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
+  {
+    id: 'poe2_warrior_volcanic_fissure_rage30_plus2_melee',
+    title: 'PoE 2 — #100 Milestone: Lv.90 Warrior Volcanic Fissure + 30 Rage + Conc Area + Rapid Attacks I + +2 Melee Sledge',
+    game: 'poe2',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="90" targetVersion="0_1" className="Warrior" ascendClassName="None" mainSocketGroup="1" buildName="Oracle #100: PoE2 Warrior Volcanic Fissure"/>
+  <Tree activeSpec="1">
+    <Spec title="Warrior" treeVersion="0_5" classId="6" classInternalId="6" ascendClassId="0" nodes="47175"/>
+  </Tree>
+  <Skills activeSkillSet="1" defaultGemQuality="0">
+    <SkillSet id="1">
+      <Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1" set1="true" set2="true" label="Volcanic Fissure">
+        <Gem gemId="Metadata/Items/Gems/SkillGemVolcanicFissure" skillId="VolcanicFissurePlayer" nameSpec="Volcanic Fissure" variantId="VolcanicFissure" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRageSupport" skillId="SupportRagePlayer" nameSpec="Rage I" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemConcentratedAreaSupport" skillId="SupportConcentratedAreaPlayer" nameSpec="Concentrated Area" level="20" quality="0" enabled="true"/>
+        <Gem gemId="Metadata/Items/Gems/SkillGemRapidAttacksSupport" skillId="SupportRapidAttacksPlayer" nameSpec="Rapid Attacks I" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Volcanic Crusher
+Aberrant Sledge
+Quality: 20
+Implicits: 0
++2 to Level of all Melee Skills
+130% increased Physical Damage
+Adds 20 to 40 Physical Damage
+15% increased Attack Speed
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="multiplierRage" number="30"/>
+    </ConfigSet>
+  </Config>
+  <Notes/>
+</PathOfBuilding2>`,
+  },
 ];
