@@ -10,6 +10,8 @@ const ALLOWED_HOSTS = new Set([
   'www.pobb.in',
   'pastebin.com',
   'www.pastebin.com',
+  'poe.ninja',
+  'www.poe.ninja',
   'www.pathofexile.com',
   'pathofexile.com',
   'poe.game.qq.com',

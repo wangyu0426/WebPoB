@@ -126,6 +126,11 @@ const initial = loadInitialBuild();
 
 const MAX_HISTORY = 40;
 
+const DEFAULT_CORS_PROXY =
+  typeof window !== 'undefined' && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(window.location.origin)
+    ? `${window.location.origin}/api/proxy`
+    : '';
+
 export const useWebPobStore = create<WebPobState>((set, get) => {
   const commitBuild = (
     rawNext: Build,
@@ -172,7 +177,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
     locale: initial.locale,
     activeTab: 'tree',
     treePaintMode: 'shared',
-    corsProxyUrl: '',
+    corsProxyUrl: DEFAULT_CORS_PROXY,
     dataLoading: false,
     treeRevision: 0,
     build: initial.build,

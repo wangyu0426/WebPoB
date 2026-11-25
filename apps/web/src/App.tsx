@@ -11,7 +11,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { decodePobCodeToXml, importBuildFromCode } from '@webpob/codec';
+import { decodePobCodeToXml, fetchRemoteBuildCode, importBuildFromCode } from '@webpob/codec';
 import { t, type MessageKey } from '@webpob/i18n';
 import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
 import { TopBar } from './components/TopBar';
@@ -101,10 +101,30 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [commandPaletteOpen, setActiveTab, undo, redo]);
 
-  // Auto-load shared build from URL hash (#pob=<base64url-code>) on mount and hashchange
+  // Auto-load shared build from URL query (?import=https://pobb.in/... or poe.ninja/poe2/pob/...) or hash (#pob=...)
   useEffect(() => {
     let cancelled = false;
-    const loadFromHash = async () => {
+    const loadFromUrl = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const importUrl = params.get('import')?.trim();
+      if (importUrl) {
+        try {
+          const proxy = useWebPobStore.getState().corsProxyUrl;
+          const code = await fetchRemoteBuildCode(importUrl, proxy);
+          if (cancelled || !code) return;
+          const xml = code.startsWith('<') ? code : decodePobCodeToXml(code);
+          const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';
+          await ensureOfficialDataLoaded(game);
+          if (cancelled) return;
+          const { build: imported } = importBuildFromCode(code);
+          replaceBuild(imported);
+          setHashToast(imported.name);
+          setTimeout(() => setHashToast(null), 4500);
+          return;
+        } catch (err) {
+          console.warn('[WebPoB] Failed to load ?import URL build:', err);
+        }
+      }
       const hash = window.location.hash;
       if (!hash.startsWith('#pob=')) return;
       const code = hash.slice(5).trim();
@@ -122,9 +142,9 @@ export function App() {
         console.warn('[WebPoB] Failed to load #pob URL hash build:', err);
       }
     };
-    void loadFromHash();
+    void loadFromUrl();
     const onHashChange = () => {
-      void loadFromHash();
+      void loadFromUrl();
     };
     window.addEventListener('hashchange', onHashChange);
     return () => {

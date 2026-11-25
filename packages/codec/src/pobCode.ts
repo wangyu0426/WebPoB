@@ -766,13 +766,21 @@ export function importBuildFromCode(input: string): { build: Build; xml: string 
 }
 
 /**
- * Resolves `pobb.in` and `pastebin.com` share URLs to their raw PoB code endpoints.
+ * Resolves `pobb.in`, `poe.ninja` (PoE 1 & PoE 2), and `pastebin.com` share URLs to their raw PoB code endpoints.
  */
 export function resolveShareUrl(inputUrl: string): string | null {
   const trimmed = inputUrl.trim();
   const pobbin = trimmed.match(/^https?:\/\/(?:www\.)?pobb\.in\/([A-Za-z0-9_-]+)/i);
   if (pobbin) {
     return `https://pobb.in/${pobbin[1]}/raw`;
+  }
+  const poe2Ninja = trimmed.match(/^https?:\/\/(?:www\.)?poe\.ninja\/poe2\/pob\/(?:raw\/)?([A-Za-z0-9_-]+)/i);
+  if (poe2Ninja) {
+    return `https://poe.ninja/poe2/pob/raw/${poe2Ninja[1]}`;
+  }
+  const poe1Ninja = trimmed.match(/^https?:\/\/(?:www\.)?poe\.ninja\/pob\/(?:raw\/)?([A-Za-z0-9_-]+)/i);
+  if (poe1Ninja) {
+    return `https://poe.ninja/pob/raw/${poe1Ninja[1]}`;
   }
   const pastebin = trimmed.match(/^https?:\/\/(?:www\.)?pastebin\.com\/(?:raw\/)?([A-Za-z0-9]+)/i);
   if (pastebin) {
