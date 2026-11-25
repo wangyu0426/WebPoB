@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ClipboardPaste, Copy, ExternalLink, Hammer, Search, Shield, Sparkles, Trash2, TrendingUp, X } from 'lucide-react';
+import { ClipboardPaste, Copy, ExternalLink, FlaskConical, GitCompareArrows, Hammer, Power, PowerOff, Search, Shield, Sparkles, Trash2, TrendingUp, X } from 'lucide-react';
 import type { EquipmentSlotId, Item } from '@webpob/core';
 import {
   getPresetItemsForGame,
@@ -13,6 +13,7 @@ import { parseItemText } from '@webpob/codec';
 import { calculateBuild, rankUniqueUpgradesForSlot, resolveItemEffectiveStats } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
+import { ItemCompareModal } from './ItemCompareModal';
 
 const EXAMPLE_EN_ITEM = `Item Class: Body Armours
 Rarity: Rare
@@ -158,6 +159,7 @@ export function ItemsTab() {
   const [pasteText, setPasteText] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<EquipmentSlotId>('Weapon 1');
+  const [compareSlot, setCompareSlot] = useState<EquipmentSlotId | null>(null);
   const [uniqueSearch, setUniqueSearch] = useState('');
   const [uniqueSlotFilter, setUniqueSlotFilter] = useState<(typeof UNIQUE_SLOT_FILTERS)[number]>('ALL');
   const [advisorOpen, setAdvisorOpen] = useState(false);
@@ -357,6 +359,22 @@ export function ItemsTab() {
     };
   }, [itemSets, activeItemSetIdx, build, calc]);
 
+  const equippedFlaskSlots = ruleset.equipmentSlots.filter(
+    (slot) => slot.startsWith('Flask ') && Boolean(build.equipped[slot]),
+  );
+  const allFlasksActive =
+    equippedFlaskSlots.length > 0 &&
+    equippedFlaskSlots.every((slot) => Boolean(build.activeFlaskSlots?.[slot]));
+
+  const toggleAllFlasks = () => {
+    const shouldEnable = !allFlasksActive;
+    for (const slot of equippedFlaskSlots) {
+      if (Boolean(build.activeFlaskSlots?.[slot]) !== shouldEnable) {
+        toggleFlaskActive(slot);
+      }
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
       {/* Left: Equipment Slots */}
@@ -417,6 +435,34 @@ export function ItemsTab() {
             </span>
           </div>
         )}
+        {build.game === 'poe1' && equippedFlaskSlots.length > 0 && (
+          <div className="rounded bg-[#111624] border border-[#2a3147] px-2.5 py-1.5 flex items-center justify-between gap-2">
+            <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
+              <FlaskConical className="w-3.5 h-3.5 text-emerald-300" />
+              {locale === 'zh-CN'
+                ? `药剂 (${equippedFlaskSlots.filter((slot) => build.activeFlaskSlots?.[slot]).length}/${equippedFlaskSlots.length} 已启用)`
+                : `Flasks (${equippedFlaskSlots.filter((slot) => build.activeFlaskSlots?.[slot]).length}/${equippedFlaskSlots.length} active)`}
+            </span>
+            <button
+              type="button"
+              onClick={toggleAllFlasks}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border cursor-pointer transition ${
+                allFlasksActive
+                  ? 'bg-rose-500/15 border-rose-500/40 text-rose-200 hover:bg-rose-500/25'
+                  : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/25'
+              }`}
+            >
+              {allFlasksActive ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
+              {allFlasksActive
+                ? locale === 'zh-CN'
+                  ? '全部关闭'
+                  : 'Disable All'
+                : locale === 'zh-CN'
+                  ? '全部开启'
+                  : 'Enable All'}
+            </button>
+          </div>
+        )}
         <div className="space-y-1.5">
           {ruleset.equipmentSlots.map((slot) => {
             const itemId = build.equipped[slot];
@@ -443,6 +489,19 @@ export function ItemsTab() {
                 </div>
                 {item && (
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSlot(slot);
+                        setCompareSlot(slot);
+                      }}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 border border-sky-500/40 cursor-pointer"
+                      title={locale === 'zh-CN' ? '对比 / 编辑该装备' : 'Compare / Edit this item'}
+                    >
+                      <GitCompareArrows className="w-3 h-3" />
+                      {locale === 'zh-CN' ? '对比 / 编辑' : 'Compare / Edit'}
+                    </button>
                     {slot.startsWith('Flask ') && (
                       <button
                         type="button"
@@ -489,10 +548,21 @@ export function ItemsTab() {
         {/* Selected Slot Item Tooltip Card */}
         <div className="pob-panel rounded-lg p-4">
           <div className="flex items-center justify-between border-b border-[#252b3d] pb-2 mb-3 gap-2">
-            <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
-              <Shield className="w-4 h-4" />
-              {getSlotLabel(locale, selectedSlot)}
-            </span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                <Shield className="w-4 h-4" />
+                {getSlotLabel(locale, selectedSlot)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCompareSlot(selectedSlot)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 border border-sky-500/40 cursor-pointer"
+                title={locale === 'zh-CN' ? '对比 / 编辑该槽位装备' : 'Compare / Edit this slot'}
+              >
+                <GitCompareArrows className="w-3 h-3" />
+                {locale === 'zh-CN' ? '对比 / 编辑' : 'Compare / Edit'}
+              </button>
+            </div>
             {equippedItem && (
               <div className="flex items-center gap-2">
                 <a
@@ -1014,6 +1084,14 @@ export function ItemsTab() {
           </div>
         </div>
       </div>
+
+      {compareSlot && (
+        <ItemCompareModal
+          open={compareSlot !== null}
+          slot={compareSlot}
+          onClose={() => setCompareSlot(null)}
+        />
+      )}
     </div>
   );
 }
