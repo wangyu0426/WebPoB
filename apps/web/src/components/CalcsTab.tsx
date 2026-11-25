@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GitCompare, TrendingUp, Zap } from 'lucide-react';
-import { DAMAGE_TYPES, type Build } from '@webpob/core';
+import { GitCompare, ShieldCheck, TrendingUp, Zap } from 'lucide-react';
+import { DAMAGE_TYPES, type Build, type DamageType } from '@webpob/core';
 import { getSampleBuild } from '@webpob/data';
 import { calculateBuild } from '@webpob/calc';
 import { DAMAGE_TYPE_LABELS, localizeText, t } from '@webpob/i18n';
@@ -15,8 +15,33 @@ const DMG_COLOR: Record<string, string> = {
   Chaos: 'text-purple-400',
 };
 
+const DMG_SEGMENT_COLOR: Record<string, string> = {
+  Physical: 'bg-zinc-300',
+  Fire: 'bg-orange-500',
+  Cold: 'bg-sky-400',
+  Lightning: 'bg-yellow-400',
+  Chaos: 'bg-purple-500',
+};
+
+const DMG_PILL_COLOR: Record<string, string> = {
+  Physical: 'bg-zinc-300/15 border-zinc-300/40 text-zinc-200',
+  Fire: 'bg-orange-500/15 border-orange-500/40 text-orange-300',
+  Cold: 'bg-sky-400/15 border-sky-400/40 text-sky-300',
+  Lightning: 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300',
+  Chaos: 'bg-purple-500/15 border-purple-500/40 text-purple-300',
+};
+
+const DAMAGE_COMPOSITION_ORDER: DamageType[] = [
+  'Physical',
+  'Fire',
+  'Cold',
+  'Lightning',
+  'Chaos',
+];
+
 export function CalcsTab() {
   const { locale, build, calc } = useWebPobStore();
+  const { offence, defence } = calc;
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [savedBuilds, setSavedBuilds] = useState<SavedBuildRecord[]>([]);
   const [compareId, setCompareId] = useState<string>('sample_current_game');
@@ -241,6 +266,125 @@ export function CalcsTab() {
 
   const selectedRow = calc.breakdowns[selectedIdx] ?? calc.breakdowns[0];
 
+  const damageComposition = useMemo(() => {
+    const total = DAMAGE_COMPOSITION_ORDER.reduce(
+      (sum, dt) => sum + calc.offence.damageByType[dt].average,
+      0,
+    );
+    return {
+      total,
+      segments: DAMAGE_COMPOSITION_ORDER.map((dt) => ({
+        type: dt,
+        average: calc.offence.damageByType[dt].average,
+        pct: total > 0 ? (calc.offence.damageByType[dt].average / total) * 100 : 0,
+      })).filter((s) => s.average > 0),
+    };
+  }, [calc.offence.damageByType]);
+
+  const damageLabel = (dt: string) =>
+    locale === 'zh-CN' ? DAMAGE_TYPE_LABELS[dt]?.zh ?? dt : DAMAGE_TYPE_LABELS[dt]?.en ?? dt;
+
+  const hitPoolSegments = useMemo(() => {
+    const pool = Math.max(1, defence.life + defence.energyShield + (defence.ward ?? 0));
+    return [
+      {
+        key: 'life',
+        label: locale === 'zh-CN' ? '生命' : 'Life',
+        value: defence.life,
+        pct: (defence.life / pool) * 100,
+        bar: 'bg-rose-500',
+        text: 'text-rose-300',
+      },
+      {
+        key: 'es',
+        label: locale === 'zh-CN' ? '能量护盾' : 'Energy Shield',
+        value: defence.energyShield,
+        pct: (defence.energyShield / pool) * 100,
+        bar: 'bg-sky-400',
+        text: 'text-sky-300',
+      },
+      ...((defence.ward ?? 0) > 0
+        ? [
+            {
+              key: 'ward',
+              label: locale === 'zh-CN' ? '结界' : 'Ward',
+              value: defence.ward!,
+              pct: (defence.ward! / pool) * 100,
+              bar: 'bg-violet-400',
+              text: 'text-violet-300',
+            },
+          ]
+        : []),
+    ];
+  }, [defence.life, defence.energyShield, defence.ward, locale]);
+
+  const mitigationMeters = useMemo(
+    () => [
+      {
+        key: 'pdr',
+        label: locale === 'zh-CN' ? '物理减伤' : 'Phys Reduction',
+        display: `${defence.physDamageReduction.toFixed(1)}%`,
+        pct: defence.physDamageReduction,
+        bar: 'bg-gradient-to-r from-amber-600 to-amber-300',
+      },
+      {
+        key: 'evade',
+        label: locale === 'zh-CN' ? '闪避几率' : 'Evade Chance',
+        display: `${defence.evadeChance.toFixed(1)}%`,
+        pct: defence.evadeChance,
+        bar: 'bg-gradient-to-r from-emerald-600 to-emerald-300',
+      },
+      {
+        key: 'block',
+        label: locale === 'zh-CN' ? '攻击格挡' : 'Attack Block',
+        display: `${defence.blockChance.toFixed(1)}%`,
+        pct: defence.blockChance,
+        bar: 'bg-gradient-to-r from-cyan-600 to-cyan-300',
+      },
+      {
+        key: 'spellBlock',
+        label: locale === 'zh-CN' ? '法术格挡' : 'Spell Block',
+        display: `${defence.spellBlockChance.toFixed(1)}%`,
+        pct: defence.spellBlockChance,
+        bar: 'bg-gradient-to-r from-sky-600 to-sky-300',
+      },
+      ...(build.game === 'poe1'
+        ? [
+            {
+              key: 'suppress',
+              label: locale === 'zh-CN' ? '法术压制' : 'Spell Suppression',
+              display: `${defence.spellSuppressionChance.toFixed(1)}%`,
+              pct: defence.spellSuppressionChance,
+              bar: 'bg-gradient-to-r from-teal-600 to-teal-300',
+            },
+          ]
+        : []),
+    ],
+    [defence, build.game, locale],
+  );
+
+  const resistancePills = useMemo(
+    () =>
+      (
+        [
+          ['Fire', locale === 'zh-CN' ? '火焰' : 'Fire', defence.fireResist, defence.fireMaxResist, defence.fireResistOvercap, 'bg-orange-500/15 border-orange-500/40 text-orange-300'],
+          ['Cold', locale === 'zh-CN' ? '冰霜' : 'Cold', defence.coldResist, defence.coldMaxResist, defence.coldResistOvercap, 'bg-sky-400/15 border-sky-400/40 text-sky-300'],
+          ['Lightning', locale === 'zh-CN' ? '闪电' : 'Lightning', defence.lightningResist, defence.lightningMaxResist, defence.lightningResistOvercap, 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300'],
+          ['Chaos', locale === 'zh-CN' ? '混沌' : 'Chaos', defence.chaosResist, defence.chaosMaxResist, defence.chaosResistOvercap, 'bg-purple-500/15 border-purple-500/40 text-purple-300'],
+        ] as const
+      ).map(([key, label, current, max, overcap, tone]) => ({
+        key,
+        label,
+        current,
+        max,
+        overcap,
+        tone,
+        capped: current >= max,
+        deficit: max - current,
+      })),
+    [defence, locale],
+  );
+
   return (
     <div className="h-full overflow-y-auto p-5 space-y-5">
       <div>
@@ -266,6 +410,42 @@ export function CalcsTab() {
           <span className="text-xs font-mono text-amber-300">
             Total DPS: {Math.round(calc.offence.totalDps).toLocaleString()}
           </span>
+        </div>
+        {/* Damage Type Composition Bar */}
+        <div className="mb-3 space-y-1.5">
+          <div className="h-2.5 rounded-full overflow-hidden flex bg-[#0a0c12]">
+            {damageComposition.segments.map((segment) => (
+              <div
+                key={segment.type}
+                className={`h-full transition-all ${DMG_SEGMENT_COLOR[segment.type]}`}
+                style={{ width: `${segment.pct}%` }}
+                title={`${damageLabel(segment.type)} ${segment.pct.toFixed(1)}%`}
+              />
+            ))}
+            {damageComposition.segments.length === 0 && <div className="h-full w-full bg-[#1a2030]" />}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {damageComposition.segments.map((segment) => (
+              <span
+                key={segment.type}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-mono font-semibold ${DMG_PILL_COLOR[segment.type]}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${DMG_SEGMENT_COLOR[segment.type]}`} />
+                {damageLabel(segment.type)} {segment.pct.toFixed(1)}%
+              </span>
+            ))}
+            {damageComposition.segments.length === 0 && (
+              <span className="text-[10px] text-zinc-500">
+                {locale === 'zh-CN' ? '无伤害数据' : 'No damage data'}
+              </span>
+            )}
+            {damageComposition.segments.length > 0 && (
+              <span className="ml-auto text-[10px] font-mono text-zinc-500">
+                {locale === 'zh-CN' ? '平均击中' : 'Avg Hit'}{' '}
+                {Math.round(damageComposition.total).toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
         <table className="w-full text-xs text-left">
           <thead>
@@ -359,6 +539,127 @@ export function CalcsTab() {
                   </span>
                 </span>
               </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Defence & Mitigation Overview Dashboard */}
+      <div className="pob-panel rounded-lg p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242a3c] pb-2">
+          <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            {locale === 'zh-CN' ? '防御与减伤全景' : 'Defence & Mitigation Overview'}
+          </h3>
+          <span className="text-[10px] font-mono text-emerald-300">
+            {locale === 'zh-CN' ? '有效生命池' : 'EHP'} {defence.effectiveHitPool.toLocaleString()}
+          </span>
+        </div>
+
+        {/* Hit Pool Composition */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+            <span>{locale === 'zh-CN' ? '生命池构成' : 'Hit Pool Composition'}</span>
+            <span className="font-mono normal-case tracking-normal text-zinc-300">
+              {hitPoolSegments
+                .reduce((sum, segment) => sum + segment.value, 0)
+                .toLocaleString()}
+            </span>
+          </div>
+          <div className="h-2.5 rounded-full overflow-hidden flex bg-[#0a0c12]">
+            {hitPoolSegments.map((segment) => (
+              <div
+                key={segment.key}
+                className={`h-full transition-all ${segment.bar}`}
+                style={{ width: `${segment.pct}%` }}
+                title={`${segment.label} ${segment.value.toLocaleString()}`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {hitPoolSegments.map((segment) => (
+              <span
+                key={segment.key}
+                className="inline-flex items-center gap-1 rounded-full bg-[#0c0e15] border border-[#252b3d] px-2 py-0.5 text-[10px] font-mono"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${segment.bar}`} />
+                <span className="text-zinc-400">{segment.label}</span>
+                <span className={segment.text}>{segment.value.toLocaleString()}</span>
+                <span className="text-zinc-500">({segment.pct.toFixed(0)}%)</span>
+              </span>
+            ))}
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/35 px-2 py-0.5 text-[10px] font-mono">
+              <span className="text-zinc-400">EHP</span>
+              <span className="text-emerald-300 font-semibold">
+                {defence.effectiveHitPool.toLocaleString()}
+              </span>
+            </span>
+          </div>
+        </div>
+
+        {/* Mitigation & Avoidance Meters */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[#242a3c] pt-3">
+          {mitigationMeters.map((meter) => (
+            <div key={meter.key} className="space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-zinc-400 truncate">{meter.label}</span>
+                <span className="font-mono font-semibold text-zinc-100 shrink-0">{meter.display}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-[#171c2b] overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${meter.bar}`}
+                  style={{ width: `${Math.max(2, Math.min(100, meter.pct))}%` }}
+                />
+              </div>
+            </div>
+          ))}
+          <div className="grid grid-cols-2 gap-2 col-span-2">
+            {(
+              [
+                [
+                  locale === 'zh-CN' ? '最大物理承受' : 'Max Phys Hit',
+                  defence.maxPhysHitTaken,
+                  'text-amber-200',
+                ],
+                [
+                  locale === 'zh-CN' ? '最大元素承受' : 'Max Ele Hit',
+                  defence.maxEleHitTaken,
+                  'text-sky-200',
+                ],
+              ] as const
+            ).map(([label, value, tone]) => (
+              <div
+                key={label}
+                className="rounded bg-[#0c0e15] border border-[#1f2436] px-2.5 py-1.5"
+              >
+                <div className="text-[10px] text-zinc-500">{label}</div>
+                <div className={`font-mono font-bold text-sm ${tone}`}>{value.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Resistance Cap & Overcap Pills */}
+        <div className="border-t border-[#242a3c] pt-3 space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+            {locale === 'zh-CN' ? '抗性上限与溢出' : 'Resistance Cap & Overcap'}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {resistancePills.map((pill) => (
+              <span
+                key={pill.key}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-mono ${pill.tone}`}
+              >
+                <span className="font-semibold">{pill.label}</span>
+                <span className="text-zinc-100">
+                  {pill.current}/{pill.max}%
+                </span>
+                {pill.capped ? (
+                  <span className="text-emerald-400">+{pill.overcap}%</span>
+                ) : (
+                  <span className="text-rose-400">-{pill.deficit}%</span>
+                )}
+              </span>
             ))}
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, Sparkles } from 'lucide-react';
 import { analyzeBuildDiagnostics } from '@webpob/calc';
+import { getClassesForGame } from '@webpob/data';
 import { localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
@@ -34,17 +35,81 @@ export function SidebarStats() {
   const { locale, build, calc, setMainSkillGroup, setActiveTab, toggleFlaskActive } = useWebPobStore();
   const { offence, defence } = calc;
   const [diagOpen, setDiagOpen] = useState(true);
+  const [copiedStats, setCopiedStats] = useState(false);
   const diagnostics = useMemo(() => analyzeBuildDiagnostics(build, calc), [build, calc]);
+
+  const manaReserved = Math.max(0, defence.mana - defence.manaUnreserved);
+  const manaReservedPct =
+    defence.mana > 0 ? Math.min(100, Math.round((manaReserved / defence.mana) * 100)) : 0;
+  const manaOverReserved =
+    defence.manaUnreserved < 0 || (defence.manaUnreserved <= 0 && manaReserved > 0);
+  const spiritReserved = Math.max(0, defence.spirit - defence.spiritUnreserved);
+  const spiritReservedPct =
+    defence.spirit > 0 ? Math.min(100, Math.round((spiritReserved / defence.spirit) * 100)) : 0;
+
+  const copyStatsSummary = async () => {
+    const classes = getClassesForGame(build.game);
+    const currentClass = classes.find((c) => c.id === build.classId) ?? classes[0];
+    const ascendancy = currentClass?.ascendancies.find((a) => a.id === build.ascendancyId);
+    const buildTitle = ascendancy ? localizeText(ascendancy.name, locale) : currentClass ? localizeText(currentClass.name, locale) : build.classId;
+    const resLine = [defence.fireResist, defence.coldResist, defence.lightningResist, defence.chaosResist].join('/');
+    const summary = `${buildTitle} ${localizeText(offence.mainSkillName, locale)} (Lv.${build.level}) | ${fmtNum(offence.totalDps)} DPS | ${fmtNum(defence.life)} Life / ${fmtNum(defence.energyShield)} ES | ${fmtNum(defence.effectiveHitPool)} EHP | ${resLine}% Res`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(summary);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = summary;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      setCopiedStats(true);
+      window.setTimeout(() => setCopiedStats(false), 1500);
+    } catch {
+      // Clipboard unavailable; leave the button state unchanged.
+    }
+  };
 
   const resColor = (val: number, max: number) =>
     val >= max ? 'text-emerald-400' : val >= 50 ? 'text-amber-300' : 'text-rose-400';
 
   return (
     <aside className="w-64 lg:w-72 shrink-0 border-r border-[#232838] bg-[#10131b] flex flex-col overflow-y-auto p-3 gap-3 select-none">
+      {copiedStats && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 rounded-full bg-emerald-950/95 border border-emerald-400/60 px-3 py-1.5 text-xs font-semibold text-emerald-200 shadow-xl pointer-events-none">
+          <Check className="w-3.5 h-3.5" />
+          {locale === 'zh-CN' ? '战绩已复制到剪贴板' : 'Build stats copied to clipboard'}
+        </div>
+      )}
       {/* Main Skill Picker */}
       <div className="pob-panel rounded-md p-2.5">
-        <div className="text-[10px] uppercase tracking-wider text-amber-400/90 font-semibold mb-1.5">
-          {t(locale, 'sidebar.mainSkill')}
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-amber-400/90 font-semibold">
+            {t(locale, 'sidebar.mainSkill')}
+          </div>
+          <button
+            type="button"
+            onClick={() => void copyStatsSummary()}
+            title={locale === 'zh-CN' ? '复制一行构筑战绩摘要' : 'Copy one-line build stats summary'}
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer transition whitespace-nowrap ${
+              copiedStats
+                ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300'
+                : 'bg-[#0c0e15] border-[#2a3147] text-zinc-400 hover:text-amber-200 hover:border-amber-500/40'
+            }`}
+          >
+            {copiedStats ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copiedStats
+              ? locale === 'zh-CN'
+                ? '已复制'
+                : 'Copied'
+              : locale === 'zh-CN'
+                ? '复制战绩'
+                : 'Copy Stats'}
+          </button>
         </div>
         <select
           value={build.mainSkillGroupId}
@@ -164,12 +229,48 @@ export function SidebarStats() {
           />
         )}
         <StatRow label={t(locale, 'sidebar.mana')} value={`${fmtNum(defence.manaUnreserved)} / ${fmtNum(defence.mana)}`} valueClass="text-blue-400" />
+        <div className="space-y-0.5 pb-1">
+          <div className={`h-1.5 w-full rounded-full overflow-hidden flex bg-[#0a0c12] ${manaOverReserved ? 'ring-1 ring-rose-500/70 animate-pulse' : ''}`}>
+            <div className="h-full bg-blue-500" style={{ width: `${100 - manaReservedPct}%` }} />
+            <div
+              className={`h-full ${manaOverReserved ? 'bg-rose-500' : 'bg-amber-500'}`}
+              style={{ width: `${manaReservedPct}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[9px] font-mono">
+            <span className="text-blue-400">
+              {locale === 'zh-CN' ? '可用' : 'Free'} {fmtNum(defence.manaUnreserved)}
+            </span>
+            <span className={manaOverReserved ? 'text-rose-400 font-semibold' : 'text-amber-300'}>
+              {locale === 'zh-CN' ? '保留' : 'Reserved'} {manaReservedPct}%
+            </span>
+          </div>
+        </div>
         {build.game === 'poe2' && (
-          <StatRow
-            label={t(locale, 'sidebar.spirit')}
-            value={`${defence.spiritUnreserved} / ${defence.spirit}`}
-            valueClass={defence.spiritUnreserved < 0 ? 'text-rose-400' : 'text-amber-300'}
-          />
+          <>
+            <StatRow
+              label={t(locale, 'sidebar.spirit')}
+              value={`${defence.spiritUnreserved} / ${defence.spirit}`}
+              valueClass={defence.spiritUnreserved < 0 ? 'text-rose-400' : 'text-amber-300'}
+            />
+            <div className="space-y-0.5 pb-1">
+              <div className={`h-1.5 w-full rounded-full overflow-hidden flex bg-[#0a0c12] ${defence.spiritUnreserved < 0 ? 'ring-1 ring-rose-500/70 animate-pulse' : ''}`}>
+                <div className="h-full bg-amber-300" style={{ width: `${100 - spiritReservedPct}%` }} />
+                <div
+                  className={`h-full ${defence.spiritUnreserved < 0 ? 'bg-rose-500' : 'bg-amber-600'}`}
+                  style={{ width: `${spiritReservedPct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[9px] font-mono">
+                <span className="text-amber-200">
+                  {locale === 'zh-CN' ? '可用' : 'Free'} {defence.spiritUnreserved}
+                </span>
+                <span className={defence.spiritUnreserved < 0 ? 'text-rose-400 font-semibold' : 'text-amber-300'}>
+                  {locale === 'zh-CN' ? '保留' : 'Reserved'} {spiritReservedPct}%
+                </span>
+              </div>
+            </div>
+          </>
         )}
         <StatRow label={t(locale, 'sidebar.armour')} value={fmtNum(defence.armour)} sub={`(${defence.physDamageReduction}% PDR)`} />
         <StatRow label={t(locale, 'sidebar.evasion')} value={fmtNum(defence.evasion)} sub={`(${defence.evadeChance}%)`} />
