@@ -348,6 +348,8 @@ export interface BuildConfig {
   fortificationStacks?: number;
   /** Enemy is Blinded (20% less Enemy Accuracy, increasing Evade Chance). */
   enemyBlinded?: boolean;
+  /** Active guard skill (PoE 1 guard gem). */
+  activeGuardSkill?: 'None' | 'MoltenShell' | 'Steelskin' | 'ArcaneCloak';
   /** Free-form custom modifiers (supports both English and Chinese lines!). */
   customMods: string;
 }

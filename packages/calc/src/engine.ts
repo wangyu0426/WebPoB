@@ -11,6 +11,7 @@ import {
   type EquipmentSlotId,
   type GemDefinition,
   type Item,
+  type Mod,
   type NodePowerDelta,
   type StatBreakdownRow,
 } from '@webpob/core';
@@ -145,6 +146,23 @@ function getLevelScalingFactor(gemLevel: number): number {
   return Math.pow(1.11, clamped - 20);
 }
 
+function scaleNumericMods(
+  mods: readonly Mod[],
+  multiplier: number,
+  includeMore: boolean,
+): Mod[] {
+  if (multiplier === 1) return [...mods];
+  return mods.map((mod) => {
+    if (
+      typeof mod.value === 'number' &&
+      (mod.type === 'BASE' || mod.type === 'INC' || (includeMore && mod.type === 'MORE'))
+    ) {
+      return { ...mod, value: Math.trunc(mod.value * multiplier) };
+    }
+    return mod;
+  });
+}
+
 /**
  * Pure TypeScript Path of Building calculation engine.
  * Supports both PoE 1 and PoE 2 via `GameRuleset`, with full stat breakdowns.
@@ -155,6 +173,7 @@ export function calculateBuild(build: Build): CalcOutput {
   const tree = getTreeForGame(build.game);
   const db = new ModDB();
   const warnings: CalcOutput['warnings'] = [];
+  const cfg = build.config;
 
   // 1. Character base stats & level scaling
   db.addMod({ name: 'Str', type: 'BASE', value: classDef.baseStr, flags: 0, keywordFlags: 0, source: `Class: ${classDef.name.en}` });
@@ -370,6 +389,19 @@ export function calculateBuild(build: Build): CalcOutput {
   }
 
   // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs (with +Gem Level / Empower / Enlighten / Socketed scaling)
+  const customModLines = cfg.customMods
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const parsedCustomAffixMods = parseModLines(customModLines, 'Custom Modifiers');
+  const customAuraEffect = parsedCustomAffixMods
+    .filter((m) => m.name === 'AuraEffect' && m.type === 'INC' && typeof m.value === 'number')
+    .reduce((sum, m) => sum + (m.value as number), 0);
+  const customCurseEffect = parsedCustomAffixMods
+    .filter((m) => m.name === 'CurseEffect' && m.type === 'INC' && typeof m.value === 'number')
+    .reduce((sum, m) => sum + (m.value as number), 0);
+  const auraEffectPct = db.sum('INC', 'AuraEffect') + customAuraEffect;
+  const curseEffectPct = db.sum('INC', 'CurseEffect') + customCurseEffect;
   const auraReservations: Array<{ pct: number; flat: number; mult: number }> = [];
   let totalSpiritReserved = 0;
   for (const group of build.skills) {
@@ -405,12 +437,28 @@ export function calculateBuild(build: Build): CalcOutput {
     for (const gemInst of group.gems) {
       if (!gemInst.enabled) continue;
       const def = getGemById(build.game, gemInst.gemId);
-      if (!def || !def.isAuraOrBuff) continue;
+      if (!def) continue;
+      const tags = new Set(def.tags.map((tag) => tag.toLowerCase()));
+      const isCurseOrMark = tags.has('curse') || tags.has('mark');
+      const isHerald = tags.has('herald');
+      const isAura = !isCurseOrMark && !isHerald && (tags.has('aura') || (def.manaReservationPct ?? 0) > 0);
+      const isGlobalBuff = def.isAuraOrBuff || (def.category === 'active' && (isAura || isCurseOrMark));
+      if (!isGlobalBuff) continue;
       const gemBon = resolveGemBonuses(def, db, groupSocketedRules);
       const effLevel = Math.min(40, Math.max(1, gemInst.level + gemBon.levelBonus + groupEmpowerBonus));
       const levelEntry = resolveGemLevelEntry(def, effLevel);
       const auraStats = levelEntry?.stats ?? def.stats;
-      db.addMods(parseModLines(auraStats, `Aura/Buff: ${def.name.en}${effLevel !== gemInst.level ? ` (Lv.${effLevel})` : ''}`));
+      const parsedAuraMods = parseModLines(
+        auraStats,
+        `Aura/Buff: ${def.name.en}${effLevel !== gemInst.level ? ` (Lv.${effLevel})` : ''}`,
+      );
+      if (isAura && auraEffectPct > 0) {
+        db.addMods(scaleNumericMods(parsedAuraMods, 1 + auraEffectPct / 100, true));
+      } else if (isCurseOrMark && curseEffectPct > 0) {
+        db.addMods(scaleNumericMods(parsedAuraMods, 1 + curseEffectPct / 100, false));
+      } else {
+        db.addMods(parsedAuraMods);
+      }
       if (def.manaReservationPct || def.manaReservationFlat) {
         auraReservations.push({
           pct: def.manaReservationPct ?? 0,
@@ -425,7 +473,6 @@ export function calculateBuild(build: Build): CalcOutput {
   }
 
   // 5. Build Configuration (Charges, Onslaught, Custom Mods)
-  const cfg = build.config;
   if (cfg.usePowerCharges && cfg.powerCharges > 0) {
     // PoE 1: +50% crit chance per Power Charge; PoE 2: +40%
     const perCharge = build.game === 'poe2' ? 40 : 50;
@@ -530,11 +577,7 @@ export function calculateBuild(build: Build): CalcOutput {
   }
 
   if (cfg.customMods.trim()) {
-    const customLines = cfg.customMods
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    db.addMods(parseModLines(customLines, 'Custom Modifiers'));
+    db.addMods(parsedCustomAffixMods);
   }
 
   // Phase 17 endgame ascendancy / defence mechanics (after tree, items & custom mods load)
@@ -735,6 +778,37 @@ export function calculateBuild(build: Build): CalcOutput {
   const manaUnreserved = Math.max(0, mana - totalManaReservedFlat);
   const spiritUnreserved = spirit - totalSpiritReserved;
 
+  // Guard skills (Molten Shell / Steelskin / Arcane Cloak) add a temporary hit-absorption pool.
+  let guardPool = 0;
+  if (cfg.activeGuardSkill === 'MoltenShell') {
+    const guardShield = Math.min(5000, Math.floor(armour * 0.1));
+    guardPool = Math.round(guardShield * 0.75);
+  } else if (cfg.activeGuardSkill === 'Steelskin') {
+    guardPool = Math.round(2209 * 0.7);
+  } else if (cfg.activeGuardSkill === 'ArcaneCloak') {
+    const spentMana = manaUnreserved * 0.64;
+    guardPool = Math.round(spentMana * 0.75);
+    const cloakLightning = Math.floor(spentMana * 0.14);
+    if (cloakLightning > 0) {
+      db.addMod({
+        name: 'LightningMin',
+        type: 'BASE',
+        value: cloakLightning,
+        flags: ModFlag.Hit,
+        keywordFlags: 0,
+        source: 'Arcane Cloak',
+      });
+      db.addMod({
+        name: 'LightningMax',
+        type: 'BASE',
+        value: cloakLightning,
+        flags: ModFlag.Hit,
+        keywordFlags: 0,
+        source: 'Arcane Cloak',
+      });
+    }
+  }
+
   if (totalManaReservedPct > 100) {
     warnings.push({
       code: 'OVER_RESERVED_MANA',
@@ -814,7 +888,7 @@ export function calculateBuild(build: Build): CalcOutput {
     momPct > 0
       ? Math.min(manaUnreserved + esProtectingMana, Math.round((life * momPct) / (100 - momPct + 0.01)))
       : 0;
-  const totalPool = life + esProtectingLife + ward + effectiveManaBuffer;
+  const totalPool = life + esProtectingLife + ward + effectiveManaBuffer + guardPool;
 
   const avgEleRes = (fireResist + coldResist + lightningResist) / 3;
   const eleAsChaosFrac = Math.min(1, Math.max(0, db.sum('BASE', 'EleTakenAsChaos') / 100));
@@ -1426,23 +1500,37 @@ function computeGroupOffence(
     }
   }
 
-  // Cold & Lightning -> Fire conversion (e.g., Avatar of Fire)
-  const coldToFire = Math.min(100, skillDb.sum('BASE', 'ColdDamageConvertToFire', flags, kwFlags));
-  if (coldToFire > 0) {
-    const frac = coldToFire / 100;
-    finalBaseMin.Fire += finalBaseMin.Cold * frac;
-    finalBaseMax.Fire += finalBaseMax.Cold * frac;
-    finalBaseMin.Cold *= 1 - frac;
-    finalBaseMax.Cold *= 1 - frac;
-  }
-  const lightToFire = Math.min(100, skillDb.sum('BASE', 'LightningDamageConvertToFire', flags, kwFlags));
-  if (lightToFire > 0) {
-    const frac = lightToFire / 100;
-    finalBaseMin.Fire += finalBaseMin.Lightning * frac;
-    finalBaseMax.Fire += finalBaseMax.Lightning * frac;
-    finalBaseMin.Lightning *= 1 - frac;
-    finalBaseMax.Lightning *= 1 - frac;
-  }
+  // Full PoE conversion chain: Lightning -> Cold -> Fire -> Chaos (each stage normalized to <= 100%)
+  const convertStage = (
+    source: 'Lightning' | 'Cold' | 'Fire',
+    targets: Array<'Cold' | 'Fire' | 'Chaos'>,
+  ) => {
+    const pcts = targets.map((target) =>
+      source === 'Fire'
+        ? target === 'Chaos'
+          ? Math.max(0, skillDb.sum('BASE', 'FireDamageConvertToChaos', flags, kwFlags))
+          : 0
+        : Math.max(0, skillDb.sum('BASE', `${source}DamageConvertTo${target}`, flags, kwFlags)),
+    );
+    const totalPct = pcts.reduce((sum, pct) => sum + pct, 0);
+    if (totalPct <= 0) return;
+    const scale = totalPct > 100 ? 100 / totalPct : 1;
+    const srcMin = finalBaseMin[source];
+    const srcMax = finalBaseMax[source];
+    let convertedFrac = 0;
+    targets.forEach((target, i) => {
+      const frac = (pcts[i]! * scale) / 100;
+      if (frac <= 0) return;
+      finalBaseMin[target] += srcMin * frac;
+      finalBaseMax[target] += srcMax * frac;
+      convertedFrac += frac;
+    });
+    finalBaseMin[source] = srcMin * (1 - convertedFrac);
+    finalBaseMax[source] = srcMax * (1 - convertedFrac);
+  };
+  convertStage('Lightning', ['Cold', 'Fire', 'Chaos']);
+  convertStage('Cold', ['Fire', 'Chaos']);
+  convertStage('Fire', ['Chaos']);
 
   // Step C: Apply Increased & More multipliers + Enemy Resistances / Curses / Penetration + Shock/DamageTaken
   // Official PoB uses enemyFire/Cold/Lightning/ChaosResist directly (Pinnacle default = 50% Ele / 30% Chaos).

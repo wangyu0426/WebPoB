@@ -251,6 +251,27 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [mkMod(`PhysicalDamageConvertTo${m[2]}`, 'BASE', Number(m[1]), src)],
   },
   {
+    pattern: /^(\d+)% of (Cold|Lightning) Damage Converted to (Fire|Cold|Lightning|Chaos) Damage$/i,
+    build: (m, src) => [mkMod(`${m[2]}DamageConvertTo${m[3]}`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% of Fire Damage Converted to Chaos Damage$/i,
+    build: (m, src) => [mkMod('FireDamageConvertToChaos', 'BASE', Number(m[1]), src)],
+  },
+  // Aura & Curse Effect scaling (Phase 18)
+  {
+    pattern: /^(\d+)% increased effect of Non-Curse Auras from your Skills$/i,
+    build: (m, src) => [mkMod('AuraEffect', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Aura Effect$/i,
+    build: (m, src) => [mkMod('AuraEffect', 'INC', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Effect of (?:your )?Curses$/i,
+    build: (m, src) => [mkMod('CurseEffect', 'INC', Number(m[1]), src)],
+  },
+  {
     pattern: /^Gain (\d+)% of Damage as Extra (Fire|Cold|Lightning|Chaos) Damage per (\d+) Maximum Mana$/i,
     build: (m, src) => [
       mkMod(`SpellGainAs${m[2]}PerMana100`, 'BASE', (Number(m[1]) * 100) / Math.max(1, Number(m[3])), src, ModFlag.Spell),

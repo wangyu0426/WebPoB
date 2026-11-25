@@ -274,6 +274,26 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     },
   },
   {
+    zhPattern: /^非诅咒光环效果(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased effect of Non-Curse Auras from your Skills`,
+  },
+  {
+    zhPattern: /^诅咒效果(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Effect of your Curses`,
+  },
+  {
+    zhPattern: /^(\d+)%\s*闪电伤害转化为冰霜伤害$/,
+    toEn: (_, v) => `${v}% of Lightning Damage Converted to Cold Damage`,
+  },
+  {
+    zhPattern: /^(\d+)%\s*冰霜伤害转化为火焰伤害$/,
+    toEn: (_, v) => `${v}% of Cold Damage Converted to Fire Damage`,
+  },
+  {
+    zhPattern: /^(\d+)%\s*火焰伤害转化为混沌伤害$/,
+    toEn: (_, v) => `${v}% of Fire Damage Converted to Chaos Damage`,
+  },
+  {
     zhPattern: /^每点怒火(?:同时)?提供\s*(\d+)%\s*攻击速度(?:提高|增加)$/,
     toEn: (_, v) => `Every Rage also grants ${v}% increased Attack Speed`,
   },
@@ -438,6 +458,30 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
       const map: Record<string, string> = { Power: '暴击', Frenzy: '狂怒', Endurance: '耐力' };
       return `最大${map[charge] ?? charge}球数量 +${v}`;
     },
+  },
+  {
+    enPattern: /^(\d+)% increased effect of Non-Curse Auras from your Skills$/i,
+    toZh: (_, v) => `非诅咒光环效果提高 ${v}%`,
+  },
+  {
+    enPattern: /^(\d+)% increased Aura Effect$/i,
+    toZh: (_, v) => `非诅咒光环效果提高 ${v}%`,
+  },
+  {
+    enPattern: /^(\d+)% increased Effect of (?:your )?Curses$/i,
+    toZh: (_, v) => `诅咒效果提高 ${v}%`,
+  },
+  {
+    enPattern: /^(\d+)% of Lightning Damage Converted to Cold Damage$/i,
+    toZh: (_, v) => `${v}% 闪电伤害转化为冰霜伤害`,
+  },
+  {
+    enPattern: /^(\d+)% of Cold Damage Converted to Fire Damage$/i,
+    toZh: (_, v) => `${v}% 冰霜伤害转化为火焰伤害`,
+  },
+  {
+    enPattern: /^(\d+)% of Fire Damage Converted to Chaos Damage$/i,
+    toZh: (_, v) => `${v}% 火焰伤害转化为混沌伤害`,
   },
   { enPattern: /^\+(\d+) to Accuracy Rating$/i, toZh: (_, v) => `命中值 +${v}` },
   { enPattern: /^\+(\d+)% chance to Suppress Spell Damage$/i, toZh: (_, v) => `法术伤害压制率 +${v}%` },

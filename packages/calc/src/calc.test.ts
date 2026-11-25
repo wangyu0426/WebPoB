@@ -380,4 +380,157 @@ describe('@webpob/calc', () => {
       expect.objectContaining({ name: 'PowerChargesMax', type: 'BASE', value: 1 }),
     ]);
   });
+
+  it('scales Wrath damage and Discipline Energy Shield with Aura Effect (EN & ZH)', () => {
+    const base = createSamplePoe1Build();
+    const helmetAuras = {
+      ...base,
+      skills: base.skills.map((group) =>
+        group.id === 'sg_auras'
+          ? {
+              ...group,
+              gems: [
+                { instanceId: 'a1', gemId: 'poe1_wrath', level: 20, quality: 0, enabled: true },
+                { instanceId: 'a2', gemId: 'poe1_discipline', level: 20, quality: 0, enabled: true },
+              ],
+            }
+          : group,
+      ),
+    };
+    const baseOut = calculateBuild(helmetAuras);
+    const enOut = calculateBuild({
+      ...helmetAuras,
+      config: {
+        ...helmetAuras.config,
+        customMods: '50% increased effect of Non-Curse Auras from your Skills',
+      },
+    });
+    const zhOut = calculateBuild({
+      ...helmetAuras,
+      config: { ...helmetAuras.config, customMods: '非诅咒光环效果提高 50%' },
+    });
+
+    expect(enOut.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps);
+    expect(enOut.defence.energyShield).toBeGreaterThan(baseOut.defence.energyShield);
+    const disciplineSource = enOut.breakdowns
+      .find((row) => row.label === 'Maximum Energy Shield')
+      ?.sources.filter((source) => source.source === 'Aura/Buff: Discipline');
+    expect(disciplineSource?.map((source) => source.value)).toEqual([325]);
+    expect(zhOut.offence.totalDps).toBe(enOut.offence.totalDps);
+    expect(zhOut.defence.energyShield).toBe(enOut.defence.energyShield);
+  });
+
+  it('scales curse resistance reduction and damage with Curse Effect (EN & ZH)', () => {
+    const base = createSamplePoe1Build();
+    const cursed = {
+      ...base,
+      skills: base.skills.map((group) =>
+        group.id === 'sg_auras'
+          ? {
+              ...group,
+              gems: [{ instanceId: 'c1', gemId: 'poe1_conductivity', level: 20, quality: 0, enabled: true }],
+            }
+          : group,
+      ),
+    };
+    const baseOut = calculateBuild(cursed);
+    const enOut = calculateBuild({
+      ...cursed,
+      config: { ...cursed.config, customMods: '50% increased Effect of your Curses' },
+    });
+    const zhOut = calculateBuild({
+      ...cursed,
+      config: { ...cursed.config, customMods: '诅咒效果提高 50%' },
+    });
+
+    expect(enOut.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps);
+    expect(zhOut.offence.totalDps).toBe(enOut.offence.totalDps);
+    expect(enOut.offence.damageByType.Lightning.average).toBeGreaterThan(
+      baseOut.offence.damageByType.Lightning.average,
+    );
+    expect(parseModLine('50% increased Effect of your Curses', 'Test')).toEqual([
+      expect.objectContaining({ name: 'CurseEffect', type: 'INC', value: 50 }),
+    ]);
+  });
+
+  it('runs the Lightning -> Cold -> Fire conversion chain for Arc', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const convertedOut = calculateBuild({
+      ...base,
+      config: {
+        ...base.config,
+        customMods:
+          '40% of Lightning Damage Converted to Cold Damage\n50% of Cold Damage Converted to Fire Damage',
+      },
+    });
+
+    expect(convertedOut.offence.damageByType.Lightning.average).toBeLessThan(
+      baseOut.offence.damageByType.Lightning.average,
+    );
+    expect(convertedOut.offence.damageByType.Cold.average).toBeGreaterThan(0);
+    expect(convertedOut.offence.damageByType.Fire.average).toBeGreaterThan(
+      baseOut.offence.damageByType.Fire.average,
+    );
+    expect(convertedOut.offence.damageByType.Chaos.average).toBe(
+      baseOut.offence.damageByType.Chaos.average,
+    );
+  });
+
+  it('adds Molten Shell, Steelskin and Arcane Cloak guard pools and Arcane Cloak Lightning damage', () => {
+    const base = createSamplePoe1Build();
+    const baseOut = calculateBuild(base);
+    const bodyItem = base.items['preset_poe1_body_inpulsa']!;
+    const armouredBuild = {
+      ...base,
+      items: {
+        ...base.items,
+        test_guard_body: { ...bodyItem, armourStats: { armour: 2000, evasion: 540, energyShield: 165 } },
+      },
+      equipped: { ...base.equipped, 'Body Armour': 'test_guard_body' },
+    };
+    const armouredOut = calculateBuild(armouredBuild);
+    const moltenOut = calculateBuild({
+      ...armouredBuild,
+      config: { ...armouredBuild.config, activeGuardSkill: 'MoltenShell' },
+    });
+    const steelskinOut = calculateBuild({
+      ...base,
+      config: { ...base.config, activeGuardSkill: 'Steelskin' },
+    });
+    expect(moltenOut.defence.effectiveHitPool).toBeGreaterThan(armouredOut.defence.effectiveHitPool);
+    expect(moltenOut.defence.maxPhysHitTaken).toBeGreaterThan(armouredOut.defence.maxPhysHitTaken);
+    expect(steelskinOut.defence.effectiveHitPool).toBeGreaterThan(baseOut.defence.effectiveHitPool);
+    expect(steelskinOut.defence.maxPhysHitTaken).toBeGreaterThan(baseOut.defence.maxPhysHitTaken);
+
+    const cloakOut = calculateBuild({
+      ...base,
+      config: { ...base.config, activeGuardSkill: 'ArcaneCloak' },
+    });
+    expect(cloakOut.defence.effectiveHitPool).toBeGreaterThan(baseOut.defence.effectiveHitPool);
+    expect(cloakOut.offence.totalDps).toBeGreaterThan(baseOut.offence.totalDps);
+    expect(cloakOut.offence.damageByType.Lightning.average).toBeGreaterThan(
+      baseOut.offence.damageByType.Lightning.average,
+    );
+  });
+
+  it('normalizes Phase 18 aura, curse and conversion rules bidirectionally', () => {
+    const pairs: Array<[string, string]> = [
+      ['非诅咒光环效果提高 50%', '50% increased effect of Non-Curse Auras from your Skills'],
+      ['诅咒效果提高 50%', '50% increased Effect of your Curses'],
+      ['40% 闪电伤害转化为冰霜伤害', '40% of Lightning Damage Converted to Cold Damage'],
+      ['50% 冰霜伤害转化为火焰伤害', '50% of Cold Damage Converted to Fire Damage'],
+      ['30% 火焰伤害转化为混沌伤害', '30% of Fire Damage Converted to Chaos Damage'],
+    ];
+    for (const [zh, en] of pairs) {
+      expect(normalizeStatLineToEn(zh)).toBe(en);
+      expect(localizeStatLine(en, 'zh-CN')).toBe(zh);
+    }
+    expect(parseModLine('40% of Lightning Damage Converted to Cold Damage', 'Test')).toEqual([
+      expect.objectContaining({ name: 'LightningDamageConvertToCold', type: 'BASE', value: 40 }),
+    ]);
+    expect(parseModLine('30% of Fire Damage Converted to Chaos Damage', 'Test')).toEqual([
+      expect.objectContaining({ name: 'FireDamageConvertToChaos', type: 'BASE', value: 30 }),
+    ]);
+  });
 });
