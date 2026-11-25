@@ -4,12 +4,14 @@ import {
   ChevronRight,
   Copy,
   Crosshair,
+  Gem,
   Flame,
   GitCompare,
   Loader2,
   Maximize2,
   Plus,
   RotateCcw,
+  Scan,
   Search,
   Sparkles,
   Trash2,
@@ -119,7 +121,12 @@ export function PassiveTreeCanvas() {
   const [heatmapMap, setHeatmapMap] = useState<Map<number, NodePowerHeatItem>>(new Map());
   const [heatmapSort, setHeatmapSort] = useState<'dpsPerPoint' | 'dps' | 'ehpPerPoint' | 'ehp'>('dpsPerPoint');
   const [powerDrawerOpen, setPowerDrawerOpen] = useState(true);
+  const [jumpDrawerOpen, setJumpDrawerOpen] = useState(false);
+  const [jumpFilter, setJumpFilter] = useState<'keystone' | 'jewel' | 'allocated'>('keystone');
+  const [jumpQuery, setJumpQuery] = useState('');
+  const [highlightedNodeId, setHighlightedNodeId] = useState<number | null>(null);
   const [compareSpecIdx, setCompareSpecIdx] = useState<number | null>(null);
+  const cameraAnimRef = useRef<number | null>(null);
 
   const treeSpecs = useMemo(
     () => (build.treeSpecs && build.treeSpecs.length > 0 ? build.treeSpecs : [build.tree]),
@@ -483,6 +490,104 @@ export function PassiveTreeCanvas() {
     }
   }, [tree]);
 
+  // Smoothly animate { x, y, zoom } camera state to frame a target
+  const animateCamera = useCallback(
+    (target: { x: number; y: number; zoom: number }, durationMs = 380) => {
+      if (cameraAnimRef.current !== null) {
+        cancelAnimationFrame(cameraAnimRef.current);
+        cameraAnimRef.current = null;
+      }
+      const start = { ...camera };
+      const startTime = performance.now();
+      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - startTime) / durationMs);
+        const eased = easeOutCubic(progress);
+        setCamera({
+          x: start.x + (target.x - start.x) * eased,
+          y: start.y + (target.y - start.y) * eased,
+          zoom: start.zoom + (target.zoom - start.zoom) * eased,
+        });
+        if (progress < 1) {
+          cameraAnimRef.current = requestAnimationFrame(tick);
+        } else {
+          cameraAnimRef.current = null;
+        }
+      };
+      cameraAnimRef.current = requestAnimationFrame(tick);
+    },
+    [camera],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (cameraAnimRef.current !== null) cancelAnimationFrame(cameraAnimRef.current);
+    };
+  }, []);
+
+  const cancelCameraAnimation = useCallback(() => {
+    if (cameraAnimRef.current !== null) {
+      cancelAnimationFrame(cameraAnimRef.current);
+      cameraAnimRef.current = null;
+    }
+  }, []);
+
+  const panToNode = useCallback(
+    (nodeId: number) => {
+      const target = tree.nodes[nodeId];
+      if (!target) return;
+      const targetZoom = isOfficialFull ? 0.28 : 1.1;
+      animateCamera({
+        x: -target.x * targetZoom,
+        y: -target.y * targetZoom,
+        zoom: targetZoom,
+      });
+      setHighlightedNodeId(nodeId);
+      setHoveredNodeId(nodeId);
+    },
+    [tree, isOfficialFull, animateCamera],
+  );
+
+  // Frame only the player's allocated passives (shared + PoE 2 weapon sets)
+  const fitAllocated = useCallback(() => {
+    const allocatedIds = new Set<number>([
+      ...build.tree.allocatedNodeIds,
+      ...(build.game === 'poe2'
+        ? [...build.tree.weaponSet1NodeIds, ...build.tree.weaponSet2NodeIds]
+        : []),
+    ]);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let count = 0;
+    for (const id of allocatedIds) {
+      const node = tree.nodes[id];
+      if (!node) continue;
+      minX = Math.min(minX, node.x);
+      maxX = Math.max(maxX, node.x);
+      minY = Math.min(minY, node.y);
+      maxY = Math.max(maxY, node.y);
+      count++;
+    }
+    if (count === 0) {
+      centerOnBuild();
+      return;
+    }
+    const container = containerRef.current;
+    const w = container?.clientWidth ?? 1000;
+    const h = container?.clientHeight ?? 700;
+    const padWorld = isOfficialFull ? 520 : 140;
+    const spanX = Math.max(isOfficialFull ? 700 : 260, maxX - minX + padWorld * 2);
+    const spanY = Math.max(isOfficialFull ? 700 : 260, maxY - minY + padWorld * 2);
+    const minZoom = isOfficialFull ? 0.025 : 0.3;
+    const maxZoom = isOfficialFull ? 0.75 : 2.2;
+    const zoom = Math.max(minZoom, Math.min(maxZoom, Math.min(w / spanX, h / spanY)));
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+    animateCamera({ x: -midX * zoom, y: -midY * zoom, zoom }, 420);
+  }, [build.tree, build.game, tree, isOfficialFull, centerOnBuild, animateCamera]);
+
   const focusAscendancy = useCallback(() => {
     if (!ascendancyCenter) return;
     const targetZoom = isOfficialFull ? 0.2 : 0.9;
@@ -573,14 +678,48 @@ export function PassiveTreeCanvas() {
 
   const jumpToNodeId = useCallback(
     (nodeId: number) => {
-      const target = tree.nodes[nodeId];
-      if (!target) return;
-      const targetZoom = isOfficialFull ? 0.22 : 1.05;
-      setCamera({ x: -target.x * targetZoom, y: -target.y * targetZoom, zoom: targetZoom });
-      setHoveredNodeId(nodeId);
+      panToNode(nodeId);
     },
-    [tree, isOfficialFull],
+    [panToNode],
   );
+
+  const allocatedTreeSet = useMemo(
+    () =>
+      new Set<number>([
+        ...build.tree.allocatedNodeIds,
+        ...build.tree.weaponSet1NodeIds,
+        ...build.tree.weaponSet2NodeIds,
+      ]),
+    [build.tree.allocatedNodeIds, build.tree.weaponSet1NodeIds, build.tree.weaponSet2NodeIds],
+  );
+
+  const jumpDrawerNodes = useMemo(() => {
+    const q = jumpQuery.trim().toLowerCase();
+    const pool = visibleNodes.filter((node) => {
+      if (jumpFilter === 'keystone') return node.kind === 'keystone';
+      if (jumpFilter === 'jewel') return node.kind === 'jewel';
+      return (
+        (node.kind === 'notable' || node.kind === 'keystone') && allocatedTreeSet.has(node.id)
+      );
+    });
+    const filtered = q
+      ? pool.filter((node) =>
+          [node.name.en, node.name.zh, ...node.stats, ...(node.statsZh ?? [])]
+            .join(' ')
+            .toLowerCase()
+            .includes(q),
+        )
+      : pool;
+    return filtered
+      .slice()
+      .sort((a, b) => {
+        const aAlloc = allocatedTreeSet.has(a.id) ? 0 : 1;
+        const bAlloc = allocatedTreeSet.has(b.id) ? 0 : 1;
+        if (aAlloc !== bAlloc) return aAlloc - bAlloc;
+        return localizeText(a.name, locale).localeCompare(localizeText(b.name, locale));
+      })
+      .slice(0, 120);
+  }, [visibleNodes, jumpFilter, jumpQuery, allocatedTreeSet, locale]);
 
   const topPowerNodes = useMemo(() => {
     if (!heatmapEnabled || heatmapMap.size === 0) return [];
@@ -874,6 +1013,25 @@ export function PassiveTreeCanvas() {
       const isPreview = previewPathSet.has(node.id);
       const isHovered = hoveredNodeId === node.id;
       const isSearchHit = matchedSearchIds.has(node.id);
+      const isJumpHighlighted = highlightedNodeId === node.id;
+
+      // Persistent cyan highlight ring for Quick-Jump Drawer selections
+      if (isJumpHighlighted) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r + 24 * (isOfficialFull ? 2.2 : 0.85), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(34, 211, 238, 0.2)';
+        ctx.fill();
+        ctx.strokeStyle = '#22d3ee';
+        ctx.lineWidth = Math.max(6, 3 * invZoom);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.setLineDash([8 * invZoom * 0.5, 7 * invZoom * 0.5]);
+        ctx.arc(node.x, node.y, r + 36 * (isOfficialFull ? 2.4 : 0.95), 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(103, 232, 249, 0.75)';
+        ctx.lineWidth = Math.max(4, 1.8 * invZoom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       // Spec Diff Overlay Rings (+ emerald added, - rose dashed removed)
       if (diffAddedSet.has(node.id)) {
@@ -1031,6 +1189,7 @@ export function PassiveTreeCanvas() {
       // LOD Text Labels
       const shouldLabel =
         isHovered ||
+        isJumpHighlighted ||
         isSearchHit ||
         node.kind === 'start' ||
         (node.kind === 'keystone' && showKeystoneLabels) ||
@@ -1045,7 +1204,9 @@ export function PassiveTreeCanvas() {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         ctx.fillStyle =
-          isShared || isSet1 || isSet2 || isHovered || isSearchHit ? '#fef3c7' : '#9ca7c2';
+          isShared || isSet1 || isSet2 || isHovered || isSearchHit || isJumpHighlighted
+            ? '#fef3c7'
+            : '#9ca7c2';
         ctx.fillText(localizeText(node.name, locale), node.x, node.y + r + 4 * invZoom);
       }
     }
@@ -1156,6 +1317,7 @@ export function PassiveTreeCanvas() {
     heatmapMap,
     diffAddedSet,
     diffRemovedSet,
+    highlightedNodeId,
   ]);
 
   // Resize observer
@@ -1199,6 +1361,7 @@ export function PassiveTreeCanvas() {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    cancelCameraAnimation();
     dragRef.current = {
       active: true,
       moved: false,
@@ -1300,6 +1463,7 @@ export function PassiveTreeCanvas() {
   });
 
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    cancelCameraAnimation();
     if (e.touches.length === 1) {
       const t0 = e.touches[0]!;
       touchRef.current = {
@@ -1381,6 +1545,7 @@ export function PassiveTreeCanvas() {
   // Cursor-centered smooth zoom
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    cancelCameraAnimation();
     const rect = e.currentTarget.getBoundingClientRect();
     const sx = e.clientX - rect.left - rect.width / 2;
     const sy = e.clientY - rect.top - rect.height / 2;
@@ -1560,7 +1725,18 @@ export function PassiveTreeCanvas() {
           )}
           <button
             type="button"
-            onClick={() => setHeatmapEnabled((v) => !v)}
+            onClick={() => {
+              if (jumpDrawerOpen && heatmapEnabled) {
+                setJumpDrawerOpen(false);
+                setPowerDrawerOpen(true);
+                return;
+              }
+              setHeatmapEnabled((v) => {
+                const next = !v;
+                if (next) setJumpDrawerOpen(false);
+                return next;
+              });
+            }}
             title={
               locale === 'zh-CN'
                 ? '后台 Web Worker 计算高收益大点热力图（橙=DPS / 蓝=EHP）'
@@ -1578,6 +1754,42 @@ export function PassiveTreeCanvas() {
               <Flame className="w-3.5 h-3.5" />
             )}
             {locale === 'zh-CN' ? '热力图' : 'Power'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setJumpDrawerOpen((open) => {
+                const next = !open;
+                if (next) setPowerDrawerOpen(false);
+                return next;
+              });
+            }}
+            title={
+              locale === 'zh-CN'
+                ? '快速跳转基石、珠宝插槽与已点大点'
+                : 'Quick-jump to Keystones, Jewel Sockets & allocated Notables'
+            }
+            className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition whitespace-nowrap shrink-0 ${
+              jumpDrawerOpen
+                ? 'bg-cyan-500/25 border-cyan-400/60 text-cyan-200'
+                : 'bg-[#141824]/90 border-[#2a3147] text-zinc-300 hover:text-cyan-200'
+            }`}
+          >
+            <Gem className="w-3.5 h-3.5" />
+            {locale === 'zh-CN' ? '基石/插槽' : 'Keystones'}
+          </button>
+          <button
+            type="button"
+            onClick={fitAllocated}
+            title={
+              locale === 'zh-CN'
+                ? '自动缩放并框选当前已点天赋（含 PoE 2 武器组）'
+                : 'Auto-center and zoom to frame all allocated passives (incl. PoE 2 weapon sets)'
+            }
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-cyan-500/15 border border-cyan-500/45 text-xs text-cyan-200 hover:bg-cyan-500/25 cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Scan className="w-3.5 h-3.5" />
+            {locale === 'zh-CN' ? '框选已点' : 'Fit Allocated'}
           </button>
           <button
             type="button"
@@ -1686,7 +1898,7 @@ export function PassiveTreeCanvas() {
       </div>
 
       {/* Floating Top Power Nodes Efficiency Drawer (when Heatmap is active) */}
-      {heatmapEnabled && (
+      {heatmapEnabled && !jumpDrawerOpen && (
         <div className="absolute top-16 right-3 z-20 w-72 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-orange-500/40 shadow-2xl overflow-hidden pointer-events-auto">
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-orange-300">
@@ -1696,7 +1908,13 @@ export function PassiveTreeCanvas() {
             </div>
             <button
               type="button"
-              onClick={() => setPowerDrawerOpen((v) => !v)}
+              onClick={() => {
+                setPowerDrawerOpen((v) => {
+                  const next = !v;
+                  if (next) setJumpDrawerOpen(false);
+                  return next;
+                });
+              }}
               className="text-[10px] text-zinc-400 hover:text-zinc-200 cursor-pointer px-1"
             >
               {powerDrawerOpen
@@ -1800,6 +2018,131 @@ export function PassiveTreeCanvas() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Floating Keystone / Jewel Socket / Allocated Notable Quick-Jump Drawer */}
+      {jumpDrawerOpen && (
+        <div className="absolute top-16 right-3 z-20 w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-cyan-500/40 shadow-2xl overflow-hidden pointer-events-auto">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <Gem className="w-3.5 h-3.5" />
+              {locale === 'zh-CN' ? '基石 / 珠宝槽 快速跳转' : 'Keystone & Socket Jump'}
+              <span className="rounded bg-cyan-500/15 border border-cyan-500/30 px-1 text-[10px] font-mono text-cyan-200">
+                {jumpDrawerNodes.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setJumpDrawerOpen(false)}
+              className="text-zinc-400 hover:text-zinc-200 cursor-pointer p-0.5"
+              title={locale === 'zh-CN' ? '关闭' : 'Close'}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="space-y-1.5 p-1.5 bg-[#0a0d14] border-b border-[#1e2436]">
+            <div className="grid grid-cols-3 gap-1 text-[10px]">
+              {(
+                [
+                  ['keystone', locale === 'zh-CN' ? '基石' : 'Keystones'],
+                  ['jewel', locale === 'zh-CN' ? '珠宝槽' : 'Jewel Sockets'],
+                  ['allocated', locale === 'zh-CN' ? '已点大点' : 'Allocated Notables'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setJumpFilter(mode)}
+                  className={`py-1 px-1 rounded font-semibold cursor-pointer transition truncate ${
+                    jumpFilter === mode
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/50'
+                      : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="relative">
+              <Search className="w-3 h-3 text-zinc-500 absolute left-2 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={jumpQuery}
+                onChange={(e) => setJumpQuery(e.target.value)}
+                placeholder={
+                  locale === 'zh-CN' ? '搜索名称或词缀…' : 'Search name or stats…'
+                }
+                className="pob-input rounded pl-7 pr-7 py-1 text-[11px] w-full"
+              />
+              {jumpQuery && (
+                <button
+                  type="button"
+                  onClick={() => setJumpQuery('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="overflow-y-auto divide-y divide-[#1b2030]">
+            {jumpDrawerNodes.length === 0 ? (
+              <div className="p-4 text-center text-[11px] text-zinc-500">
+                {locale === 'zh-CN' ? '没有匹配的节点' : 'No matching nodes.'}
+              </div>
+            ) : (
+              jumpDrawerNodes.map((node) => {
+                const allocated = allocatedTreeSet.has(node.id);
+                const isHighlighted = highlightedNodeId === node.id;
+                const firstStat = node.stats[0]
+                  ? localizeStatLine(node.stats[0], locale)
+                  : locale === 'zh-CN'
+                    ? '未提供词缀'
+                    : 'No stat text';
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    onClick={() => panToNode(node.id)}
+                    className={`w-full text-left px-2.5 py-1.5 transition cursor-pointer ${
+                      isHighlighted ? 'bg-cyan-500/15' : 'hover:bg-[#161c2c]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          allocated
+                            ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
+                            : 'bg-zinc-600'
+                        }`}
+                        title={
+                          allocated
+                            ? locale === 'zh-CN'
+                              ? '已点'
+                              : 'Allocated'
+                            : locale === 'zh-CN'
+                              ? '未点'
+                              : 'Unallocated'
+                        }
+                      />
+                      <span className="text-xs font-semibold text-zinc-100 truncate">
+                        {localizeText(node.name, locale)}
+                      </span>
+                      {node.kind === 'jewel' && build.tree.socketedJewels?.[node.id] && (
+                        <span className="text-[9px] px-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 shrink-0">
+                          {locale === 'zh-CN' ? '已插' : 'Socketed'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="pl-3 mt-0.5 text-[10px] text-zinc-400 truncate font-mono">
+                      {firstStat}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 

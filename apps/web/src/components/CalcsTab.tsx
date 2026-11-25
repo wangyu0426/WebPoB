@@ -178,12 +178,14 @@ export function CalcsTab() {
   // Live Character Level (60->100) & Main Gem Level (18->30) Progression Curve
   const progressionRows = useMemo(() => {
     const baseDps = calc.offence.fullDps ?? calc.offence.totalDps;
+    const baseEhp = calc.defence.effectiveHitPool;
     if (curveMode === 'char') {
       const levels = [60, 70, 80, 90, 95, 100];
       return levels.map((lv) => {
         const res = calculateBuild({ ...build, level: lv });
         const dps = res.offence.fullDps ?? res.offence.totalDps;
         const pct = baseDps > 0 ? ((dps - baseDps) / baseDps) * 100 : 0;
+        const ehp = res.defence.effectiveHitPool;
         return {
           key: `Lv.${lv}`,
           isCurrent: build.level === lv,
@@ -191,7 +193,8 @@ export function CalcsTab() {
           dpsPct: pct,
           life: res.defence.life,
           es: res.defence.energyShield,
-          ehp: res.defence.effectiveHitPool,
+          ehp,
+          ehpPct: baseEhp > 0 ? ((ehp - baseEhp) / baseEhp) * 100 : 0,
         };
       });
     }
@@ -215,6 +218,7 @@ export function CalcsTab() {
       const res = calculateBuild(mutated);
       const dps = res.offence.fullDps ?? res.offence.totalDps;
       const pct = baseDps > 0 ? ((dps - baseDps) / baseDps) * 100 : 0;
+      const ehp = res.defence.effectiveHitPool;
       return {
         key: `Gem ${glv}`,
         isCurrent: curGemLv === glv,
@@ -222,12 +226,18 @@ export function CalcsTab() {
         dpsPct: pct,
         life: res.defence.life,
         es: res.defence.energyShield,
-        ehp: res.defence.effectiveHitPool,
+        ehp,
+        ehpPct: baseEhp > 0 ? ((ehp - baseEhp) / baseEhp) * 100 : 0,
       };
     });
   }, [build, calc, curveMode]);
 
   const maxProgressionDps = Math.max(1, ...progressionRows.map((r) => r.dps));
+  const maxProgressionEhp = Math.max(1, ...progressionRows.map((r) => r.ehp));
+  const progressionDpsValues = progressionRows.map((r) => r.dps);
+  const isFlatDpsProgression =
+    progressionDpsValues.length > 0 &&
+    Math.max(...progressionDpsValues) - Math.min(...progressionDpsValues) < 1;
 
   const selectedRow = calc.breakdowns[selectedIdx] ?? calc.breakdowns[0];
 
@@ -391,7 +401,16 @@ export function CalcsTab() {
 
         <div className="space-y-1.5">
           {progressionRows.map((row) => {
-            const barWidth = Math.max(4, Math.min(100, (row.dps / maxProgressionDps) * 100));
+            const useEhpBar = curveMode === 'char' && isFlatDpsProgression;
+            const barWidth = Math.max(
+              4,
+              Math.min(
+                100,
+                useEhpBar
+                  ? (row.ehp / maxProgressionEhp) * 100
+                  : (row.dps / maxProgressionDps) * 100,
+              ),
+            );
             return (
               <div
                 key={row.key}
@@ -409,11 +428,13 @@ export function CalcsTab() {
                     </span>
                   )}
                 </div>
-                <div className="col-span-4 sm:col-span-5">
+                <div className="col-span-3 sm:col-span-5">
                   <div className="h-2 w-full rounded-full bg-[#171c2b] overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${
-                        row.isCurrent
+                        useEhpBar
+                          ? 'bg-gradient-to-r from-sky-600 to-cyan-300'
+                          : row.isCurrent
                           ? 'bg-gradient-to-r from-amber-500 to-yellow-300'
                           : 'bg-gradient-to-r from-emerald-600 to-cyan-400'
                       }`}
@@ -421,23 +442,44 @@ export function CalcsTab() {
                     />
                   </div>
                 </div>
-                <div className="col-span-3 sm:col-span-2 text-right font-semibold text-zinc-100">
+                <div className="col-span-2 sm:col-span-2 text-right font-semibold text-zinc-100">
                   {Math.round(row.dps).toLocaleString()}
                 </div>
                 <div
-                  className={`col-span-3 sm:col-span-1 text-right text-[11px] ${
-                    Math.abs(row.dpsPct) < 0.05
+                  className={`col-span-2 sm:col-span-1 text-right text-[10px] sm:text-[11px] ${
+                    curveMode === 'char'
+                      ? Math.abs(row.ehpPct) < 0.05
+                        ? 'text-zinc-500'
+                        : row.ehpPct > 0
+                          ? 'text-sky-300'
+                          : 'text-rose-400'
+                      : Math.abs(row.dpsPct) < 0.05
                       ? 'text-zinc-500'
                       : row.dpsPct > 0
                         ? 'text-emerald-400'
                         : 'text-rose-400'
                   }`}
                 >
-                  {row.dpsPct > 0 ? '+' : ''}
-                  {row.dpsPct.toFixed(1)}%
+                  {curveMode === 'char' ? (
+                    <>
+                      ΔEHP {row.ehpPct > 0 ? '+' : ''}
+                      {row.ehpPct.toFixed(1)}%
+                    </>
+                  ) : (
+                    <>
+                      {row.dpsPct > 0 ? '+' : ''}
+                      {row.dpsPct.toFixed(1)}%
+                    </>
+                  )}
                 </div>
-                <div className="hidden sm:block sm:col-span-2 text-right text-[11px] text-sky-300">
-                  EHP {row.ehp.toLocaleString()}
+                <div className="col-span-3 sm:col-span-2 text-right text-[10px] sm:text-[11px] text-sky-300">
+                  {curveMode === 'char' ? (
+                    <span className="text-zinc-400">
+                      Life {row.life.toLocaleString()} · EHP {row.ehp.toLocaleString()}
+                    </span>
+                  ) : (
+                    <>EHP {row.ehp.toLocaleString()}</>
+                  )}
                 </div>
               </div>
             );
