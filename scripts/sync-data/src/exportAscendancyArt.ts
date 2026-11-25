@@ -29,7 +29,9 @@ function main() {
   // Locate the full-resolution ascendancy-3.webp sprite block (2668x2668) specifically!
   const ascSheetIdx = p1SprTxt.indexOf('ascendancy-3.webp');
   if (ascSheetIdx < 0) throw new Error('Could not find ascendancy-3.webp in sprites.lua');
-  const ascBlockSlice = p1SprTxt.slice(ascSheetIdx, ascSheetIdx + 8000);
+  const coordsStart = p1SprTxt.indexOf('["coords"]=', ascSheetIdx);
+  const coordsEnd = p1SprTxt.indexOf('\n            }', coordsStart);
+  const ascBlockSlice = p1SprTxt.slice(coordsStart, coordsEnd > coordsStart ? coordsEnd : coordsStart + 4500);
   const coordRe = /\["(Classes[^"]+)"\]=\s*\{\s*\["x"\]=\s*(\d+),\s*\["y"\]=\s*(\d+),\s*\["w"\]=\s*(\d+),\s*\["h"\]=\s*(\d+)\s*\}/g;
   const poe1Sprites: Record<string, { x: number; y: number; w: number; h: number }> = {};
   let match: RegExpExecArray | null;
