@@ -774,13 +774,10 @@ export function resolveShareUrl(inputUrl: string): string | null {
   if (pobbin) {
     return `https://pobb.in/${pobbin[1]}/raw`;
   }
-  const poe2Ninja = trimmed.match(/^https?:\/\/(?:www\.)?poe\.ninja\/poe2\/pob\/(?:raw\/)?([A-Za-z0-9_-]+)/i);
-  if (poe2Ninja) {
-    return `https://poe.ninja/poe2/pob/raw/${poe2Ninja[1]}`;
-  }
-  const poe1Ninja = trimmed.match(/^https?:\/\/(?:www\.)?poe\.ninja\/pob\/(?:raw\/)?([A-Za-z0-9_-]+)/i);
-  if (poe1Ninja) {
-    return `https://poe.ninja/pob/raw/${poe1Ninja[1]}`;
+  const ninja = trimmed.match(/^https?:\/\/(?:www\.)?poe\.ninja\/(?:(poe[12])\/)?pob\/(?:raw\/)?([A-Za-z0-9_-]+)/i);
+  if (ninja) {
+    const gamePath = ninja[1] ? `${ninja[1].toLowerCase()}/` : '';
+    return `https://poe.ninja/${gamePath}pob/raw/${ninja[2]}`;
   }
   const pastebin = trimmed.match(/^https?:\/\/(?:www\.)?pastebin\.com\/(?:raw\/)?([A-Za-z0-9]+)/i);
   if (pastebin) {
@@ -790,7 +787,7 @@ export function resolveShareUrl(inputUrl: string): string | null {
 }
 
 /**
- * Fetches a PoB code from a `pobb.in` or `pastebin.com` URL, optionally routing through
+ * Fetches a PoB code from a `pobb.in`, `poe.ninja`, or `pastebin.com` URL, optionally routing through
  * a lightweight CORS proxy (e.g. `https://proxy.example.workers.dev/?url=...`).
  */
 export async function fetchRemoteBuildCode(url: string, corsProxyBase?: string): Promise<string> {

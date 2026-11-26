@@ -81,6 +81,19 @@ Energy Shield: 520 (augmented)
     expect(resolveShareUrl('https://pastebin.com/XyZ987')).toBe('https://pastebin.com/raw/XyZ987');
   });
 
+  it.each([
+    ['https://poe.ninja/poe1/pob/9cee7', 'https://poe.ninja/poe1/pob/raw/9cee7'],
+    ['https://poe.ninja/poe1/pob/raw/9cee7', 'https://poe.ninja/poe1/pob/raw/9cee7'],
+    ['https://poe.ninja/pob/75b38', 'https://poe.ninja/pob/raw/75b38'],
+    ['https://poe.ninja/pob/raw/75b38', 'https://poe.ninja/pob/raw/75b38'],
+    ['https://poe.ninja/poe2/pob/29daf', 'https://poe.ninja/poe2/pob/raw/29daf'],
+    ['https://poe.ninja/poe2/pob/raw/29daf', 'https://poe.ninja/poe2/pob/raw/29daf'],
+    [' https://www.poe.ninja/poe1/pob/9cee7?foo=bar#section ', 'https://poe.ninja/poe1/pob/raw/9cee7'],
+    ['https://POE.NINJA/POE1/pob/9cee7', 'https://poe.ninja/poe1/pob/raw/9cee7'],
+  ])('resolves Ninja share URL %s to %s', (url, expected) => {
+    expect(resolveShareUrl(url)).toBe(expected);
+  });
+
   it('imports GGG/Tencent character JSON (passives + items + socketed gems) into a Build', () => {
     const imported = parseCharacterJsonToBuild({
       game: 'poe1',
