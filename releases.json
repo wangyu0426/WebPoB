@@ -4,13 +4,24 @@
   "prodUrl": "https://webpob.pages.dev",
   "releases": [
     {
+      "version": "0.2.0",
+      "tag": "v0.2.0",
+      "commit": "6c1c6a4",
+      "deploymentId": "f1996f9a-e72f-4326-a97f-0e4a528055d3",
+      "previewUrl": "https://f1996f9a.webpob.pages.dev",
+      "branch": "main",
+      "notes": "版本管理与秒级回滚系统上线；修复 Service Worker 缓存旧天赋树 JSON 导致老用户看到未汉化节点的问题",
+      "status": "active",
+      "deployedAt": "2026-11-26T16:08:56.428Z"
+    },
+    {
       "version": "0.1.1",
       "tag": "v0.1.1",
       "commit": "fd67782",
       "deploymentId": "1a732a05-9a20-4b74-8f5a-fe8a44d4d4a7",
       "previewUrl": "https://1a732a05.webpob.pages.dev",
       "branch": "main",
-      "status": "active",
+      "status": "previous",
       "notes": "Full poedb/PoeCharm ZH tree & gem localization + 12-build poe.ninja regression suite"
     },
     {
@@ -24,5 +35,6 @@
       "notes": "Mobile RWD overhaul for TopBar, PassiveTree HUD, and ItemsTab"
     }
   ],
-  "rollbacks": []
+  "rollbacks": [],
+  "updatedAt": "2026-11-26T16:08:56.428Z"
 }
