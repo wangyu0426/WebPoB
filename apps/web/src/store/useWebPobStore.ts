@@ -97,7 +97,30 @@ interface WebPobState {
 
 const STORAGE_KEY = 'webpob_state_v1';
 
+function detectDefaultLocale(): Locale {
+  if (typeof navigator !== 'undefined') {
+    const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+    const primary = langs.find(Boolean) ?? '';
+    return /^zh\b/i.test(primary) ? 'zh-CN' : 'en';
+  }
+  return 'en';
+}
+
+function getUrlLocaleOverride(): Locale | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const lang = new URLSearchParams(window.location.search).get('lang');
+    if (!lang) return null;
+    if (/^en\b/i.test(lang)) return 'en';
+    if (/^zh\b/i.test(lang)) return 'zh-CN';
+  } catch {
+    // ignore URL parse errors
+  }
+  return null;
+}
+
 function loadInitialBuild(): { build: Build; locale: Locale } {
+  const urlLocale = getUrlLocaleOverride();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -105,14 +128,14 @@ function loadInitialBuild(): { build: Build; locale: Locale } {
       if (parsed.build && (parsed.build.game === 'poe1' || parsed.build.game === 'poe2')) {
         return {
           build: parsed.build,
-          locale: parsed.locale === 'en' ? 'en' : 'zh-CN',
+          locale: urlLocale ?? (parsed.locale === 'en' ? 'en' : 'zh-CN'),
         };
       }
     }
   } catch {
     // ignore storage failures
   }
-  return { build: getSampleBuild('poe1'), locale: 'zh-CN' };
+  return { build: getSampleBuild('poe1'), locale: urlLocale ?? detectDefaultLocale() };
 }
 
 function persistState(build: Build, locale: Locale): void {
