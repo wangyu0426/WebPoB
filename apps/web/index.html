@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" class="dark">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -21,9 +21,27 @@
     <div id="root">
       <div style="height:100vh;width:100vw;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0b0d12;color:#e4e4e7;font-family:system-ui,-apple-system,sans-serif">
         <div style="width:44px;height:44px;border-radius:999px;border:3px solid rgba(245,158,11,.22);border-top-color:#f59e0b;animation:wp-spin .85s linear infinite"></div>
-        <div style="font-size:15px;font-weight:700;letter-spacing:.3px;color:#fde68a">WebPoB · 流放之路网页版模拟器</div>
-        <div style="font-size:12px;color:#a1a1aa">正在加载天赋树与计算引擎（首次加载后自动本地缓存秒开）…</div>
+        <div id="wp-boot-title" style="font-size:15px;font-weight:700;letter-spacing:.3px;color:#fde68a">WebPoB · Path of Building for Web</div>
+        <div id="wp-boot-sub" style="font-size:12px;color:#a1a1aa">Loading passive tree &amp; calc engine (cached locally after first load)…</div>
         <style>@keyframes wp-spin{to{transform:rotate(360deg)}}</style>
+        <script>
+          (function(){
+            try {
+              var q = new URLSearchParams(location.search).get('lang') || '';
+              var saved = '';
+              try { saved = (JSON.parse(localStorage.getItem('webpob_state_v1') || '{}') || {}).locale || ''; } catch(e){}
+              var nav = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+              var isZh = /^zh(?:$|[-_])/i.test(q) || (!/^en(?:$|[-_])/i.test(q) && (saved ? saved === 'zh-CN' : /^zh(?:$|[-_])/i.test(nav)));
+              document.documentElement.lang = isZh ? 'zh-CN' : 'en';
+              if (isZh) {
+                var t = document.getElementById('wp-boot-title');
+                var s = document.getElementById('wp-boot-sub');
+                if (t) t.textContent = 'WebPoB · 流放之路网页版模拟器';
+                if (s) s.textContent = '正在加载天赋树与计算引擎（首次加载后自动本地缓存秒开）…';
+              }
+            } catch(e) {}
+          })();
+        </script>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

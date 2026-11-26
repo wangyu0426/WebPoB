@@ -97,11 +97,17 @@ interface WebPobState {
 
 const STORAGE_KEY = 'webpob_state_v1';
 
+function syncDocumentLang(locale: Locale): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = locale;
+  }
+}
+
 function detectDefaultLocale(): Locale {
   if (typeof navigator !== 'undefined') {
     const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
     const primary = langs.find(Boolean) ?? '';
-    return /^zh\b/i.test(primary) ? 'zh-CN' : 'en';
+    return /^zh(?:$|[-_])/i.test(primary) ? 'zh-CN' : 'en';
   }
   return 'en';
 }
@@ -109,10 +115,10 @@ function detectDefaultLocale(): Locale {
 function getUrlLocaleOverride(): Locale | null {
   if (typeof window === 'undefined') return null;
   try {
-    const lang = new URLSearchParams(window.location.search).get('lang');
+    const lang = new URLSearchParams(window.location.search).get('lang')?.trim();
     if (!lang) return null;
-    if (/^en\b/i.test(lang)) return 'en';
-    if (/^zh\b/i.test(lang)) return 'zh-CN';
+    if (/^en(?:$|[-_])/i.test(lang)) return 'en';
+    if (/^zh(?:$|[-_])/i.test(lang)) return 'zh-CN';
   } catch {
     // ignore URL parse errors
   }
@@ -126,16 +132,17 @@ function loadInitialBuild(): { build: Build; locale: Locale } {
     if (raw) {
       const parsed = JSON.parse(raw) as { build?: Build; locale?: Locale };
       if (parsed.build && (parsed.build.game === 'poe1' || parsed.build.game === 'poe2')) {
-        return {
-          build: parsed.build,
-          locale: urlLocale ?? (parsed.locale === 'en' ? 'en' : 'zh-CN'),
-        };
+        const locale: Locale = urlLocale ?? (parsed.locale === 'en' ? 'en' : 'zh-CN');
+        syncDocumentLang(locale);
+        return { build: parsed.build, locale };
       }
     }
   } catch {
     // ignore storage failures
   }
-  return { build: getSampleBuild('poe1'), locale: urlLocale ?? detectDefaultLocale() };
+  const locale: Locale = urlLocale ?? detectDefaultLocale();
+  syncDocumentLang(locale);
+  return { build: getSampleBuild('poe1'), locale };
 }
 
 function persistState(build: Build, locale: Locale): void {
@@ -336,6 +343,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
     },
 
     setLocale: (locale) => {
+      syncDocumentLang(locale);
       persistState(get().build, locale);
       set({ locale });
     },
