@@ -49,6 +49,7 @@ interface WebPobState {
   undo: () => void;
   redo: () => void;
   ensureOfficialDataLoaded: (game?: GameId) => Promise<void>;
+  ensureSecondaryDataLoaded: (game?: GameId) => Promise<void>;
   setLocale: (locale: Locale) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setTreePaintMode: (mode: TreePaintMode) => void;
@@ -130,6 +131,8 @@ const DEFAULT_CORS_PROXY =
   typeof window !== 'undefined' && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(window.location.origin)
     ? `${window.location.origin}/api/proxy`
     : '';
+
+const secondaryLoaded: Partial<Record<GameId, Promise<void>>> = {};
 
 export const useWebPobStore = create<WebPobState>((set, get) => {
   const commitBuild = (
@@ -223,17 +226,37 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       });
     },
 
+    ensureSecondaryDataLoaded: async (gameArg) => {
+      const game = gameArg ?? get().build.game;
+      if (secondaryLoaded[game]) return secondaryLoaded[game];
+      const task = Promise.all([
+        loadOfficialBaseItems(game),
+        loadOfficialUniques(game),
+        game === 'poe1' ? loadOfficialClusterNotables() : Promise.resolve(0),
+      ])
+        .then(() => {
+          const cur = get().build;
+          if (cur.game === game) {
+            set({ treeRevision: get().treeRevision + 1, calc: calculateBuild(cur) });
+          }
+        })
+        .catch((err) => {
+          console.warn('[WebPoB] Failed to load secondary dataset:', err);
+          delete secondaryLoaded[game];
+        });
+      secondaryLoaded[game] = task;
+      return task;
+    },
+
     ensureOfficialDataLoaded: async (gameArg) => {
       const game = gameArg ?? get().build.game;
       if (hasOfficialTreeLoaded(game)) return;
       set({ dataLoading: true });
       try {
+        // Stage 1 (Critical Path): only fetch Passive Tree + Gems so the tree & DPS render immediately!
         const [tree] = await Promise.all([
           loadOfficialTree(game),
           loadOfficialGems(game),
-          loadOfficialBaseItems(game),
-          loadOfficialUniques(game),
-          game === 'poe1' ? loadOfficialClusterNotables() : Promise.resolve(0),
         ]);
         const cur = get().build;
         if (cur.game === game) {
@@ -247,27 +270,41 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
               const upgraded = getSampleBuild(game);
               set({ treeRevision: get().treeRevision + 1, dataLoading: false });
               commitBuild(upgraded, { clearHistory: true });
-              return;
+            } else {
+              const startId = tree.classStartNodeIds[cur.classId] ?? Object.values(tree.classStartNodeIds)[0]!;
+              const nextBuild: Build = {
+                ...cur,
+                tree: {
+                  ...cur.tree,
+                  treeVersion: tree.version,
+                  allocatedNodeIds: [startId],
+                  weaponSet1NodeIds: [],
+                  weaponSet2NodeIds: [],
+                },
+              };
+              set({ treeRevision: get().treeRevision + 1, dataLoading: false });
+              commitBuild(nextBuild, { clearHistory: true });
             }
-            const startId = tree.classStartNodeIds[cur.classId] ?? Object.values(tree.classStartNodeIds)[0]!;
-            const nextBuild: Build = {
-              ...cur,
-              tree: {
-                ...cur.tree,
-                treeVersion: tree.version,
-                allocatedNodeIds: [startId],
-                weaponSet1NodeIds: [],
-                weaponSet2NodeIds: [],
-              },
-            };
+          } else {
             set({ treeRevision: get().treeRevision + 1, dataLoading: false });
-            commitBuild(nextBuild, { clearHistory: true });
-            return;
+            commitBuild(cur, { recordHistory: false });
           }
-          set({ treeRevision: get().treeRevision + 1, dataLoading: false });
-          commitBuild(cur, { recordHistory: false });
         } else {
           set({ treeRevision: get().treeRevision + 1, dataLoading: false });
+        }
+
+        // Stage 2 (Deferred): warm bases, uniques, and cluster notables in the background without blocking first paint
+        if (typeof window !== 'undefined') {
+          const scheduleIdle =
+            (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void })
+              .requestIdleCallback;
+          if (scheduleIdle) {
+            scheduleIdle(() => void get().ensureSecondaryDataLoaded(game), { timeout: 2500 });
+          } else {
+            setTimeout(() => void get().ensureSecondaryDataLoaded(game), 800);
+          }
+        } else {
+          void get().ensureSecondaryDataLoaded(game);
         }
       } catch (err) {
         console.warn('[WebPoB] Failed to load official dataset, using built-in fallback:', err);

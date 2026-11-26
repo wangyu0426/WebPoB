@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   Calculator,
@@ -42,12 +42,16 @@ const NAV_TABS: Array<{ id: ActiveTab; labelKey: MessageKey; icon: typeof GitBra
 ];
 
 export function App() {
-  const { locale, activeTab, setActiveTab, build, calc, ensureOfficialDataLoaded, replaceBuild, undo, redo } =
+  const { locale, activeTab, setActiveTab, build, calc, ensureOfficialDataLoaded, ensureSecondaryDataLoaded, replaceBuild, undo, redo } =
     useWebPobStore();
   const [hashToast, setHashToast] = useState<string | null>(null);
   const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteMode, setCommandPaletteMode] = useState<CommandPaletteMode>('command');
+  const pendingUrlImportRef = useRef<boolean>(
+    typeof window !== 'undefined' &&
+      (new URLSearchParams(window.location.search).has('import') || window.location.hash.startsWith('#pob=')),
+  );
 
   const openCommandPalette = useCallback((mode: CommandPaletteMode = 'command') => {
     setCommandPaletteMode(mode);
@@ -55,8 +59,16 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    // When opening via ?import=... or #pob=..., wait for URL game detection so we don't waste bandwidth downloading PoE 1 data before switching to PoE 2!
+    if (pendingUrlImportRef.current) return;
     void ensureOfficialDataLoaded(build.game);
   }, [build.game, ensureOfficialDataLoaded]);
+
+  useEffect(() => {
+    if (activeTab === 'items' || activeTab === 'calcs' || activeTab === 'import') {
+      void ensureSecondaryDataLoaded(build.game);
+    }
+  }, [activeTab, build.game, ensureSecondaryDataLoaded]);
 
   // Global keyboard shortcuts (Ctrl/Cmd+K palette, ? cheatsheet, Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Shift+Z redo, 1-7 switch tabs)
   useEffect(() => {
@@ -114,6 +126,7 @@ export function App() {
           if (cancelled || !code) return;
           const xml = code.startsWith('<') ? code : decodePobCodeToXml(code);
           const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';
+          pendingUrlImportRef.current = false;
           await ensureOfficialDataLoaded(game);
           if (cancelled) return;
           const { build: imported } = importBuildFromCode(code);
@@ -123,15 +136,28 @@ export function App() {
           return;
         } catch (err) {
           console.warn('[WebPoB] Failed to load ?import URL build:', err);
+          pendingUrlImportRef.current = false;
+          void ensureOfficialDataLoaded(useWebPobStore.getState().build.game);
         }
       }
       const hash = window.location.hash;
-      if (!hash.startsWith('#pob=')) return;
+      if (!hash.startsWith('#pob=')) {
+        if (pendingUrlImportRef.current) {
+          pendingUrlImportRef.current = false;
+          void ensureOfficialDataLoaded(useWebPobStore.getState().build.game);
+        }
+        return;
+      }
       const code = hash.slice(5).trim();
-      if (!code) return;
+      if (!code) {
+        pendingUrlImportRef.current = false;
+        void ensureOfficialDataLoaded(useWebPobStore.getState().build.game);
+        return;
+      }
       try {
         const xml = decodePobCodeToXml(code);
         const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';
+        pendingUrlImportRef.current = false;
         await ensureOfficialDataLoaded(game);
         if (cancelled) return;
         const { build: imported } = importBuildFromCode(code);
@@ -140,6 +166,8 @@ export function App() {
         setTimeout(() => setHashToast(null), 4000);
       } catch (err) {
         console.warn('[WebPoB] Failed to load #pob URL hash build:', err);
+        pendingUrlImportRef.current = false;
+        void ensureOfficialDataLoaded(useWebPobStore.getState().build.game);
       }
     };
     void loadFromUrl();

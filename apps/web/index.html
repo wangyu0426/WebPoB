@@ -18,7 +18,14 @@
     <title>WebPoB — Path of Building for Web (PoE 1 & PoE 2)</title>
   </head>
   <body class="bg-[#0b0d12] text-zinc-100 antialiased selection:bg-amber-500/30 selection:text-amber-200">
-    <div id="root"></div>
+    <div id="root">
+      <div style="height:100vh;width:100vw;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0b0d12;color:#e4e4e7;font-family:system-ui,-apple-system,sans-serif">
+        <div style="width:44px;height:44px;border-radius:999px;border:3px solid rgba(245,158,11,.22);border-top-color:#f59e0b;animation:wp-spin .85s linear infinite"></div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:.3px;color:#fde68a">WebPoB · 流放之路网页版模拟器</div>
+        <div style="font-size:12px;color:#a1a1aa">正在加载天赋树与计算引擎（首次加载后自动本地缓存秒开）…</div>
+        <style>@keyframes wp-spin{to{transform:rotate(360deg)}}</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
