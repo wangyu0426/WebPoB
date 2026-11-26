@@ -1,3 +1,7 @@
+## v0.2.0 - 2026-11-26
+
+- 版本管理与秒级回滚系统上线；修复 Service Worker 缓存旧天赋树 JSON 导致老用户看到未汉化节点的问题
+
 # Changelog
 
 All notable changes to WebPoB are documented in this file.
