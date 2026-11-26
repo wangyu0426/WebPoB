@@ -11,6 +11,14 @@ interface TopBarProps {
   onOpenCommandPalette?: () => void;
 }
 
+const APP_VERSION = __APP_VERSION__;
+const GIT_SHA = __GIT_SHA__;
+const BUILT_AT = __BUILT_AT__;
+const BUILD_DATE = (() => {
+  const d = new Date(BUILT_AT);
+  return Number.isNaN(d.getTime()) ? BUILT_AT : d.toISOString().slice(0, 10);
+})();
+
 export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
   const {
     locale,
@@ -333,6 +341,19 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 <span className="truncate">{t(locale, 'topbar.newBuild')}</span>
               </button>
             </div>
+
+            {/* Version footer — mobile bug-report info */}
+            <div
+              className="pt-2 mt-1 border-t border-[#22283a] flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[10px] font-mono text-zinc-500"
+              title={`WebPoB v${APP_VERSION} (${GIT_SHA}) · ${BUILT_AT}`}
+            >
+              <span className="truncate">
+                {t(locale, 'app.title')} v{APP_VERSION} · {GIT_SHA}
+              </span>
+              <span className="shrink-0">
+                {locale === 'zh-CN' ? '构建' : 'Build'} {BUILD_DATE}
+              </span>
+            </div>
           </div>
           <div
             className="flex-1 bg-black/60 backdrop-blur-[1px]"
@@ -349,13 +370,21 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
           <div className="h-8 w-8 rounded-md bg-gradient-to-br from-amber-500/30 to-amber-900/50 border border-amber-500/50 flex items-center justify-center text-amber-300 shadow-inner shrink-0">
             <Swords className="w-4 h-4" />
           </div>
-          <div className="whitespace-nowrap">
-            <div className="text-sm font-bold tracking-wide text-amber-200 leading-tight">
-              {t(locale, 'app.title')}
+          <div className="whitespace-nowrap flex items-center gap-1.5">
+            <div>
+              <div className="text-sm font-bold tracking-wide text-amber-200 leading-tight">
+                {t(locale, 'app.title')}
+              </div>
+              <div className="text-[10px] text-zinc-400 leading-tight hidden 2xl:block">
+                {t(locale, 'app.subtitle')}
+              </div>
             </div>
-            <div className="text-[10px] text-zinc-400 leading-tight hidden 2xl:block">
-              {t(locale, 'app.subtitle')}
-            </div>
+            <span
+              className="text-[10px] font-mono text-zinc-500 leading-none self-start mt-0.5"
+              title={`WebPoB v${APP_VERSION} (${GIT_SHA}) · ${BUILT_AT}`}
+            >
+              v{APP_VERSION}
+            </span>
           </div>
         </div>
 

@@ -1,0 +1,28 @@
+{
+  "project": "webpob",
+  "game": "WebPoB",
+  "prodUrl": "https://webpob.pages.dev",
+  "releases": [
+    {
+      "version": "0.1.1",
+      "tag": "v0.1.1",
+      "commit": "fd67782",
+      "deploymentId": "1a732a05-9a20-4b74-8f5a-fe8a44d4d4a7",
+      "previewUrl": "https://1a732a05.webpob.pages.dev",
+      "branch": "main",
+      "status": "active",
+      "notes": "Full poedb/PoeCharm ZH tree & gem localization + 12-build poe.ninja regression suite"
+    },
+    {
+      "version": "0.1.0",
+      "tag": "v0.1.0",
+      "commit": "a313388",
+      "deploymentId": "97494805-08a8-4f13-a172-5a9cc74c8ebf",
+      "previewUrl": "https://97494805.webpob.pages.dev",
+      "branch": "main",
+      "status": "previous",
+      "notes": "Mobile RWD overhaul for TopBar, PassiveTree HUD, and ItemsTab"
+    }
+  ],
+  "rollbacks": []
+}

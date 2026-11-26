@@ -14,7 +14,13 @@
     "sync:data": "tsx scripts/sync-data/src/index.ts",
     "sync:lua": "tsx scripts/sync-data/src/exportFromLua.ts",
     "oracle:generate": "tsx scripts/oracle-diff/src/generate.ts",
-    "oracle:diff": "tsx scripts/oracle-diff/src/diff.ts"
+    "oracle:diff": "tsx scripts/oracle-diff/src/diff.ts",
+    "test:e2e:ninja": "node scripts/verify-ninja-e2e.mjs",
+    "release:status": "node scripts/release.mjs status",
+    "release:smoke": "node scripts/release.mjs smoke",
+    "release:preview": "node scripts/release.mjs deploy --preview",
+    "release:deploy": "node scripts/release.mjs deploy",
+    "release:rollback": "node scripts/release.mjs rollback"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
