@@ -2,11 +2,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseLuaTable } from './luaParser.js';
-import { parseTranslationCsv } from './csvParser.js';
+import {
+  buildNameDictionary,
+  createStatTranslator,
+  normalizeLookupKey,
+  parseTranslationCsvRows,
+  type StatTranslator,
+} from './csvParser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '../../..');
 const PUBLIC_DATA_DIR = path.join(ROOT_DIR, 'apps/web/public/data');
+const CACHE_DIR = path.join(ROOT_DIR, '.cache/poecharm');
 
 // Classic PoE 1 non-uniform orbit angles (in degrees) for orbits with 16 or 40 slots
 const POE1_ANGLES_16 = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
@@ -27,15 +34,39 @@ function getPoe1OrbitAngleRad(skillsInOrbit: number, orbitIndex: number): number
   return (2 * Math.PI * orbitIndex) / Math.max(1, skillsInOrbit);
 }
 
-async function fetchText(url: string): Promise<string> {
-  console.log(`  ↓ Fetching ${url}`);
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'WebPoB-Sync/0.2 (+https://github.com/zhnpeng/WebPoB)' },
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
+async function fetchText(url: string, cacheFile?: string): Promise<string> {
+  if (cacheFile) {
+    try {
+      const cached = await fs.readFile(cacheFile, 'utf-8');
+      if (cached.trim().length > 0) {
+        return cached;
+      }
+    } catch {
+      // cache miss; fall through to fetch
+    }
   }
-  return res.text();
+  console.log(`  ↓ Fetching ${url}`);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'WebPoB-Sync/0.3 (+https://github.com/zhnpeng/WebPoB)' },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
+      }
+      const text = await res.text();
+      if (cacheFile) {
+        await fs.mkdir(path.dirname(cacheFile), { recursive: true });
+        await fs.writeFile(cacheFile, text, 'utf-8');
+      }
+      return text;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
+  }
+  throw lastErr;
 }
 
 interface CompactTreeNode {
@@ -66,22 +97,86 @@ interface CompactTreePayload {
   nodes: CompactTreeNode[];
 }
 
-function translateStatList(
-  stats: string[] | undefined,
-  statDict: Map<string, string>,
-): string[] | undefined {
-  if (!stats || stats.length === 0) return undefined;
-  let anyTranslated = false;
-  const out = stats.map((line) => {
-    const direct = statDict.get(line);
-    if (direct) {
-      anyTranslated = true;
-      return direct;
-    }
-    return line;
-  });
-  return anyTranslated ? out : undefined;
+interface NameDict {
+  get: (en: string) => string | undefined;
+  size: number;
 }
+
+// Official poedb.tw/cn & poe2db.tw/cn translations for newly added 3.30 / 0.5.4 nodes
+// not yet mirrored into PoeCharm / PoeCharm2 tree_dn.csv
+const POE1_POEDB_NODE_OVERRIDES: Record<string, string> = {
+  'Box of Jewels': '珠宝箱',
+  "The Draugur's Lantern": '尸鬼提灯',
+  'Foulborn Tremor Rod': '秽生颤抖之杖',
+};
+
+const POE2_POE2DB_NODE_OVERRIDES: Record<string, string> = {
+  'Rhythm of Ice': '冰霜韵律',
+  Pyromancer: '火法师',
+  'Ice Storm': '霜冻风暴',
+  'Brain Freeze': '脑部冻结',
+  'Rhythm of Fire': '火焰韵律',
+  'Devotion to the King': '献身于王',
+  Stormkeeper: '雷霆守护者',
+  'Brain Storm': '头脑风暴',
+  Flamekeeper: '火焰守护者',
+  'Lightning Storm': '闪电风暴',
+  'Life Leech, Armour and Evasion while Leeching': '生命偷取，偷取时护甲与闪避',
+};
+
+const POE2_SKILL_OVERRIDES: Record<string, string> = {
+  "Queen's Procession": '女王仪仗',
+  'Hollow Form': '空灵形态',
+  'Hollow Resonance': '空灵共鸣',
+  'Hollow Focus': '空灵专注',
+  'Supporting Fire': '支援火力',
+  'Time Snap': '时间快照',
+  'Moment of Vulnerability': '破绽瞬间',
+  'Mirage Deadeye': '幻影锐眼',
+  'Encase in Jade': '翠玉封印',
+  'Elemental Surge': '元素涌动',
+  'Life Remnants': '生命残片',
+  'Bleeding Concoction': '流血调合',
+  'Shattering Concoction': '碎冰调合',
+  "Navira's Fracturing": '纳维拉的碎裂',
+  'Virtuous Barrier': '美德屏障',
+  Meditate: '冥想',
+  'Elemental Storm': '元素风暴',
+  'Kelari, the Tainted Sands': '污秽之沙·凯拉里',
+  "Ruzhan's Fury": '鲁赞之怒',
+  'Summon Infernal Hound': '召唤炼狱猎犬',
+  'Fire Spell on Hit': '击中触发火焰法术',
+  'Primal Aegis': '原始神盾',
+  'Summon Sentinel of Radiance': '召唤圣光哨卫',
+  'Summon Elemental Relic': '召唤元素圣物',
+  'Summon Triggerbots': '召唤触发机器人',
+  Barkskin: '树皮术',
+};
+
+// Official poe2db.tw/cn stat-line fallbacks for the remaining 11 PoE 2 0.5 nodes
+// whose strings are split across lines or newly revised after PoeCharm2 0.5.0
+const POE2_STAT_OVERRIDES: Array<[string, string]> = [
+  ['100 Passive Skill Points become Weapon Set Skill Points', '100 点天赋技能点转化为武器组天赋点'],
+  ['{0}% increased Cast Speed per Spell Echoed Recently, up to {1}%', '近期内每次法术回响使施法速度提高 {0}%，最多提高 {1}%'],
+  ['{0}% reduced Movement Speed Penalty from using Fire Skills while moving', '移动时使用火焰技能的移动速度惩罚降低 {0}%'],
+  ['{0}% reduced Movement Speed Penalty from using Cold Skills while moving', '移动时使用冰霜技能的移动速度惩罚降低 {0}%'],
+  ['Gain {0}% of Cold damage as Extra Lightning damage', '获得相当于冰霜伤害 {0}% 的额外闪电伤害'],
+  ['Red: Hits against you have no Critical Damage Bonus', '红色：击中你的攻击没有暴击伤害加成'],
+  ['Blue: Skills have {0}% less cost', '蓝色：技能消耗总降 {0}%'],
+  ['Green: {0}% less Movement Speed Penalty from using Skills while Moving', '绿色：移动时使用技能的移动速度惩罚总降 {0}%'],
+  ['{0}% chance for Enemies you Kill to Explode, dealing {1}% of their maximum Life as Physical Damage', '你击杀的敌人有 {0}% 几率爆炸，造成其最大生命 {1}% 的物理伤害'],
+  ['{0}% chance for Enemies you Kill to Explode, dealing {1}%', '你击杀的敌人有 {0}% 几率爆炸，造成其生命上限 {1}% 的物理伤害'],
+  ['1 Helmet socket', '1 个头盔插槽'],
+  ['2 Body Armour sockets', '2 个胸甲插槽'],
+  ['1 Gloves socket', '1 个手套插槽'],
+  ['1 Boots socket', '1 个鞋子插槽'],
+  ['cost {0}% less', '消耗总降 {0}%'],
+  ['have {0}% less duration', '持续时间总降 {0}%'],
+  ['Spells for which this Sacrifice was fully made deal {0}% more Damage', '完整完成该献祭的法术造成的伤害总增 {0}%'],
+  ['Base Unarmed Physical damage replaced with damage based on their Skill Level', '基础徒手物理伤害替换为基于技能等级的伤害'],
+  ['{0}% more Attack Speed per {1} Item Evasion on Equipped Armour Items', '已装备护甲物品上每有 {1} 点物品闪避值，攻击速度总增 {0}%'],
+  ['+{0}% to Critical Hit Chance per {1} Item Energy Shield on Equipped Armour Items', '已装备护甲物品上每有 {1} 点物品能量护盾，暴击率 +{0}%'],
+];
 
 const POE1_CLASS_INDEX_TO_ID: Record<number, string> = {
   0: 'Scion',
@@ -112,7 +207,7 @@ const POE2_START_LABELS: Record<string, { en: string; zh: string }> = {
   TEMPLAR: { en: 'Druid', zh: '德鲁伊' },
 };
 
-async function syncPoe1Tree(dnDict: Map<string, string>, sdDict: Map<string, string>): Promise<void> {
+async function syncPoe1Tree(dnDict: NameDict, statTranslator: StatTranslator): Promise<void> {
   console.log('\n[1/4] Syncing official PoE 1 Passive Tree (3_30)...');
   const luaText = await fetchText(
     'https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding/master/src/TreeData/3_30/tree.lua',
@@ -168,14 +263,14 @@ async function syncPoe1Tree(dnDict: Map<string, string>, sdDict: Map<string, str
       k = 'n';
     }
 
-    const rawEn = String(node.name ?? `Node ${id}`);
+    const rawEn = String(node.name ?? `Node ${id}`).trim();
     const startOverride = cs ? POE1_START_LABELS[cs] : undefined;
     const en = startOverride ? startOverride.en : rawEn;
     const zh = startOverride ? startOverride.zh : dnDict.get(rawEn);
     const stats = Array.isArray(node.stats)
       ? (node.stats as string[]).filter((s) => typeof s === 'string')
       : undefined;
-    const statsZh = translateStatList(stats, sdDict);
+    const statsZh = statTranslator.translateStatList(stats);
 
     let me: CompactTreeNode['me'];
     if (Array.isArray(node.masteryEffects)) {
@@ -186,7 +281,7 @@ async function syncPoe1Tree(dnDict: Map<string, string>, sdDict: Map<string, str
           return {
             id: Number(e.effect ?? 0),
             st,
-            sz: translateStatList(st, sdDict),
+            sz: statTranslator.translateStatList(st),
           };
         });
     }
@@ -265,7 +360,7 @@ async function syncPoe1Tree(dnDict: Map<string, string>, sdDict: Map<string, str
   );
 }
 
-async function syncPoe2Tree(dnDict: Map<string, string>, sdDict: Map<string, string>): Promise<void> {
+async function syncPoe2Tree(dnDict: NameDict, statTranslator: StatTranslator): Promise<void> {
   console.log('\n[2/4] Syncing official PoE 2 Passive Tree (0_5)...');
   const jsonText = await fetchText(
     'https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/dev/src/TreeData/0_5/tree.json',
@@ -328,14 +423,14 @@ async function syncPoe2Tree(dnDict: Map<string, string>, sdDict: Map<string, str
       k = 'n';
     }
 
-    const rawEn = String(node.name ?? `Node ${id}`);
+    const rawEn = String(node.name ?? `Node ${id}`).trim();
     const startOverride = k === 'S' ? POE2_START_LABELS[rawEn.toUpperCase()] : undefined;
     const en = startOverride ? startOverride.en : rawEn;
     const zh = startOverride ? startOverride.zh : dnDict.get(rawEn);
     const stats = Array.isArray(node.stats)
       ? (node.stats as string[]).filter((s) => typeof s === 'string')
       : undefined;
-    const statsZh = translateStatList(stats, sdDict);
+    const statsZh = statTranslator.translateStatList(stats);
     const asc = typeof node.ascendancyName === 'string' ? node.ascendancyName : undefined;
 
     nodeMap.set(id, {
@@ -416,19 +511,36 @@ interface CompactGemEntry {
 async function syncGems(
   game: 'poe1' | 'poe2',
   gemsUrl: string,
-  zhDict: Map<string, string>,
+  zhDict: NameDict,
   stepLabel: string,
 ): Promise<void> {
   console.log(`\n${stepLabel} Syncing official ${game.toUpperCase()} Gems catalog...`);
+  const outPath = path.join(PUBLIC_DATA_DIR, `${game}-gems.json`);
+
+  // Preserve any Lua-exported Lv.1-30 skill scaling fields already present in poeX-gems.json
+  const existingByKey = new Map<string, Record<string, unknown>>();
+  try {
+    const existingRaw = JSON.parse(await fs.readFile(outPath, 'utf-8')) as {
+      gems?: Array<Record<string, unknown>>;
+    };
+    for (const g of existingRaw.gems ?? []) {
+      if (typeof g.en === 'string') {
+        existingByKey.set(normalizeLookupKey(g.en), g);
+      }
+    }
+  } catch {
+    // fresh generation
+  }
+
   const luaText = await fetchText(gemsUrl);
   const raw = parseLuaTable(luaText) as Record<string, Record<string, unknown>>;
 
   const seenNames = new Set<string>();
-  const gems: CompactGemEntry[] = [];
+  const gems: Array<Record<string, unknown>> = [];
 
   for (const [gameId, entry] of Object.entries(raw)) {
     if (!entry || typeof entry !== 'object') continue;
-    const en = String(entry.name ?? '');
+    const en = String(entry.name ?? '').trim();
     if (!en || seenNames.has(en)) continue;
     // Skip Vaal/Trarthus/Royale internal duplicates where name is empty or test
     if (/^\[|Royale|Test/i.test(en)) continue;
@@ -446,58 +558,108 @@ async function syncGems(
     else if (tagsObj.dexterity || (reqDex >= reqStr && reqDex >= reqInt && reqDex > 0)) color = 'green';
     else if (tagsObj.intelligence || reqInt > 0) color = 'blue';
 
-    const zh = zhDict.get(en) ?? zhDict.get(`${en} Support`);
-    gems.push({
+    const zh =
+      zhDict.get(en) ??
+      zhDict.get(`${en} Support`) ??
+      zhDict.get(en.replace(/\s+Support$/i, ''));
+
+    const prev = existingByKey.get(normalizeLookupKey(en));
+    const merged: Record<string, unknown> = {
+      ...(prev ?? {}),
       id: `${game}_${String(entry.variantId ?? gameId).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()}`,
       en,
       ...(zh ? { zh } : {}),
       cat: isSupport ? 'support' : 'active',
       color,
       tags,
-    });
+    };
+    if (!zh && 'zh' in merged && typeof merged.zh === 'string' && !/[\u4e00-\u9fff]/.test(merged.zh)) {
+      delete merged.zh;
+    }
+    gems.push(merged);
   }
 
-  gems.sort((a, b) => a.en.localeCompare(b.en));
-  const outPath = path.join(PUBLIC_DATA_DIR, `${game}-gems.json`);
+  gems.sort((a, b) => String(a.en).localeCompare(String(b.en)));
   await fs.writeFile(outPath, JSON.stringify({ game, count: gems.length, gems }), 'utf-8');
-  const translated = gems.filter((g) => Boolean(g.zh)).length;
+  const translated = gems.filter((g) => typeof g.zh === 'string' && /[\u4e00-\u9fff]/.test(g.zh)).length;
   console.log(`  ✓ Wrote ${outPath}: ${gems.length} gems (${translated} ZH names)`);
 }
 
+async function fetchPoeCharmRows(repo: 'PoeCharm' | 'PoeCharm2', file: string): Promise<Array<[string, string]>> {
+  const sub = repo === 'PoeCharm' ? 'p1' : 'p2';
+  const cacheFile = path.join(CACHE_DIR, sub, file);
+  const url = `https://raw.githubusercontent.com/Chuanhsing/${repo}/main/Data/Translate/zh-rCN/${file}`;
+  const text = await fetchText(url, cacheFile);
+  return parseTranslationCsvRows(text);
+}
+
 async function main() {
-  console.log('=== WebPoB Upstream Official Data & ZH Dictionary Sync ===');
+  console.log('=== WebPoB Upstream Official Data & ZH Dictionary Sync (poedb.tw / PoeCharm) ===');
 
-  // Fetch bilingual dictionaries in parallel
-  console.log('\nFetching bilingual Chinese dictionaries (PoeCharm / PoeCharm2 zh-rCN)...');
-  const [
-    poe1DnCsv,
-    poe1SdCsv,
-    poe1GemsCsv,
-    poe2DnCsv,
-    poe2SdCsv,
-    poe2GemsCsv,
-  ] = await Promise.all([
-    fetchText('https://raw.githubusercontent.com/Chuanhsing/PoeCharm/master/Data/Translate/zh-rCN/tree_dn.csv'),
-    fetchText('https://raw.githubusercontent.com/Chuanhsing/PoeCharm/master/Data/Translate/zh-rCN/tree_sd.csv'),
-    fetchText('https://raw.githubusercontent.com/Chuanhsing/PoeCharm/master/Data/Translate/zh-rCN/Items_Gems.txt.csv'),
-    fetchText('https://raw.githubusercontent.com/Chuanhsing/PoeCharm2/master/Data/Translate/zh-rCN/tree_dn.csv'),
-    fetchText('https://raw.githubusercontent.com/Chuanhsing/PoeCharm2/master/Data/Translate/zh-rCN/tree_sd.csv'),
-    fetchText('https://raw.githubusercontent.com/Chuanhsing/PoeCharm2/master/Data/Translate/zh-rCN/Items_Gems.txt.csv'),
-  ]);
+  // Fetch full PoeCharm / PoeCharm2 zh-rCN dictionaries (cached in .cache/poecharm)
+  console.log('\nLoading bilingual Chinese dictionaries (PoeCharm / PoeCharm2 zh-rCN)...');
+  const p1Files = [
+    'tree_dn.csv',
+    'tree_sd.csv',
+    'statDescriptions.csv',
+    'passiveTree.csv',
+    'Uniques.txt.csv',
+    'Items_Gems.txt.csv',
+    'Gems_data.txt.csv',
+  ] as const;
 
-  const poe1Dn = parseTranslationCsv(poe1DnCsv);
-  const poe1Sd = parseTranslationCsv(poe1SdCsv);
-  const poe1GemDict = parseTranslationCsv(poe1GemsCsv);
-  const poe2Dn = parseTranslationCsv(poe2DnCsv);
-  const poe2Sd = parseTranslationCsv(poe2SdCsv);
-  const poe2GemDict = parseTranslationCsv(poe2GemsCsv);
+  const p1Rows: Record<string, Array<[string, string]>> = {};
+  const p2Rows: Record<string, Array<[string, string]>> = {};
+  for (const file of p1Files) {
+    p1Rows[file] = await fetchPoeCharmRows('PoeCharm', file);
+    p2Rows[file] = await fetchPoeCharmRows('PoeCharm2', file);
+  }
 
-  console.log(
-    `  ✓ Dictionaries loaded: PoE1 (${poe1Dn.size} node names, ${poe1Sd.size} stats, ${poe1GemDict.size} gems) | PoE2 (${poe2Dn.size} node names, ${poe2Sd.size} stats, ${poe2GemDict.size} gems)`,
+  const poe1GemDict = buildNameDictionary(
+    [p1Rows['Items_Gems.txt.csv']!, p1Rows['Gems_data.txt.csv']!],
+    POE2_SKILL_OVERRIDES,
+  );
+  const poe2GemDict = buildNameDictionary(
+    [p2Rows['Items_Gems.txt.csv']!, p2Rows['Gems_data.txt.csv']!, p1Rows['Items_Gems.txt.csv']!],
+    POE2_SKILL_OVERRIDES,
   );
 
-  await syncPoe1Tree(poe1Dn, poe1Sd);
-  await syncPoe2Tree(poe2Dn, poe2Sd);
+  const poe1Dn = buildNameDictionary(
+    [p1Rows['tree_dn.csv']!, p1Rows['Uniques.txt.csv']!, p1Rows['statDescriptions.csv']!],
+    POE1_POEDB_NODE_OVERRIDES,
+  );
+  const poe2Dn = buildNameDictionary(
+    [
+      p2Rows['tree_dn.csv']!,
+      p1Rows['tree_dn.csv']!,
+      p2Rows['Uniques.txt.csv']!,
+      p2Rows['statDescriptions.csv']!,
+    ],
+    POE2_POE2DB_NODE_OVERRIDES,
+  );
+
+  const poe1StatTranslator = createStatTranslator(
+    [p1Rows['tree_sd.csv']!, p1Rows['passiveTree.csv']!, p1Rows['statDescriptions.csv']!],
+    poe1GemDict,
+  );
+  const poe2StatTranslator = createStatTranslator(
+    [
+      POE2_STAT_OVERRIDES,
+      p2Rows['tree_sd.csv']!,
+      p2Rows['passiveTree.csv']!,
+      p2Rows['statDescriptions.csv']!,
+      p1Rows['tree_sd.csv']!,
+      p1Rows['statDescriptions.csv']!,
+    ],
+    poe2GemDict,
+  );
+
+  console.log(
+    `  ✓ Dictionaries loaded: PoE1 (${poe1Dn.size} names, ${poe1StatTranslator.exactCount} exact / ${poe1StatTranslator.templateCount} tpl stats, ${poe1GemDict.size} gems) | PoE2 (${poe2Dn.size} names, ${poe2StatTranslator.exactCount} exact / ${poe2StatTranslator.templateCount} tpl stats, ${poe2GemDict.size} gems)`,
+  );
+
+  await syncPoe1Tree(poe1Dn, poe1StatTranslator);
+  await syncPoe2Tree(poe2Dn, poe2StatTranslator);
   await syncGems(
     'poe1',
     'https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding/master/src/Data/Gems.lua',

@@ -889,18 +889,35 @@ export function PassiveTreeCanvas() {
     masteries.sort(byName);
 
     const modifierCounts = new Map<string, number>();
-    const addLine = (line: string) => {
-      const localized = localizeStatLine(line, locale).trim();
+    const addLine = (line: string, alreadyLocalized = false) => {
+      const localized = (
+        alreadyLocalized && /[\u4e00-\u9fff]/.test(line) ? line : localizeStatLine(line, locale)
+      ).trim();
       if (!localized) return;
       modifierCounts.set(localized, (modifierCounts.get(localized) ?? 0) + 1);
     };
     for (const node of allocatedNodes) {
       if (node.kind === 'mastery') {
         const chosen = build.tree.masteryEffects[node.id];
-        if (chosen) addLine(chosen);
+        if (chosen) {
+          if (locale === 'zh-CN' && node.masteryEffects) {
+            const matched = node.masteryEffects.find(
+              (m) => m.stats.join('\n') === chosen || m.stats.includes(chosen),
+            );
+            if (matched?.statsZh && matched.statsZh.length > 0) {
+              for (const s of matched.statsZh) addLine(s, true);
+              continue;
+            }
+          }
+          addLine(chosen);
+        }
         continue;
       }
-      for (const stat of node.stats) addLine(stat);
+      if (locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0) {
+        for (const stat of node.statsZh) addLine(stat, true);
+      } else {
+        for (const stat of node.stats) addLine(stat);
+      }
     }
     const modifiers = [...modifierCounts.entries()]
       .map(([line, count]) => ({ line, count }))
@@ -1930,8 +1947,8 @@ export function PassiveTreeCanvas() {
   const masteryModalNode = masteryModalNodeId !== null ? tree.nodes[masteryModalNodeId] : null;
 
   const getDisplayStats = (node: PassiveNode): string[] => {
-    if (locale === 'zh-CN' && node.statsZh && node.statsZh.length === node.stats.length) {
-      return node.statsZh;
+    if (locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0) {
+      return node.statsZh.map((s) => (/[\u4e00-\u9fff]/.test(s) ? s : localizeStatLine(s, locale)));
     }
     return node.stats.map((s) => localizeStatLine(s, locale));
   };
@@ -2754,8 +2771,14 @@ export function PassiveTreeCanvas() {
               jumpDrawerNodes.map((node) => {
                 const allocated = allocatedTreeSet.has(node.id);
                 const isHighlighted = highlightedNodeId === node.id;
-                const firstStat = node.stats[0]
-                  ? localizeStatLine(node.stats[0], locale)
+                const rawFirstStat =
+                  locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0
+                    ? node.statsZh[0]!
+                    : node.stats[0];
+                const firstStat = rawFirstStat
+                  ? /[\u4e00-\u9fff]/.test(rawFirstStat) && locale === 'zh-CN'
+                    ? rawFirstStat
+                    : localizeStatLine(rawFirstStat, locale)
                   : locale === 'zh-CN'
                     ? '未提供词缀'
                     : 'No stat text';
