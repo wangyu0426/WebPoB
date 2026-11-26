@@ -388,19 +388,19 @@ export function ItemsTab() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+    <div className="h-full overflow-y-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
       {/* Left: Equipment Slots */}
       <div className="lg:col-span-5 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-amber-200">{t(locale, 'items.title')}</h2>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => setGearSummaryOpen(true)}
               title={locale === 'zh-CN' ? '查看装备汇总与市集搜索' : 'View gear stat totals & trade search'}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-200 cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-200 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Layers className="w-3 h-3" />
+              <Layers className="w-3 h-3 shrink-0" />
               {locale === 'zh-CN' ? '装备汇总' : 'Gear Totals'}
               <span className="font-mono text-[10px] text-emerald-300">
                 {equippedCount}/{trackedSlots.length}
@@ -427,9 +427,9 @@ export function ItemsTab() {
                 )
               }
               title={locale === 'zh-CN' ? '复制当前配装为新方案' : 'Clone current loadout as new Item Set'}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-[#161c2b] hover:bg-[#1e263a] border border-[#2a3147] text-amber-200 cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-[#161c2b] hover:bg-[#1e263a] border border-[#2a3147] text-amber-200 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Copy className="w-3 h-3" />
+              <Copy className="w-3 h-3 shrink-0" />
               {locale === 'zh-CN' ? '新方案' : 'Clone'}
             </button>
             {itemSets.length > 1 && (

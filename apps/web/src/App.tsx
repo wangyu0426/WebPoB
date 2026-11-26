@@ -182,8 +182,16 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const mobileDps = Math.round(calc.offence.fullDps ?? calc.offence.totalDps);
+  const compactMobileDps =
+    mobileDps >= 1_000_000
+      ? `${(mobileDps / 1_000_000).toFixed(1)}M`
+      : mobileDps >= 1_000
+        ? `${(mobileDps / 1_000).toFixed(1)}k`
+        : String(mobileDps);
+
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0b0d12] text-zinc-100 overflow-hidden">
+    <div className="h-[100dvh] w-screen flex flex-col bg-[#0b0d12] text-zinc-100 overflow-hidden">
       <TopBar onOpenCommandPalette={() => openCommandPalette('command')} />
 
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
@@ -195,11 +203,11 @@ export function App() {
         {/* Mobile slide-over stats drawer */}
         {mobileStatsOpen && (
           <div className="fixed inset-0 z-50 md:hidden flex">
-            <div className="relative z-10 h-full shadow-2xl">
+            <div className="relative z-10 h-full max-w-[88vw] shadow-2xl">
               <button
                 type="button"
                 onClick={() => setMobileStatsOpen(false)}
-                className="absolute top-2 right-2 z-20 p-1 rounded bg-[#181e2f] border border-[#2d354d] text-zinc-300 cursor-pointer"
+                className="absolute top-2 right-2 z-20 p-1.5 rounded bg-[#181e2f] border border-[#2d354d] text-zinc-300 cursor-pointer"
                 aria-label="Close stats drawer"
               >
                 <X className="w-4 h-4" />
@@ -215,14 +223,15 @@ export function App() {
 
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* PoB Navigation Tab Strip */}
-          <nav className="h-10 shrink-0 border-b border-[#232838] bg-[#10131c] px-3 flex items-center gap-1 overflow-x-auto select-none">
+          <nav className="h-10 shrink-0 border-b border-[#232838] bg-[#10131c] px-2 md:px-3 flex items-center gap-1 overflow-x-auto select-none">
             <button
               type="button"
               onClick={() => setMobileStatsOpen(true)}
-              className="md:hidden flex items-center gap-1.5 px-2.5 py-1 mr-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-mono font-semibold shrink-0 cursor-pointer"
+              className="md:hidden flex items-center gap-1 px-2 py-1 mr-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-semibold shrink-0 cursor-pointer whitespace-nowrap"
             >
-              <Activity className="w-3.5 h-3.5" />
-              <span>{Math.round(calc.offence.fullDps ?? calc.offence.totalDps).toLocaleString()}</span>
+              <Activity className="w-3.5 h-3.5 shrink-0" />
+              <span>{locale === 'zh-CN' ? '面板' : 'Stats'}</span>
+              <span className="font-mono text-[11px] text-amber-300/90">· {compactMobileDps}</span>
             </button>
             {NAV_TABS.map(({ id, labelKey, icon: Icon }) => {
               const active = activeTab === id;
@@ -231,13 +240,13 @@ export function App() {
                   key={id}
                   type="button"
                   onClick={() => setActiveTab(id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t text-xs font-semibold transition border-b-2 cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-t text-xs font-semibold transition border-b-2 cursor-pointer whitespace-nowrap shrink-0 ${
                     active
                       ? 'border-amber-400 text-amber-200 bg-[#171c29]'
                       : 'border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-[#141824]'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
                   {t(locale, labelKey)}
                 </button>
               );
@@ -247,7 +256,7 @@ export function App() {
           {/* Active Workspace View */}
           <div className="flex-1 min-h-0 overflow-hidden relative bg-[#0b0d12]">
             {hashToast && (
-              <div className="absolute top-3 right-3 z-50 rounded-md bg-emerald-950/90 border border-emerald-500/50 px-3 py-1.5 text-xs text-emerald-200 shadow-lg">
+              <div className="absolute top-12 right-2 md:top-3 md:right-3 z-50 rounded-md bg-emerald-950/90 border border-emerald-500/50 px-3 py-1.5 text-xs text-emerald-200 shadow-lg pointer-events-none">
                 {locale === 'zh-CN' ? `已从分享链接加载：${hashToast}` : `Loaded shared build: ${hashToast}`}
               </div>
             )}

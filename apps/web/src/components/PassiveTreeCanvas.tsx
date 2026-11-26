@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Scan,
   Search,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   X,
@@ -139,10 +140,12 @@ export function PassiveTreeCanvas() {
   const [allocatedCopied, setAllocatedCopied] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState<number | null>(null);
   const [compareSpecIdx, setCompareSpecIdx] = useState<number | null>(null);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [artManifest, setArtManifest] = useState<AscendancyArtManifest | null>(null);
   const [artTick, setArtTick] = useState(0);
   const cameraAnimRef = useRef<number | null>(null);
   const prevAscRef = useRef<string>(build.ascendancyId);
+  const lastAutoFrameKeyRef = useRef<string>('');
 
   useEffect(() => {
     let alive = true;
@@ -678,11 +681,62 @@ export function PassiveTreeCanvas() {
     );
   }, [ascendancyCenter, isOfficialFull, animateCamera]);
 
-  // Auto-center whenever game or official tree loads
+  // Auto-center whenever game, build, or official tree loads.
+  // On mobile (< 768px), auto-frame all allocated passives so imported builds are immediately readable.
+  const hasAllocatedNodes =
+    build.tree.allocatedNodeIds.length > 1 ||
+    (build.game === 'poe2' &&
+      (build.tree.weaponSet1NodeIds.length > 0 || build.tree.weaponSet2NodeIds.length > 0));
+
   useEffect(() => {
+    const frameKey = `${build.id}:${build.game}:${treeRevision}:${hasAllocatedNodes ? 'alloc' : 'empty'}`;
+    if (lastAutoFrameKeyRef.current === frameKey) return;
+    lastAutoFrameKeyRef.current = frameKey;
+
+    const container = containerRef.current;
+    const isMobileViewport = Boolean(
+      (container && container.clientWidth > 0 && container.clientWidth < 768) ||
+        (typeof window !== 'undefined' && window.innerWidth < 768),
+    );
+    if (isMobileViewport && hasAllocatedNodes) {
+      const allocatedIds = new Set<number>([
+        ...build.tree.allocatedNodeIds,
+        ...(build.game === 'poe2'
+          ? [...build.tree.weaponSet1NodeIds, ...build.tree.weaponSet2NodeIds]
+          : []),
+      ]);
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      let count = 0;
+      for (const id of allocatedIds) {
+        const node = visibleNodeMap.get(id) ?? tree.nodes[id];
+        if (!node) continue;
+        minX = Math.min(minX, node.x);
+        maxX = Math.max(maxX, node.x);
+        minY = Math.min(minY, node.y);
+        maxY = Math.max(maxY, node.y);
+        count++;
+      }
+      if (count > 0) {
+        const w = container?.clientWidth || window.innerWidth || 390;
+        const h = container?.clientHeight || Math.max(400, window.innerHeight - 100);
+        const padWorld = isOfficialFull ? 640 : 160;
+        const spanX = Math.max(isOfficialFull ? 700 : 260, maxX - minX + padWorld * 2);
+        const spanY = Math.max(isOfficialFull ? 700 : 260, maxY - minY + padWorld * 2);
+        const minZoom = isOfficialFull ? 0.025 : 0.3;
+        const maxZoom = isOfficialFull ? 0.75 : 2.2;
+        const zoom = Math.max(minZoom, Math.min(maxZoom, Math.min(w / spanX, h / spanY)));
+        const midX = (minX + maxX) / 2;
+        const midY = (minY + maxY) / 2;
+        setCamera({ x: -midX * zoom, y: -midY * zoom, zoom });
+        return;
+      }
+    }
     centerOnBuild();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [build.game, treeRevision]);
+  }, [build.id, build.game, treeRevision, hasAllocatedNodes]);
 
   // Smoothly pan to the Ascendancy medallion whenever the user switches Ascendancy
   useEffect(() => {
@@ -1494,7 +1548,7 @@ export function PassiveTreeCanvas() {
         isHovered ||
         isJumpHighlighted ||
         isSearchHit ||
-        node.kind === 'start' ||
+        (node.kind === 'start' && (isShared || !isOfficialFull || camera.zoom >= 0.085)) ||
         (node.kind === 'keystone' && showKeystoneLabels) ||
         (node.kind === 'notable' && showNotableLabels) ||
         (node.kind === 'small' && showSmallLabels);
@@ -1900,8 +1954,269 @@ export function PassiveTreeCanvas() {
         className="w-full h-full block touch-none cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top Overlay Controls */}
-      <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      {/* Mobile Compact Top Overlay (< md) */}
+      <div className="flex md:hidden flex-col gap-1.5 absolute top-2 left-2 right-2 z-20 pointer-events-none">
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchIdx(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') jumpToSearchMatch(searchIdx + 1);
+              }}
+              placeholder={t(locale, 'tree.searchPlaceholder')}
+              className="pob-input rounded-md pl-8 pr-8 py-1.5 text-xs w-full shadow-lg"
+            />
+            {searchQuery.trim() && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-300 font-mono">
+                {matchedSearchList.length}
+              </span>
+            )}
+          </div>
+          {matchedSearchList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => jumpToSearchMatch(searchIdx + 1)}
+              className="p-1.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 cursor-pointer shrink-0"
+              title="Jump to next match"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={fitAllocated}
+            title={locale === 'zh-CN' ? '框选已点天赋' : 'Fit Allocated'}
+            className="flex items-center gap-1 px-2 py-1.5 rounded bg-cyan-500/15 border border-cyan-500/45 text-xs font-semibold text-cyan-200 cursor-pointer shrink-0 whitespace-nowrap"
+          >
+            <Scan className="w-3.5 h-3.5" />
+            <span>{locale === 'zh-CN' ? '框选' : 'Fit'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileToolsOpen((v) => !v)}
+            className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs font-semibold cursor-pointer shrink-0 whitespace-nowrap transition ${
+              mobileToolsOpen
+                ? 'bg-amber-500/25 border-amber-400/50 text-amber-200'
+                : 'bg-[#141824]/92 border-[#2a3147] text-zinc-200'
+            }`}
+            aria-expanded={mobileToolsOpen}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>{locale === 'zh-CN' ? '工具' : 'Tools'}</span>
+          </button>
+        </div>
+
+        {mobileToolsOpen && (
+          <div className="pointer-events-auto rounded-lg bg-[#0e121c]/95 border border-[#2a3147] p-2.5 shadow-2xl space-y-2 text-xs">
+            {build.game === 'poe2' && (
+              <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-[#20263a]">
+                <span className="text-[11px] text-zinc-400 shrink-0">{t(locale, 'tree.paintMode')}</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTreePaintMode('shared')}
+                    className={`px-2 py-1 rounded text-[11px] font-medium cursor-pointer ${
+                      treePaintMode === 'shared'
+                        ? 'bg-amber-500/25 text-amber-200 border border-amber-500/40'
+                        : 'text-zinc-400 bg-[#141824] border border-transparent'
+                    }`}
+                  >
+                    {t(locale, 'tree.paintShared')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTreePaintMode('set1')}
+                    className={`px-2 py-1 rounded text-[11px] font-medium cursor-pointer ${
+                      treePaintMode === 'set1'
+                        ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/40'
+                        : 'text-zinc-400 bg-[#141824] border border-transparent'
+                    }`}
+                  >
+                    Set I
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTreePaintMode('set2')}
+                    className={`px-2 py-1 rounded text-[11px] font-medium cursor-pointer ${
+                      treePaintMode === 'set2'
+                        ? 'bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/40'
+                        : 'text-zinc-400 bg-[#141824] border border-transparent'
+                    }`}
+                  >
+                    Set II
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-1.5">
+              {ascendancyCenter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    focusAscendancy();
+                    setMobileToolsOpen(false);
+                  }}
+                  className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-200 cursor-pointer whitespace-nowrap"
+                >
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>{locale === 'zh-CN' ? `升华 ${calc.ascendancyPoints ?? 0}/8` : `Asc ${calc.ascendancyPoints ?? 0}/8`}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  centerOnBuild();
+                  setMobileToolsOpen(false);
+                }}
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
+              >
+                <Crosshair className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '定位BD' : 'Focus'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  fitWholeTree();
+                  setMobileToolsOpen(false);
+                }}
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
+              >
+                <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '全景' : 'Fit All'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHeatmapEnabled((v) => {
+                    const next = !v;
+                    if (next) {
+                      setJumpDrawerOpen(false);
+                      setAllocatedDrawerOpen(false);
+                      setPowerDrawerOpen(true);
+                    }
+                    return next;
+                  });
+                  setMobileToolsOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded border cursor-pointer whitespace-nowrap ${
+                  heatmapEnabled
+                    ? 'bg-orange-500/25 border-orange-400/60 text-orange-200'
+                    : 'bg-[#141824] border-[#2a3147] text-zinc-200'
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '热力图' : 'Power'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setJumpDrawerOpen((open) => {
+                    const next = !open;
+                    if (next) {
+                      setPowerDrawerOpen(false);
+                      setAllocatedDrawerOpen(false);
+                    }
+                    return next;
+                  });
+                  setMobileToolsOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded border cursor-pointer whitespace-nowrap ${
+                  jumpDrawerOpen
+                    ? 'bg-cyan-500/25 border-cyan-400/60 text-cyan-200'
+                    : 'bg-[#141824] border-[#2a3147] text-zinc-200'
+                }`}
+              >
+                <Gem className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '基石/槽' : 'Keystones'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAllocatedDrawerOpen((open) => {
+                    const next = !open;
+                    if (next) {
+                      setPowerDrawerOpen(false);
+                      setJumpDrawerOpen(false);
+                    }
+                    return next;
+                  });
+                  setMobileToolsOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded border cursor-pointer whitespace-nowrap ${
+                  allocatedDrawerOpen
+                    ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200'
+                    : 'bg-[#141824] border-[#2a3147] text-zinc-200'
+                }`}
+              >
+                <ListTree className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '已点总览' : 'Allocated'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCamera((c) => ({ ...c, zoom: Math.min(isOfficialFull ? 0.75 : 2.2, c.zoom * 1.25) }))
+                }
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
+              >
+                <ZoomIn className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '放大' : 'Zoom +'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCamera((c) => ({ ...c, zoom: Math.max(isOfficialFull ? 0.025 : 0.3, c.zoom * 0.8) }))
+                }
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
+              >
+                <ZoomOut className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '缩小' : 'Zoom -'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  exportTreePng();
+                  setMobileToolsOpen(false);
+                }}
+                className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-sky-500/35 text-sky-300 cursor-pointer whitespace-nowrap"
+              >
+                <Camera className="w-3.5 h-3.5 shrink-0" />
+                <span>{locale === 'zh-CN' ? '导出PNG' : 'PNG'}</span>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-[#20263a]">
+              <span className="text-[10px] font-mono text-zinc-500">
+                {dataLoading
+                  ? locale === 'zh-CN'
+                    ? '加载官方天赋树中...'
+                    : 'Loading official tree...'
+                  : `v${tree.version} · ${visibleNodes.length.toLocaleString()} nodes`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  resetPassiveTree();
+                  setMobileToolsOpen(false);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#141824] border border-rose-500/30 text-[11px] text-rose-300 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                {t(locale, 'tree.resetTree')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Top Overlay Controls (md+) */}
+      <div className="hidden md:flex absolute top-3 left-3 right-3 flex-wrap items-center justify-between gap-2 pointer-events-none">
         {/* Bilingual Search with Jump-to-Match */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
           <div className="relative">
@@ -2166,14 +2481,15 @@ export function PassiveTreeCanvas() {
       </div>
 
       {/* Bottom-Right Multi-Spec Tree Switcher & Visual Diff Bar */}
-      <div className="absolute bottom-3 right-3 z-10 pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-md bg-[#0e121c]/92 border border-[#2a3147] px-2.5 py-1.5 shadow-xl text-xs">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+      <div className="absolute bottom-2 left-2 right-2 md:left-auto md:bottom-3 md:right-3 z-10 pointer-events-auto flex items-center gap-1.5 rounded-md bg-[#0e121c]/92 border border-[#2a3147] px-2 md:px-2.5 py-1.5 shadow-xl text-xs">
+        <span className="hidden sm:inline text-[10px] uppercase tracking-wider text-zinc-400 font-semibold shrink-0">
           {locale === 'zh-CN' ? '天赋方案' : 'Spec'}
         </span>
         <select
           value={activeTreeSpecIdx}
           onChange={(e) => switchTreeSpec(Number(e.target.value))}
-          className="pob-input rounded px-2 py-0.5 text-xs max-w-[140px]"
+          className="pob-input rounded px-1.5 md:px-2 py-0.5 text-xs min-w-0 flex-1 md:flex-none md:max-w-[140px]"
+          aria-label={locale === 'zh-CN' ? '天赋方案' : 'Tree Spec'}
         >
           {treeSpecs.map((spec, idx) => (
             <option key={`${spec.title}_${idx}`} value={idx}>
@@ -2190,7 +2506,7 @@ export function PassiveTreeCanvas() {
             )
           }
           title={locale === 'zh-CN' ? '复制当前天赋树为新方案' : 'Clone active tree into a new Spec'}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#161c2b] hover:bg-[#1e263a] border border-[#2e364f] text-[11px] text-amber-200 cursor-pointer"
+          className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#161c2b] hover:bg-[#1e263a] border border-[#2e364f] text-[11px] text-amber-200 cursor-pointer shrink-0"
         >
           <Copy className="w-3 h-3" />
           {locale === 'zh-CN' ? '新方案' : 'Clone'}
@@ -2204,18 +2520,18 @@ export function PassiveTreeCanvas() {
                 setCompareSpecIdx(null);
               }}
               title={locale === 'zh-CN' ? '删除当前天赋方案' : 'Delete active Tree Spec'}
-              className="p-1 rounded text-zinc-400 hover:text-rose-400 border border-[#2e364f] cursor-pointer"
+              className="hidden sm:inline-block p-1 rounded text-zinc-400 hover:text-rose-400 border border-[#2e364f] cursor-pointer shrink-0"
             >
               <Trash2 className="w-3 h-3" />
             </button>
-            <span className="h-4 w-px bg-[#2a3147] mx-0.5" />
-            <GitCompare className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="h-4 w-px bg-[#2a3147] mx-0.5 shrink-0" />
+            <GitCompare className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <select
               value={compareSpecIdx === null ? '' : String(compareSpecIdx)}
               onChange={(e) =>
                 setCompareSpecIdx(e.target.value === '' ? null : Number(e.target.value))
               }
-              className="pob-input rounded px-2 py-0.5 text-xs max-w-[130px]"
+              className="pob-input rounded px-1.5 md:px-2 py-0.5 text-xs min-w-0 flex-1 md:flex-none max-w-[130px]"
               title={locale === 'zh-CN' ? '叠加高亮对比另一套天赋方案的增减节点' : 'Highlight node diff against another Spec'}
             >
               <option value="">{locale === 'zh-CN' ? '对比差异: 关闭' : 'Diff: Off'}</option>
@@ -2228,7 +2544,7 @@ export function PassiveTreeCanvas() {
               )}
             </select>
             {compareSpecIdx !== null && compareSpecIdx !== activeTreeSpecIdx && (
-              <span className="font-mono text-[11px] flex items-center gap-1.5 pl-0.5">
+              <span className="font-mono text-[11px] flex items-center gap-1 pl-0.5 shrink-0">
                 <span className="text-emerald-400 font-semibold">+{diffAddedSet.size}</span>
                 <span className="text-rose-400 font-semibold">-{diffRemovedSet.size}</span>
               </span>
@@ -2239,7 +2555,7 @@ export function PassiveTreeCanvas() {
 
       {/* Floating Top Power Nodes Efficiency Drawer (when Heatmap is active) */}
       {heatmapEnabled && !jumpDrawerOpen && !allocatedDrawerOpen && (
-        <div className="absolute top-16 right-3 z-20 w-72 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-orange-500/40 shadow-2xl overflow-hidden pointer-events-auto">
+        <div className="absolute top-14 md:top-16 right-2 md:right-3 z-20 w-[calc(100%-1rem)] sm:w-72 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-orange-500/40 shadow-2xl overflow-hidden pointer-events-auto">
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-orange-300">
               <Flame className="w-3.5 h-3.5" />
@@ -2366,7 +2682,7 @@ export function PassiveTreeCanvas() {
 
       {/* Floating Keystone / Jewel Socket / Allocated Notable Quick-Jump Drawer */}
       {jumpDrawerOpen && (
-        <div className="absolute top-16 right-3 z-20 w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-cyan-500/40 shadow-2xl overflow-hidden pointer-events-auto">
+        <div className="absolute top-14 md:top-16 right-2 md:right-3 z-20 w-[calc(100%-1rem)] sm:w-80 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-cyan-500/40 shadow-2xl overflow-hidden pointer-events-auto">
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Gem className="w-3.5 h-3.5" />
@@ -2491,7 +2807,7 @@ export function PassiveTreeCanvas() {
 
       {/* Floating Allocated Passives Summary Drawer */}
       {allocatedDrawerOpen && (
-        <div className="absolute top-16 right-3 z-20 w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-emerald-500/40 shadow-2xl overflow-hidden pointer-events-auto">
+        <div className="absolute top-14 md:top-16 right-2 md:right-3 z-20 w-[calc(100%-1rem)] sm:w-80 max-h-[calc(100%-5.5rem)] flex flex-col rounded-lg bg-[#0e121c]/95 border border-emerald-500/40 shadow-2xl overflow-hidden pointer-events-auto">
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
               <ListTree className="w-3.5 h-3.5" />
