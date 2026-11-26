@@ -686,13 +686,15 @@ async function cmdDeploy(flags) {
   }
 
   if (!skipTests) {
-    console.log('\nRunning typecheck, tests and build…');
+    console.log('\nRunning typecheck and tests…');
     runInherit('pnpm', ['typecheck']);
     runInherit('pnpm', ['test']);
-    runInherit('pnpm', ['build']);
-  } else {
-    runInherit('pnpm', ['build']);
   }
+
+  // Capture current live production deployment BEFORE deploying so --auto-rollback restores it exactly.
+  const prevProdDeploymentId = !preview
+    ? listDeployments().find((d) => /^prod/i.test(d.environment))?.id || null
+    : null;
 
   if (shouldVersion) {
     updatePackageVersion(path.join(REPO_ROOT, 'package.json'), nextVersion);
@@ -705,6 +707,10 @@ async function cmdDeploy(flags) {
     runInherit('git', ['tag', '-a', tag, '-m', `release ${tag}`]);
     console.log(`  ✓ tagged ${tag}`);
   }
+
+  // Build AFTER version bump/tag so dist/version.json & __APP_VERSION__ stamp the exact release version & SHA.
+  console.log('\nBuilding production bundle…');
+  runInherit('pnpm', ['build']);
 
   if (!fs.existsSync(DIST_DIR)) throw new Error(`missing build output at ${DIST_DIR} (run pnpm build)`);
 
@@ -725,17 +731,25 @@ async function cmdDeploy(flags) {
 
   const smokeBase = preview ? previewUrl : PROD_URL;
   const sha = gitOut(['rev-parse', '--short', 'HEAD']);
-  const smoke = await runSmoke({ baseUrl: smokeBase, expectVersion: preview ? undefined : nextVersion, expectSha: undefined });
+  let smoke = await runSmoke({ baseUrl: smokeBase, expectVersion: preview ? undefined : nextVersion, expectSha: undefined });
+  if (!smoke.ok) {
+    // Allow 2.5s for Cloudflare Pages edge route propagation before retrying once.
+    await new Promise((r) => setTimeout(r, 2500));
+    smoke = await runSmoke({ baseUrl: smokeBase, expectVersion: preview ? undefined : nextVersion, expectSha: undefined });
+  }
   printSmoke(smoke);
 
   if (!smoke.ok && !preview && autoRollback) {
     console.log('\n  ⚠ prod smoke failed — auto-rollback to previous healthy release…');
-    await cmdRollback([], { prev: true });
+    await cmdRollback(prevProdDeploymentId ? [prevProdDeploymentId] : [], prevProdDeploymentId ? {} : { prev: true });
+    return 1;
   }
 
   const state = loadReleaseState();
   if (shouldVersion || preview) {
-    for (const r of state.releases) if (/active$/i.test(String(r.status || ''))) r.status = 'previous';
+    if (smoke.ok && !preview) {
+      for (const r of state.releases) if (/active$/i.test(String(r.status || ''))) r.status = 'previous';
+    }
     state.releases.unshift({
       version: nextVersion,
       tag: shouldVersion ? tag : '',
@@ -744,7 +758,7 @@ async function cmdDeploy(flags) {
       previewUrl,
       branch,
       notes: notes || (preview ? 'preview deploy' : `release ${tag}`),
-      status: preview ? 'preview' : 'active',
+      status: preview ? 'preview' : smoke.ok ? 'active' : 'smoke-failed',
       deployedAt: new Date().toISOString(),
     });
     saveReleaseState(state);
