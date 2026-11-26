@@ -1,18 +1,63 @@
-# WebPoB
+<div align="center">
 
-**简体中文** | [English](./README.md)
+# WebPoB（网页版 PoB）
 
-[Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding) 的开源纯 TypeScript Web 移植版，从零架构，**同时支持《流放之路 1》(PoE 1) 与《流放之路 2》(PoE 2)**，提供原生**中英文双语**体验。
+**永久免费开源、免安装、浏览器直开的《流放之路 1 & 2》纯前端 Path of Building 查看与构筑工具。**
 
-## 项目目标与核心特性
+**简体中文** · [English](./README.md)
 
-- **纯 TypeScript 实现**：计算引擎（`ModDB`、`ModParser`、`CalcOffence`、`CalcDefence`）、PoB 分享码编解码器、天赋树图算法与前端界面全部使用强类型 TypeScript 编写，无原生依赖。
-- **PoE 1 & PoE 2 双版本原生兼容**：共享核心计算框架，通过游戏规则集（`GameRuleset`）精准隔离两代机制差异（如 PoE 1 的装备孔位连线 / 药剂 / 法术压制 vs. PoE 2 的武器组独立天赋 / 精魂保留 / 独立技能宝石槽 / 护符）。
-- **全量中英文双语（EN / ZH-CN）**：
-  - 界面、职业、天赋节点、技能宝石、装备、词缀一键切换中英文。
-  - **双语装备与词缀解析器**：直接支持在游戏内按 `Ctrl+C` 复制的**国服中文装备文本**或**国际服英文装备文本**，自动归一化为统一词缀参与计算。
-- **纯前端静态优先 + 可选轻量代理**：所有计算在浏览器本地完成，可直接部署至 Cloudflare Pages / GitHub Pages；附带极简 Cloudflare Worker 代理模板，用于解决拉取 `pobb.in` / `pastebin` / GGG 角色接口的跨域问题。
-- **开源协议（MIT）**：与原版 Path of Building 保持一致的 MIT 开源协议，欢迎社区共建。
+[![在线主站](https://img.shields.io/badge/在线主站-webpob.pages.dev-e5be6d?style=for-the-badge&logo=cloudflarepages&logoColor=111)](https://webpob.pages.dev/?lang=zh)
+[![PoE2 示例](https://img.shields.io/badge/PoE2_一键体验-Lv.99_神谕者彗星落-38bdf8?style=for-the-badge)](https://webpob.pages.dev/?lang=zh&import=https://pobb.in/Xii_bN-QbdZn)
+[![开源协议](https://img.shields.io/badge/License-MIT-4ade80?style=for-the-badge)](./LICENSE)
+[![基准测试](https://img.shields.io/badge/原版PoB差分基准-131_组全绿_(174_测试)-818cf8?style=for-the-badge)](#原版-path-of-building-自动化差分验证)
+
+</div>
+
+<p align="center">
+  <img src="./docs/images/webpob-poe2-diff-zh.jpg" alt="WebPoB PoE 2 全中文天赋树与多套方案差异高亮对比" width="100%" />
+</p>
+
+## 在线体验与一键直开
+
+- **在线主站（自动识别浏览器中/英文）：** https://webpob.pages.dev/
+- **PoE 2 示例 BD 一键直开（Lv.99 神谕者暴击施放彗星落 · 内含 12 套过渡/终局天赋）：** https://webpob.pages.dev/?lang=zh&import=https://pobb.in/Xii_bN-QbdZn
+- **攻略作者 / 群友分享技巧：** 把任意 `pobb.in` 或 `poe.ninja` 链接拼在 `?import=` 后面发给好友，在手机、iPad、Mac 或电脑浏览器点开即可看全中文天赋树、装备与技能：
+
+```text
+https://webpob.pages.dev/?import=https://pobb.in/你的BD短码
+https://webpob.pages.dev/?lang=zh&import=https://poe.ninja/poe2/pob/你的短码
+```
+
+---
+
+## 核心特性
+
+| 模块 | 亮点说明 |
+|---|---|
+| **PoE 1 & PoE 2 双端支持** | 同步支持 **流放之路 1（`3.30` · 2,750 天赋点）** 与 **流放之路 2（`0.5` · 4,524 天赋点 · 全 8/8 职业）**，精准隔离两代机制差异 |
+| **主流链接一键导入** | 直接粘贴 `pobb.in` 链接、`poe.ninja`（PoE1/PoE2）链接、PoB 导出码（`Base64URL+zlib`）、XML 文件或国际服/国服角色导入 |
+| **60fps 交互式天赋树** | 支持手机双指捏合缩放、最短路径点选、PoE 2 **武器组 I / II** 独立天赋涂色、升华子天赋树、星团珠宝画布子图与 Web Worker **节点收益热力图** |
+| **多套天赋差异对比（Tree Diff）** | 开荒到终局多套方案切换时，画布直接以 **翠绿（新增） / 玫红虚线（移除）** 高亮差异节点，抄作业一目了然 |
+| **原生中英文双语** | 根据浏览器语言自动切换中/英文（支持 `?lang=zh` / `?lang=en`），内置 PoeCharm 双语词库与**国服中文/国际服英文 `Ctrl+C` 装备解析器** |
+| **纯前端离线友好** | 零登录、无广告，支持 **PWA 离线缓存**、**IndexedDB 本地多 BD 库**（可 JSON 备份/恢复）、`#pob=` 分享码、高清 PNG/Markdown 构筑卡片导出、命令面板（`Ctrl/Cmd+K`）与 40 步撤销/重做 |
+
+<p align="center">
+  <img src="./docs/images/webpob-poe2-en.jpg" alt="WebPoB English UI for Path of Exile 2" width="100%" />
+  <br />
+  <sub>内置原生中/英一键切换，方便同步查看国际服词缀与海外 BD。</sub>
+</p>
+
+---
+
+## 原版 Path of Building 自动化差分验证
+
+WebPoB 的纯 TypeScript 计算引擎（`@webpob/calc`）通过本地 LuaJIT 直接驱动上游原版 [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding)（PoE 1 `3.30`）与 [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)（PoE 2 `0.5`）的 `HeadlessWrapper.lua`，持续进行自动化差分回归测试：
+
+- **131 组官方黄金基准快照**（`fixtures/oracle/snapshots.json`）+ **174/174 Vitest 单元测试** 固化在 CI 中。
+- 全部基准 **Hit DPS 与 Full DPS 误差 `<= 0.5%`**，覆盖 **PoE 2 `0.5` 全 8/8 官方职业**、精魂保留、大法师、双武器组天赋、多辅助宝石联结，以及 PoE 1 `3.30` 核心终局机制（完整元素转化链、光环/诅咒效果、怒火与启蒙保留、众神殿、偷取速率、防卫技能、护体、结界、法术压制、双持与穿刺、CoC、陷阱/地雷、召唤物、多技能 Full DPS、星团/永恒珠宝及主流升华）。
+- **坦诚说明**：WebPoB 目前非常适合在手机/Mac/浏览器快速看 BD、对比多套过渡天赋和分享直开链接；桌面原版 PoB 中极冷门的特殊技能交互仍在持续补齐。如果遇到某个 BD 导入异常或数值偏差，欢迎直接提 Issue 附上 `pobb.in` 链接！
+
+---
 
 ## 仓库结构
 
@@ -21,42 +66,29 @@ WebPoB/
 ├── packages/
 │   ├── core/        # @webpob/core  - 共享领域模型（Build/Tree/Skill/Item/Mod/CalcOutput/GameRuleset）
 │   ├── i18n/        # @webpob/i18n  - 中英文界面文案、游戏术语双语词库、中文词缀归一化引擎
-│   ├── data/        # @webpob/data  - PoE 1 & PoE 2 规则集、职业升华、天赋树数据、技能/装备库与示例 BD
-│   ├── codec/       # @webpob/codec - 官方 PoB 分享码编解码（Base64URL+zlib XML）与中/英文装备文本解析器
-│   └── calc/        # @webpob/calc  - 纯 TS 计算引擎（ModDB、双语 ModParser、攻防计算、天赋节点收益预测）
+│   ├── data/        # @webpob/data  - PoE 1 & PoE 2 规则集、职业升华、天赋树、技能/基底/暗金库与模板
+│   ├── codec/       # @webpob/codec - 官方 PoB 分享码编解码（Base64URL+zlib XML）与中/英文装备解析器
+│   └── calc/        # @webpob/calc  - 纯 TS 计算引擎（ModDB、双语 ModParser、攻防计算、节点收益）
 ├── apps/
-│   ├── web/         # @webpob/web   - React + Vite + Tailwind 前端应用、60fps 天赋树、Web Worker 热力图与 IndexedDB BD 库
-│   └── cors-proxy/  # 可选 Cloudflare Worker 轻量 CORS 代理
+│   ├── web/         # @webpob/web   - React + Vite + Tailwind 前端应用、60fps 天赋树、Pages /api/proxy
+│   └── cors-proxy/  # 可选独立 Cloudflare Worker CORS 代理（含边缘缓存）
 ├── fixtures/
-│   └── oracle/      # 官方 LuaJIT PathOfBuilding 黄金基准快照（130 组 PoE 1 3.30 & PoE 2 0.5 差分测试）
+│   └── oracle/      # 官方 LuaJIT PathOfBuilding 黄金基准快照（131 组 PoE 1 & PoE 2 差分测试）
 └── scripts/
     ├── sync-data/   # 上游 PathOfBuilding 与 PoeCharm 汉化同步脚本 + LuaJIT 全量技能/基底导出器
     └── oracle-diff/ # 对照原版 PathOfBuilding LuaJIT 的自动化差分验证框架
 ```
 
-## 原版 Path of Building 自动化差分验证（Oracle）
-
-WebPoB 的纯 TypeScript 计算引擎通过本地 LuaJIT 直接驱动上游原版 [PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding)（PoE 1 `3.30`）与 [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)（PoE 2 `0.5`）的 `HeadlessWrapper.lua`，达成 **130 组官方黄金基准快照**并固化在 CI 回归测试（`packages/calc/src/oracle.test.ts`）中：
-
-- 覆盖属性、生命、魔力、能量护盾、**结界（Ward）**、护甲、闪避、**攻击格挡与法术格挡（暴风之盾 `Tempest Shield`）**、**法术压制**、**护体（Fortify）**、**防卫技能（熔岩护盾 / 钢铁之肤 / 奥术斗篷）**、**PoE 1 众神殿（日耀/月影/沙卡丽/格鲁斯寇/图克哈玛/绝望之母）与生命/护盾偷取速率**、**能量球缩放（每暴击/狂怒/耐力球）与属性堆叠（每 N 点力/敏/智）**、**额外物理伤害减免与 3.30 耐力球机制**、**非诅咒光环效果（`AuraEffect`）与诅咒效果（`CurseEffect`）缩放**、**完整元素伤害转化链（`物理 → 闪电 → 冰霜 → 火焰 → 混沌`）**、**四元素净化光环（元素/火/冰/雷净化 +4% 抗性上限）**、**`所有元素抗性上限 +N%`**、**圣宗升华（`思想圣殿` 20% 魔力转额外护盾、`神圣指引` 魔力转伤、`信念之力` +4 最小暴击/耐力球）**、**秘术家升华（`虚无信标` -20% 冰/混抗、`亵渎之花`）**、**冠军升华（`鼓舞人心` 35% 光环效果、`可敬的对手` 嘲讽 +15% 承伤与必中）**、**判官升华（`必然审判` + `正义神佑`）**、**狂战士升华（`屠戮之相` + `嗜血渴望`）**、**勇士升华（`坚不可摧 Unbreakable` 胸甲护甲翻倍 + 护甲作用于元素击中）**、**诈欺师升华（`逃脱大师 Escape Artist` + `博学 Polymath`）**、**处刑者升华（`压倒性优势` 8% 基础武器暴击）**、**基础暴击率固定加成（`+N% to Critical Strike Chance`）**、**死灵师升华（`无脑侵袭`）**、**钢铁意志 / 钢铁之握（`Iron Will` / `Iron Grip`）**、**异能魔力（`Eldritch Battery`）**、**混沌穿透、敌人致盲（`-20%` 敌人命中）与敌人嘲讽（`conditionEnemyTaunted`）**、双玉戒指双抗、PoE 1 & PoE 2 命中与二次暴击检定、**暴击与非暴击物理护甲独立减伤**、**PoE 2 `ArmourRatio = 10`**、**怒火（Rage）**、**启蒙辅助（Enlighten）与精确魔力保留**、**PoB 多 `<Spec>` / 多 `<ItemSet>` / 多 `<SkillSet>` XML 完整对齐**、**PoE 2 `0.5` 多辅助宝石联结**、**技能宝石等级/品质加成引擎**、**PoB 原生 `Full DPS` 多技能/多实体汇总**、**陷阱/地雷/冷却速率**、**武器原生元素基础伤害（2,706 官方基底）**、**异常状态独立基础伤害**、**盗贼任务**、**双持与穿刺**、**CoC**、**永恒珠宝与星团珠宝（308 核心天赋）**、**PoE 2 `0.5` 大法师精魂保留（含非引导限制）、猛攻（`buffOnslaught`）与双武器组天赋切换**，并达成 **PoE 2 `0.5` 全部 8/8 官方职业 100% 覆盖**。
-- **全部 130 组官方基准 Hit DPS 与 Full DPS 误差控制在 `<= 0.5%`（166/166 单元测试全绿）**。
-
-## 已完成核心功能
-
-- **官方全量数据**：PoE 1 `3.30`（2,750 天赋点）& PoE 2 `0.5`（4,524 天赋点）+ **1,794 颗 Lv.1–30 官方技能宝石精确分级曲线** + **2,706 种官方装备基底（含先祖结界与原生元素武器）** + **1,731 件中英文官方传奇暗金库** + **308 个官方星团珠宝核心天赋（301 条中文）** + PoeCharm 双语汉化。
-- **60fps 交互式天赋树、已点汇总/基石抽屉、多套方案差异高亮、升华、珠宝、星团子图与触控适配**：支持视口裁剪、弧线轨道、**已点天赋汇总抽屉（含总属性统计与一键复制）与悬停单点效率（`+X%/pt`）**、**基石/珠宝槽/已点大点快捷搜索定位抽屉与「框选已点」智能视野聚焦**、**多套天赋树方案（Tree Specs）切换与画布增减节点（`+` 翠绿 / `-` 玫红虚线）差异高亮叠加**、**一键导出高清天赋树 PNG 大图**、**手机/平板单指拖拽与双指捏合缩放**、PoE 1 专精弹窗、**升华子天赋树独立点选与聚焦**、**星团珠宝画布可视化子图与永恒珠宝快速镶嵌**、**PoE 2 武器组独立天赋涂色与非激活分支视觉暗化**、**Web Worker 后台热力图 + 高收益天赋大点排行抽屉**。
-- **Web 原生构筑工具链**：**全局命令面板（`Ctrl/Cmd+K`）与快捷键速查表（`?`）**、**全局 40 步撤销 / 重做（`Ctrl/Cmd+Z` & `Ctrl/Cmd+Y`）**、**装备页「已穿装备属性汇总抽屉 + 智能集市升级搜索构建器（PoE 1 国际/国服 & PoE 2）」+「左右对比与词缀快速编辑弹窗」+ 一键全开/全关药剂 + 多套配装方案 + 暗金升级推荐 + 稀有制作台**、**技能页「实时每组 DPS / Full DPS 占比条 + 一键 20/20 宝石预设」+ 多套技能方案 + 智能辅助宝石推荐**、**配置页「PoE 1 众神殿主/次神 + 敌人嘲讽/致盲 + 防卫技能 + 终局增益」**、**导入/导出页「6 套 PoE 1 & PoE 2 经典开荒/终局模板库」+ PoB XML 源码折叠查看器**、**笔记页「PoB 色标（`^xRRGGBB`）安全渲染 + 编辑/预览/分屏模式 + 快捷模板」**、**计算明细页「伤害构成彩色比例条」+「防御与减伤全景仪表盘」+「宝石/等级成长曲线」+「What-If 情景模拟」**、**侧边栏「生命/护盾偷取速率 + 魔力/精魂保留进度条 + 一键复制一行战绩 + 构筑体检诊断」**、**IndexedDB 本地多 BD 库（支持 JSON 备份/恢复）**、**一键导出高清 PNG 构筑卡片 / Markdown 摘要 / `#pob=` 分享链接** 与 **离线 PWA 缓存**。
-
-## 快速开始
+## 本地开发与部署
 
 ```bash
-# 1. 安装依赖
+# 1. 安装依赖（Node.js 20+ & pnpm）
 pnpm install
 
 # 2. 启动本地开发服务器
 pnpm dev
 
-# 3. 运行单元测试、官方 PoB 差分回归测试与类型检查
+# 3. 运行单元测试、原版 PoB 差分测试与类型检查
 pnpm test
 pnpm typecheck
 
@@ -69,6 +101,31 @@ pnpm sync:lua
 pnpm oracle:diff
 ```
 
-## 开源协议
+### 部署到 Cloudflare Pages
 
-基于 [MIT License](./LICENSE) 开源。致敬 [PathOfBuildingCommunity/PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding) 与所有 PoE 中文汉化社区贡献者。
+项目为纯静态架构，内置 `apps/web/functions/api/proxy.ts` 边缘缓存代理，构建后在 `apps/web` 目录部署即可：
+
+```bash
+pnpm build
+cd apps/web && npx wrangler pages deploy dist --project-name webpob
+```
+
+---
+
+## 完整迭代记录
+
+<details>
+<summary><strong>点击展开 Phase 1–20 与性能优化完整里程碑</strong></summary>
+
+- **性能优化与体验升级**：`/api/proxy` 接入 Cloudflare 边缘缓存、首屏两阶段按需加载（优先 `tree + gems`，按需加载 `bases/uniques/clusters`）、消除 `?import=` 双重数据拉取、PoE 2 升华美术 WebP/渐进式 JPEG 压缩、秒出深色加载骨架、Service Worker v3 立即注册、新增 `poe.ninja/poe1/pob/` 支持与自动识别浏览器语言（`?lang=en` / `?lang=zh`）。
+- **官方全量数据（Phase 1–12）**：PoE 1 `3.30`（2,750 节点）& PoE 2 `0.5`（4,524 节点）+ 1,794 颗 Lv.1–30 技能曲线 + 2,706 种装备基底 + 1,731 件中英文官方暗金 + 308 个星团珠宝核心天赋 + PoeCharm 双语词库。
+- **高级天赋树与交互（Phase 4–19）**：视口裁剪 60fps 画布、已点天赋汇总抽屉与悬停单点效率（`+X%/pt`）、基石/插槽快捷搜索抽屉与「框选已点」、多套天赋差异高亮叠加、一键导出高清树图 PNG、手机单指拖拽与双指捏合缩放、升华子天赋树、星团画布子图、PoE 2 武器组涂色、Web Worker 热力图与高收益大点排行。
+- **Web 原生构筑工具链（Phase 6–20）**：全局命令面板（`Ctrl/Cmd+K`）与快捷键表（`?`）、40 步全局撤销/重做、装备属性汇总抽屉 + 智能集市升级搜索构建器 + 左右对比弹窗 + 多套配装 + 暗金升级推荐 + 稀有制作台、技能组实时 DPS/Full DPS 占比条 + 20/20 预设 + 辅助宝石推荐、众神殿/防卫技能/终局配置、6 套经典开荒/终局模板 + XML 源码查看器、PoB 色标笔记编辑器、伤害构成条 + 防御全景面板 + 成长曲线 + What-If 模拟、构筑健康体检诊断、IndexedDB 本地多 BD 库与 JSON 备份。
+
+</details>
+
+## 反馈与开源协议
+
+本人非常喜欢《流放之路》极高的 BD 自由度，后续也会持续维护和开发更多流放之路相关的开源免费工具。欢迎提交 Issue（附带 `pobb.in` 链接或导出码最方便复现）、翻译修正或 Pull Request，详见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
+基于 [MIT License](./LICENSE) 开源。致敬 [PathOfBuildingCommunity/PathOfBuilding](https://github.com/PathOfBuildingCommunity/PathOfBuilding)、[PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2) 及所有 PoE 开源与中文汉化社区贡献者。
