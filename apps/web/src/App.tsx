@@ -11,7 +11,13 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { decodePobCodeToXml, fetchRemoteBuildCode, importBuildFromCode } from '@webpob/codec';
+import {
+  decodePobCodeToXml,
+  fetchRemoteBuildCode,
+  fetchWeGamePoe2Build,
+  importBuildFromCode,
+  isWeGamePoe2ShareUrl,
+} from '@webpob/codec';
 import { t, type MessageKey } from '@webpob/i18n';
 import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
 import { TopBar } from './components/TopBar';
@@ -118,11 +124,30 @@ export function App() {
     let cancelled = false;
     const loadFromUrl = async () => {
       const params = new URLSearchParams(window.location.search);
-      const importUrl = params.get('import')?.trim();
+      const rawImportParam = params.get('import')?.trim() ?? '';
+      // Handle unencoded WeGame hash URLs (?import=https://www.wegame.com.cn/helper/poe2/#/share/...)
+      const importUrl =
+        rawImportParam &&
+        /wegame\.com\.cn\/helper\/poe2\/?$/i.test(rawImportParam) &&
+        window.location.hash.startsWith('#/share/')
+          ? `${rawImportParam}${window.location.hash}`
+          : rawImportParam;
       if (importUrl) {
         try {
-          const proxy = useWebPobStore.getState().corsProxyUrl;
-          const code = await fetchRemoteBuildCode(importUrl, proxy);
+          const proxy =
+            useWebPobStore.getState().corsProxyUrl || `${window.location.origin}/api/proxy`;
+          if (isWeGamePoe2ShareUrl(importUrl)) {
+            pendingUrlImportRef.current = false;
+            await ensureOfficialDataLoaded('poe2');
+            if (cancelled) return;
+            const imported = await fetchWeGamePoe2Build(importUrl, proxy);
+            if (cancelled) return;
+            replaceBuild(imported);
+            setHashToast(imported.name);
+            setTimeout(() => setHashToast(null), 4500);
+            return;
+          }
+          const code = await fetchRemoteBuildCode(importUrl, useWebPobStore.getState().corsProxyUrl);
           if (cancelled || !code) return;
           const xml = code.startsWith('<') ? code : decodePobCodeToXml(code);
           const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';

@@ -19,7 +19,9 @@ import {
   encodeBuildToPobCode,
   fetchCharacterProfileBuild,
   fetchRemoteBuildCode,
+  fetchWeGamePoe2Build,
   importBuildFromCode,
+  isWeGamePoe2ShareUrl,
   parseCharacterJsonToBuild,
   type PoeRealm,
 } from '@webpob/codec';
@@ -1139,11 +1141,32 @@ export function ImportExportTab() {
     setLoading(true);
     setMessage(null);
     try {
+      const effectiveProxy =
+        corsProxyUrl.trim() ||
+        (typeof window !== 'undefined' ? `${window.location.origin}/api/proxy` : '');
+      if (isWeGamePoe2ShareUrl(raw)) {
+        await ensureOfficialDataLoaded('poe2');
+        const imported = await fetchWeGamePoe2Build(raw, effectiveProxy);
+        replaceBuild(imported);
+        setMessage({
+          ok: true,
+          text:
+            locale === 'zh-CN'
+              ? `已导入 WeGame 国服角色：${imported.name}（${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备 / ${imported.skills.length} 组技能）`
+              : `Imported WeGame PoE 2 build: ${imported.name} (${imported.tree.allocatedNodeIds.length} passives / ${Object.keys(imported.equipped).length} items / ${imported.skills.length} skill groups)`,
+        });
+        setImportInput('');
+        return;
+      }
+
       let code = raw;
       if (/^https?:\/\//i.test(raw)) {
         code = await fetchRemoteBuildCode(raw, corsProxyUrl);
       }
       const { build: imported } = importBuildFromCode(code);
+      if (imported.game !== build.game) {
+        await ensureOfficialDataLoaded(imported.game);
+      }
       replaceBuild(imported);
       setMessage({ ok: true, text: `${t(locale, 'import.success')} (${imported.name})` });
       setImportInput('');
@@ -1201,10 +1224,17 @@ export function ImportExportTab() {
 
       {/* Import Code / URL */}
       <div className="pob-panel rounded-lg p-4 space-y-3">
-        <h3 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-          <Download className="w-4 h-4" />
-          {t(locale, 'import.importBtn')}
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+            <Download className="w-4 h-4" />
+            {t(locale, 'import.importBtn')}
+          </h3>
+          <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-200">
+            {locale === 'zh-CN'
+              ? '支持 PoB 码 · pobb.in · poe.ninja · WeGame 降临助手国服分享链接（免登录）'
+              : 'Supports PoB code · pobb.in · poe.ninja · WeGame PoE 2 CN share links'}
+          </span>
+        </div>
         <textarea
           rows={3}
           value={importInput}

@@ -45,30 +45,30 @@ const EN_ATTR_TO_ZH: Record<string, string> = {
 };
 
 const ZH_TO_EN_RULES: StatRewriteRule[] = [
-  // Flat Life / Mana / ES / Spirit
+  // Flat Life / Mana / ES / Spirit (supports both PoE 1 最大生命 and PoE 2 生命上限)
   {
-    zhPattern: /^(?:最大生命\s*\+?(\d+)|\+(\d+)\s*最大生命)$/,
+    zhPattern: /^(?:(?:最大生命|生命上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大生命|生命上限))$/,
     toEn: (_, a, b) => `+${a || b} to maximum Life`,
   },
   {
-    zhPattern: /^(?:最大魔力\s*\+?(\d+)|\+(\d+)\s*最大魔力)$/,
+    zhPattern: /^(?:(?:最大魔力|魔力上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大魔力|魔力上限))$/,
     toEn: (_, a, b) => `+${a || b} to maximum Mana`,
   },
   {
-    zhPattern: /^(?:最大能量护盾\s*\+?(\d+)|\+(\d+)\s*最大能量护盾)$/,
+    zhPattern: /^(?:(?:最大能量护盾|能量护盾上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大能量护盾|能量护盾上限))$/,
     toEn: (_, a, b) => `+${a || b} to maximum Energy Shield`,
   },
   {
-    zhPattern: /^(?:最大精魂\s*\+?(\d+)|\+(\d+)\s*(?:最大)?精魂|精魂\s*\+?(\d+))$/,
+    zhPattern: /^(?:(?:最大精魂|精魂上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大)?精魂|精魂\s*\+?(\d+))$/,
     toEn: (_, a, b, c) => `+${a || b || c} to Spirit`,
   },
   // Increased % Life / ES / Mana / Armour / Evasion
   {
-    zhPattern: /^最大生命(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^(?:最大生命|生命上限)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased maximum Life`,
   },
   {
-    zhPattern: /^最大能量护盾(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^(?:最大能量护盾|能量护盾上限)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased maximum Energy Shield`,
   },
   {
@@ -76,11 +76,11 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `${v}% increased Energy Shield`,
   },
   {
-    zhPattern: /^最大魔力(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^(?:最大魔力|魔力上限)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased maximum Mana`,
   },
   {
-    zhPattern: /^护甲(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^护甲值?(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased Armour`,
   },
   {
@@ -88,11 +88,11 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `${v}% increased Evasion Rating`,
   },
   {
-    zhPattern: /^\+(\d+)\s*护甲$/,
+    zhPattern: /^\+(\d+)\s*点?护甲值?$/,
     toEn: (_, v) => `+${v} to Armour`,
   },
   {
-    zhPattern: /^\+(\d+)\s*闪避值?$/,
+    zhPattern: /^\+(\d+)\s*点?闪避值?$/,
     toEn: (_, v) => `+${v} to Evasion Rating`,
   },
   // Attributes
@@ -218,6 +218,10 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `${v}% increased Critical Strike Chance`,
   },
   {
+    zhPattern: /^(?:全局)?暴击伤害加成(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `+${v}% to Global Critical Strike Multiplier`,
+  },
+  {
     zhPattern: /^(?:全局)?暴击伤害加成\s*\+?(\d+)%$/,
     toEn: (_, v) => `+${v}% to Global Critical Strike Multiplier`,
   },
@@ -227,7 +231,7 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
   },
   // Accuracy, Block, Spell Suppression, Regen, Penetration
   {
-    zhPattern: /^(?:命中值\s*\+?(\d+)|\+(\d+)\s*命中值)$/,
+    zhPattern: /^(?:命中值\s*\+?(\d+)|\+(\d+)\s*点?命中值)$/,
     toEn: (_, a, b) => `+${a || b} to Accuracy Rating`,
   },
   {
@@ -247,7 +251,7 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `Regenerate ${v}% of Life per second`,
   },
   {
-    zhPattern: /^伤害穿透\s*(\d+)%\s*(火焰|冰霜|冰冷|闪电|混沌|元素)抗性$/,
+    zhPattern: /^(?:伤害|该武器的攻击)穿透\s*(\d+)%\s*的?(火焰|冰霜|冰冷|闪电|混沌|元素)抗性$/,
     toEn: (_, v, el) => `Damage Penetrates ${v}% ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Resistance`,
   },
   {
@@ -690,6 +694,8 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
 export function normalizeStatLineToEn(rawLine: string): string {
   const cleaned = rawLine
     .trim()
+    .replace(/\[(?:[^|\]]+\|)?([^\]]+)\]/g, '$1')
+    .replace(/^羁绊[：:]\s*/g, '')
     .replace(/^\{[^}]+\}\s*/g, '')
     .replace(/\{[^}]+\}/g, '')
     .replace(/（[^）]*）/g, '')
