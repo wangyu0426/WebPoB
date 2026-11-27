@@ -517,6 +517,38 @@ const flagTrue = (v) => v === true || v === 'true' || v === '1' || v === '';
 
 /* ------------------------------ rollback ------------------------------ */
 
+function sanitizeMdCell(val) {
+  return String(val ?? '-').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim() || '-';
+}
+
+function appendDeployLogRow(logPath, { action, env, version, commit, deployment, result, note }) {
+  const header =
+    '# WebPoB 生产上线与回滚台账（Deploy & Rollback Log）\n\n' +
+    '| 时间 (UTC) | 操作 | 环境 | 版本 | Commit | Deployment | 冒烟结果 | 备注 / 原因 |\n' +
+    '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
+  let current = '';
+  if (fs.existsSync(logPath)) {
+    current = fs.readFileSync(logPath, 'utf8');
+  } else {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    current = header;
+  }
+  const row = `| ${new Date().toISOString()} | \`${sanitizeMdCell(action)}\` | ${sanitizeMdCell(env)} | \`${sanitizeMdCell(version)}\` | \`${sanitizeMdCell(commit)}\` | \`${sanitizeMdCell(deployment)}\` | ${sanitizeMdCell(result)} | ${sanitizeMdCell(note)} |`;
+  const lines = current.split('\n');
+  const sepIdx = lines.findIndex((l) => l.startsWith('| :---'));
+  if (sepIdx >= 0) {
+    lines.splice(sepIdx + 1, 0, row);
+    fs.writeFileSync(logPath, `${lines.join('\n').trimEnd()}\n`, 'utf8');
+  } else {
+    fs.writeFileSync(logPath, `${current.trimEnd()}\n${row}\n`, 'utf8');
+  }
+}
+
+function recordDeployLog(entry) {
+  const localLog = path.join(REPO_ROOT, 'docs/DEPLOY_LOG.md');
+  appendDeployLogRow(localLog, entry);
+}
+
 function setActiveRelease(state, deploymentId) {
   state.releases = state.releases.map((r) => {
     if (sameId(r.deploymentId, deploymentId)) return { ...r, status: 'active' };
@@ -591,9 +623,19 @@ async function cmdRollback(positional, flags) {
     const smoke = await runSmoke({ baseUrl: PROD_URL });
     printSmoke(smoke);
     if (!dryRun) {
-      state.rollbacks.unshift({ at: new Date().toISOString(), target: resolved.tag || resolved.version || resolved.commit, via: 'rebuild', smokeOk: smoke.ok });
+      const reason = typeof flags.reason === 'string' && flags.reason ? flags.reason : `rebuild rollback via ${result.gitRef}`;
+      state.rollbacks.unshift({ at: new Date().toISOString(), target: resolved.tag || resolved.version || resolved.commit, via: 'rebuild', reason, smokeOk: smoke.ok });
       setActiveRelease(state, resolved.deploymentId);
       saveReleaseState(state);
+      recordDeployLog({
+        action: flags._auto ? 'AUTO_ROLLBACK' : 'ROLLBACK',
+        env: 'Production',
+        version: resolved.tag || (resolved.version ? `v${resolved.version}` : '-'),
+        commit: resolved.commit || result.gitRef || '-',
+        deployment: `rebuild:${result.gitRef}`,
+        result: smoke.ok ? `Smoke ${smoke.checks.length}/${smoke.checks.length} PASS` : 'Smoke FAIL',
+        note: reason,
+      });
     }
     return smoke.ok ? 0 : 1;
   }
@@ -608,15 +650,28 @@ async function cmdRollback(positional, flags) {
 
   const smoke = await runSmoke({ baseUrl: PROD_URL });
   printSmoke(smoke);
+  const reason = typeof flags.reason === 'string' && flags.reason ? flags.reason : 'instant rollback';
   state.rollbacks.unshift({
     at: new Date().toISOString(),
     target: resolved.tag || resolved.version || String(resolved.deploymentId).slice(0, 8),
     deploymentId: resolved.deploymentId,
     via: 'instant',
+    reason,
     smokeOk: smoke.ok,
   });
   setActiveRelease(state, resolved.deploymentId);
   saveReleaseState(state);
+  recordDeployLog({
+    action: flags._auto ? 'AUTO_ROLLBACK' : 'ROLLBACK',
+    env: 'Production',
+    version: resolved.tag || (resolved.version ? `v${resolved.version}` : '-'),
+    commit: resolved.commit || '-',
+    deployment: resolved.previousTo
+      ? `${String(resolved.previousTo).slice(0, 8)} -> ${String(resolved.deploymentId).slice(0, 8)}`
+      : String(resolved.deploymentId).slice(0, 8),
+    result: smoke.ok ? `Smoke ${smoke.checks.length}/${smoke.checks.length} PASS` : 'Smoke FAIL',
+    note: reason,
+  });
   return smoke.ok ? 0 : 1;
 }
 
@@ -741,7 +796,12 @@ async function cmdDeploy(flags) {
 
   if (!smoke.ok && !preview && autoRollback) {
     console.log('\n  ⚠ prod smoke failed — auto-rollback to previous healthy release…');
-    await cmdRollback(prevProdDeploymentId ? [prevProdDeploymentId] : [], prevProdDeploymentId ? {} : { prev: true });
+    await cmdRollback(
+      prevProdDeploymentId ? [prevProdDeploymentId] : [],
+      prevProdDeploymentId
+        ? { _auto: true, reason: `auto-rollback: prod smoke failed for v${nextVersion}` }
+        : { prev: true, _auto: true, reason: `auto-rollback: prod smoke failed for v${nextVersion}` },
+    );
     return 1;
   }
 
@@ -762,6 +822,15 @@ async function cmdDeploy(flags) {
       deployedAt: new Date().toISOString(),
     });
     saveReleaseState(state);
+    recordDeployLog({
+      action: preview ? 'PREVIEW_DEPLOY' : 'PROD_DEPLOY',
+      env: preview ? 'Preview' : 'Production',
+      version: shouldVersion ? tag : `v${nextVersion}`,
+      commit: sha || '-',
+      deployment: deploymentId ? String(deploymentId).slice(0, 8) : shortHash,
+      result: smoke.ok ? `Smoke ${smoke.checks.length}/${smoke.checks.length} PASS` : 'Smoke FAIL',
+      note: notes || (preview ? `preview ${previewUrl}` : `release ${tag}`),
+    });
   }
   return smoke.ok ? 0 : 1;
 }
