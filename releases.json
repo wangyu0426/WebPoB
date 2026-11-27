@@ -4,6 +4,17 @@
   "prodUrl": "https://webpob.pages.dev",
   "releases": [
     {
+      "version": "0.2.3",
+      "tag": "v0.2.3",
+      "commit": "f1029ad",
+      "deploymentId": "5b0b74c2-7ca2-4327-ba01-009383e9d869",
+      "previewUrl": "https://5b0b74c2.webpob.pages.dev",
+      "branch": "main",
+      "notes": "技能页新增主动/辅助宝石中英文及标签实时搜索选择器，支持分类筛选与键盘快选",
+      "status": "active",
+      "deployedAt": "2026-11-27T10:45:39.225Z"
+    },
+    {
       "version": "0.2.2",
       "tag": "v0.2.2",
       "commit": "a04efa8",
@@ -11,7 +22,7 @@
       "previewUrl": "https://3c8d65b9.webpob.pages.dev",
       "branch": "main",
       "notes": "隐私脱敏加固、发布文档独立索引化与 Web Analytics 探针生效发布",
-      "status": "active",
+      "status": "previous",
       "deployedAt": "2026-11-27T09:19:08.544Z"
     },
     {
@@ -58,5 +69,5 @@
     }
   ],
   "rollbacks": [],
-  "updatedAt": "2026-11-27T09:19:08.544Z"
+  "updatedAt": "2026-11-27T10:45:39.225Z"
 }
