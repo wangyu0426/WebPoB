@@ -83,6 +83,13 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(evalMissingWard.metrics.find((m) => m.metric === 'Ward')?.status).toBe('missing');
     expect(evalMissingWard.corePassed).toBe(false);
 
+    const evalMissingImpale = evaluateSnapshot(firstRealSnapshot, build, {
+      ...out,
+      offence: { ...out.offence, impaleDps: undefined },
+    });
+    expect(evalMissingImpale.metrics.find((m) => m.metric === 'ImpaleDPS')?.status).toBe('missing');
+    expect(evalMissingImpale.corePassed).toBe(false);
+
     // 4. PoE 2 includeInFullDps group excluded by weaponSets -> FullDPS is not_applicable when oracle=0 and fullDps=undefined
     const inactiveWeaponSetBuild = {
       ...build,
