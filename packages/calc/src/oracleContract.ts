@@ -771,9 +771,8 @@ export function evaluateSnapshot(
   const coreMetrics = metrics.filter((m) => m.tier === 'core');
   const corePassed = context.valid && coreMetrics.length > 0 && coreMetrics.every((m) => !isFailing(m));
   const strictPassed = context.valid && metrics.length > 0 && metrics.every((m) => !isFailing(m));
-  const evaluatedNames = new Set(metrics.map((m) => m.metric));
-  const hasCanonicalCoverage = ORACLE_METRIC_SPECS.every((req) => evaluatedNames.has(req.metric));
-  const certified = strictPassed && hasCanonicalCoverage && context.provenance === 'v2_hardened';
+  const usesCanonicalSpecs = specs === ORACLE_METRIC_SPECS;
+  const certified = strictPassed && usesCanonicalSpecs && context.provenance === 'v2_hardened';
 
   return {
     id: snapshot.id,
