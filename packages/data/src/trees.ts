@@ -482,17 +482,22 @@ export function getAscendancyStartNodeId(
   if (!treeKey) return undefined;
 
   let fallbackCandidate: number | undefined;
+  let nameOnlyCandidate: number | undefined;
   for (const node of Object.values(tree.nodes)) {
-    if (!node.ascendancyId || node.ascendancyId.toLowerCase() !== treeKey) continue;
+    if (!node.ascendancyId) continue;
     const enLower = node.name.en.toLowerCase();
-    if (enLower === rawTarget || enLower === treeKey) {
-      return node.id;
-    }
-    if (fallbackCandidate === undefined && node.stats.length === 0 && node.adjacent.length >= 2) {
-      fallbackCandidate = node.id;
+    if (node.ascendancyId.toLowerCase() === treeKey) {
+      if (enLower === rawTarget || enLower === treeKey) {
+        return node.id;
+      }
+      if (fallbackCandidate === undefined && node.stats.length === 0 && node.adjacent.length >= 2) {
+        fallbackCandidate = node.id;
+      }
+    } else if (nameOnlyCandidate === undefined && (enLower === rawTarget || enLower === treeKey)) {
+      nameOnlyCandidate = node.id;
     }
   }
-  return fallbackCandidate;
+  return fallbackCandidate ?? nameOnlyCandidate;
 }
 
 /**
