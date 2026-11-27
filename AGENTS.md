@@ -12,7 +12,30 @@ This document is binding for all AI Agents (Codex, Claude, Antigravity, Orca Wor
 
 ---
 
-## 2. Mandatory Pre-Commit & Pre-Release Checks
+## 2. Mandatory Privacy, PII & Secret Leak Gate
+
+Because `WebPoB` is a **public open-source repository**, every AI Agent MUST enforce these privacy rules before every commit, tag, release, or push:
+
+1. **Verify Public Git Identity (No Local Username / Hostname / Personal Email)**:
+   ```bash
+   git var GIT_AUTHOR_IDENT
+   git var GIT_COMMITTER_IDENT
+   ```
+   Both MUST show a public maintainer or GitHub `noreply` identity (never a local OS username, `.local` hostname, or personal email). If misconfigured, set `git config --local user.name` and `git config --local user.email` before committing or tagging.
+2. **Zero-Tolerance Prohibited Content** (across source code, test fixtures, docs, commit messages, release `--notes`, and rollback `--reason`):
+   - Local filesystem paths (`/Users/...`, `/home/...`, `C:\Users\...`), machine hostnames (`.local`), or personal usernames/emails.
+   - Real cloud account IDs (e.g., 32-hex Cloudflare Account IDs), API tokens, OAuth tokens, cookies, `.env` / `.dev.vars` files, or private keys. Unit tests and docs MUST use synthetic placeholders (`00000000000000000000000000000001`, `11111111-...`, `example.test`).
+   - Private repository names, internal staging/ops URLs, or hardcoded local sibling paths (doc mirroring is strictly opt-in via `WEBPOB_RELEASE_MIRROR_DOCS_DIR`).
+   - Personal media exports, browser profile dumps, or unredacted screenshots containing private bookmarks/accounts.
+3. **Mandatory Staged-Diff Privacy Scan (Before Every Commit)**:
+   ```bash
+   git diff --cached | grep -nE '(/Users/|/home/|C:\\Users\\|\.local\b|dash\.cloudflare\.com/[0-9a-f]{32}|gh[pousr]_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|BEGIN .*PRIVATE KEY)' && echo "FAIL: privacy leak detected" && exit 1 || echo "PASS: privacy scan clean"
+   ```
+4. **Leak Response**: If any personal metadata or secret is ever committed to a public branch or tag, **stop immediately**, rotate any exposed credential first, scrub affected commits/tags cleanly, and re-verify `git log --all` before pushing.
+
+---
+
+## 3. Mandatory Pre-Commit & Pre-Release Checks
 
 Every code or data change MUST pass 100% before commit or release:
 ```bash
@@ -27,7 +50,7 @@ BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja
 
 ---
 
-## 3. Production Release & Rollback Rules
+## 4. Production Release & Rollback Rules
 
 1. **Staging First**: For major changes or data updates, follow the private maintainer runbook to deploy to staging and verify the gate reports `READY TO RELEASE` before promoting to production.
 2. **Never Deploy from Repo Root**: Never run `wrangler pages deploy apps/web/dist` from the repository root (it omits `apps/web/functions/api/proxy.ts` and breaks live `pobb.in`/`poe.ninja` imports).
@@ -45,7 +68,7 @@ BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja
 
 ---
 
-## 4. Deploy & Rollback Documentation Standard
+## 5. Deploy & Rollback Documentation Standard
 
 - **`docs/DEPLOY_LOG.md` is strictly an index table.** Every release (`PROD_DEPLOY` / `PREVIEW_DEPLOY`) and rollback (`ROLLBACK` / `AUTO_ROLLBACK`) MUST have its own standalone Markdown file under `docs/deploys/`, automatically created by `scripts/release.mjs` (and mirrored when `WEBPOB_RELEASE_MIRROR_DOCS_DIR` points to a docs directory with an existing `DEPLOY_LOG.md`).
 - **File naming convention**:
