@@ -198,6 +198,35 @@ function loadFixtures() {
       });
     }
   }
+
+  // Also load live CN PoE 1 & PoE 2 share-link E2E cases (poe.ninja / maxroll.gg / WeGame)
+  const cnLinksPath = path.join(FIXTURES_DIR, 'cn-share-links.json');
+  if (process.env.SKIP_LIVE_CN_E2E !== '1' && fs.existsSync(cnLinksPath)) {
+    const parsed = JSON.parse(fs.readFileSync(cnLinksPath, 'utf-8'));
+    if (!Array.isArray(parsed.builds)) {
+      throw new Error(`Fixture ${cnLinksPath} must contain a builds array`);
+    }
+    const seenIds = new Set(allBuilds.map((b) => b.id));
+    for (const entry of parsed.builds) {
+      for (const field of ['id', 'game', 'title', 'importUrl', 'className', 'ascendancyName']) {
+        if (typeof entry[field] !== 'string' || entry[field].trim().length === 0) {
+          throw new Error(`Fixture ${cnLinksPath}: build ${entry.id ?? '<no id>'} has invalid "${field}"`);
+        }
+      }
+      if (entry.game !== 'poe1' && entry.game !== 'poe2') {
+        throw new Error(`Fixture ${cnLinksPath}: build ${entry.id} has invalid game "${entry.game}"`);
+      }
+      if (seenIds.has(entry.id)) {
+        throw new Error(`Fixture ${cnLinksPath}: duplicate build id "${entry.id}"`);
+      }
+      seenIds.add(entry.id);
+      allBuilds.push({
+        ...entry,
+        league: 'CN',
+      });
+    }
+  }
+
   return allBuilds;
 }
 
@@ -423,13 +452,18 @@ async function verifyBuildInViewport(port, entry, viewport) {
     });
 
     const { expectedClassZh, expectedAscZh } = getExpectedZhNames(entry);
-    const targetUrl = `${BASE_URL}/?lang=zh-CN#pob=${entry.pobCode.trim()}`;
+    const targetUrl = entry.importUrl
+      ? entry.unencodedImport
+        ? `${BASE_URL}/?lang=zh-CN&import=${entry.importUrl.trim()}`
+        : `${BASE_URL}/?lang=zh-CN&import=${encodeURIComponent(entry.importUrl.trim())}`
+      : `${BASE_URL}/?lang=zh-CN#pob=${entry.pobCode.trim()}`;
 
     await cdp.send('Page.navigate', { url: targetUrl });
 
-    // Poll until React has mounted, switched to zh-CN, and finished importing the #pob build
+    // Poll until React has mounted, switched to zh-CN, and finished importing the build
     const startedAt = Date.now();
-    const deadline = startedAt + BUILD_TIMEOUT_MS;
+    const timeoutMs = entry.importUrl ? Math.max(BUILD_TIMEOUT_MS, 30_000) : BUILD_TIMEOUT_MS;
+    const deadline = startedAt + timeoutMs;
     let loadedSnapshot = null;
 
     while (Date.now() < deadline) {
@@ -504,7 +538,9 @@ async function verifyBuildInViewport(port, entry, viewport) {
     }
 
     if (!loadedSnapshot) {
-      issues.push(`Timed out (${BUILD_TIMEOUT_MS}ms) waiting for build to load from #pob URL`);
+      issues.push(
+        `Timed out (${timeoutMs}ms) waiting for build to load from ${entry.importUrl ? '?import URL' : '#pob URL'}`,
+      );
       return { passed: false, issues, pageErrors, consoleErrors };
     }
 

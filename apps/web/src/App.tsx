@@ -147,7 +147,7 @@ export function App() {
             setTimeout(() => setHashToast(null), 4500);
             return;
           }
-          const code = await fetchRemoteBuildCode(importUrl, useWebPobStore.getState().corsProxyUrl);
+          const code = await fetchRemoteBuildCode(importUrl, proxy);
           if (cancelled || !code) return;
           const xml = code.startsWith('<') ? code : decodePobCodeToXml(code);
           const game = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';

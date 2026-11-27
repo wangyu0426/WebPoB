@@ -1,0 +1,43 @@
+{
+  "collectedAt": "2026-11-27T11:30:00.000Z",
+  "description": "Public China-server (CN) PoE 1 & PoE 2 community share links verified end-to-end via /api/proxy and ?import= URL loading.",
+  "builds": [
+    {
+      "id": "cn-poe1-ninja-necromancer-spiders",
+      "game": "poe1",
+      "title": "CN PoE 1 Necromancer Spiders (poe.ninja)",
+      "importUrl": "https://poe.ninja/poe1/pob/9d4c8",
+      "className": "Witch",
+      "ascendancyName": "Necromancer",
+      "level": 94
+    },
+    {
+      "id": "cn-poe1-maxroll-elementalist-ignite",
+      "game": "poe1",
+      "title": "CN PoE 1 Elementalist Ignite (maxroll.gg)",
+      "importUrl": "https://maxroll.gg/poe/pob/6qq2m0gg",
+      "className": "Witch",
+      "ascendancyName": "Elementalist",
+      "level": 93
+    },
+    {
+      "id": "cn-poe2-wegame-spirit-walker",
+      "game": "poe2",
+      "title": "CN PoE 2 Huntress Spirit Walker (WeGame)",
+      "importUrl": "https://www.wegame.com.cn/helper/poe2/#/share/ekjF3m16PFU0A3qOG8PVbbh8JTYfP2YhEAs3gnEvSM8tO3bXmNUEWOvIeISeoJ53",
+      "unencodedImport": true,
+      "className": "Huntress",
+      "ascendancyName": "Spirit Walker",
+      "level": 96
+    },
+    {
+      "id": "cn-poe2-wegame-infernalist",
+      "game": "poe2",
+      "title": "CN PoE 2 Witch Infernalist (WeGame)",
+      "importUrl": "https://www.wegame.com.cn/helper/poe2/#/share/tTQBxug4aBR-pnf4ZaHqRb-yNE85rlIaiXeJfALO6oWFlinNUtUa011PN9ARHNfX",
+      "className": "Witch",
+      "ascendancyName": "Infernalist",
+      "level": 97
+    }
+  ]
+}

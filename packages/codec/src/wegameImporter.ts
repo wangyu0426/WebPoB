@@ -597,13 +597,37 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     });
   }
 
-  // Pick best non-aura active skill group (most linked supports first)
+  // Build normalized lookup of WeGame roleProfile top DPS skills (sorted descending)
+  const profileRankByNorm = new Map<string, number>();
+  const sortedProfileSkills = [...(bundle.roleProfile?.skills ?? [])]
+    .filter((s) => s.name && Number(s.total_dps) > 0)
+    .sort((a, b) => Number(b.total_dps) - Number(a.total_dps));
+  sortedProfileSkills.forEach((s, idx) => {
+    const norm = s.name!.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (norm && !profileRankByNorm.has(norm)) {
+      profileRankByNorm.set(norm, Math.max(10, 60 - idx * 15));
+    }
+  });
+
+  // Pick best non-aura active skill group (prefer WeGame top-DPS match & most linked supports)
   let mainSkillGroupId = skills[0]?.id ?? '';
   let bestScore = -1;
   for (const sg of skills) {
     const primaryDef = gemsCatalog.find((g) => g.id === sg.gems[0]?.gemId);
     const isAttackOrSpell = Boolean(primaryDef && primaryDef.category === 'active' && !primaryDef.isAuraOrBuff);
-    const score = (isAttackOrSpell ? 100 : 0) + sg.gems.length * 10;
+    let profileBonus = 0;
+    for (const gemInst of sg.gems) {
+      const def = gemsCatalog.find((g) => g.id === gemInst.gemId);
+      if (!def) continue;
+      const normEn = def.name.en.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const rank = profileRankByNorm.get(normEn);
+      if (rank) {
+        const weighted = gemInst === sg.gems[0] ? rank : Math.round(rank * 0.7);
+        if (weighted > profileBonus) profileBonus = weighted;
+      }
+    }
+    const isMinion = primaryDef?.tags.some((t) => t.toLowerCase() === 'minion') ?? false;
+    const score = (isAttackOrSpell ? 100 : 0) + (isMinion ? -15 : 0) + profileBonus + sg.gems.length * 10;
     if (score > bestScore) {
       bestScore = score;
       mainSkillGroupId = sg.id;
