@@ -768,9 +768,12 @@ export function evaluateSnapshot(
   const isFailing = (m: OracleMetricResult) =>
     m.status === 'mismatch' || m.status === 'missing' || m.status === 'invalid' || m.status === 'unsupported';
 
-  const corePassed = context.valid && metrics.filter((m) => m.tier === 'core').every((m) => !isFailing(m));
-  const strictPassed = context.valid && metrics.every((m) => !isFailing(m));
-  const certified = strictPassed && context.provenance === 'v2_hardened';
+  const coreMetrics = metrics.filter((m) => m.tier === 'core');
+  const corePassed = context.valid && coreMetrics.length > 0 && coreMetrics.every((m) => !isFailing(m));
+  const strictPassed = context.valid && metrics.length > 0 && metrics.every((m) => !isFailing(m));
+  const evaluatedNames = new Set(metrics.map((m) => m.metric));
+  const hasCanonicalCoverage = ORACLE_METRIC_SPECS.every((req) => evaluatedNames.has(req.metric));
+  const certified = strictPassed && hasCanonicalCoverage && context.provenance === 'v2_hardened';
 
   return {
     id: snapshot.id,

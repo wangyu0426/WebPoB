@@ -235,6 +235,12 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     );
     expect(v2Suite.strictPassed).toBe(true);
     expect(v2Suite.certified).toBe(true);
+
+    // Partial or empty custom specs list must never certify a snapshot
+    const partialEval = evaluateSnapshot(v2Perfect, build, out, []);
+    expect(partialEval.corePassed).toBe(false);
+    expect(partialEval.strictPassed).toBe(false);
+    expect(partialEval.certified).toBe(false);
   });
 
   it('CLI returns nonzero in --certify / --strict mode on failing or missing inputs, and 0 in diagnostic mode on baseline', () => {
