@@ -196,7 +196,13 @@ export interface OracleMetricSpec {
 }
 
 function hasAnyFullDpsSkill(build: Build): boolean {
-  return build.skills.some((group) => group.enabled && Boolean(group.includeInFullDps));
+  return build.skills.some((group) => {
+    if (!group.enabled || !group.includeInFullDps) return false;
+    if (group.weaponSets && group.weaponSets.length > 0 && !group.weaponSets.includes(build.activeWeaponSet)) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function normalizeOracleCritMulti(raw: OracleRawValue): OracleRawValue {

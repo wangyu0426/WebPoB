@@ -74,6 +74,21 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(wardMetric?.status).toBe('pass');
     expect(wardMetric?.oracle).toBe(0);
     expect(wardMetric?.actual).toBe(0);
+
+    // 4. PoE 2 includeInFullDps group excluded by weaponSets -> FullDPS is not_applicable when oracle=0 and fullDps=undefined
+    const inactiveWeaponSetBuild = {
+      ...build,
+      activeWeaponSet: 1 as const,
+      skills: build.skills.map((g, idx) =>
+        idx === 0 ? { ...g, includeInFullDps: true, weaponSets: [2 as const] } : g,
+      ),
+    };
+    const evalInactiveWeaponSet = evaluateSnapshot(
+      { ...firstRealSnapshot, oracle: { ...firstRealSnapshot.oracle, FullDPS: 0 } },
+      inactiveWeaponSetBuild,
+      { ...out, offence: { ...out.offence, fullDps: undefined } },
+    );
+    expect(evalInactiveWeaponSet.metrics.find((m) => m.metric === 'FullDPS')?.status).toBe('not_applicable');
   });
 
   it('rejects NaN, Infinity, -Infinity, and string non-finite sentinels as invalid', () => {
