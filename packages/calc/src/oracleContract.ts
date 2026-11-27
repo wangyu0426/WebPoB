@@ -514,7 +514,7 @@ export const ORACLE_METRIC_SPECS: readonly OracleMetricSpec[] = [
     isApplicable: ({ snapshot, build }) => {
       const parsed = parseOracleNumeric(snapshot.oracle.FullDPS);
       if (parsed.kind === 'invalid') return true;
-      if (parsed.kind === 'number' && parsed.value > 0) return true;
+      if (parsed.kind === 'number' && parsed.value !== 0) return true;
       return hasAnyFullDpsSkill(build);
     },
     getOracle: (o) => o.FullDPS,

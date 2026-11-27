@@ -119,6 +119,15 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
       { ...out, offence: { ...out.offence, fullDps: undefined } },
     );
     expect(evalInactiveWeaponSet.metrics.find((m) => m.metric === 'FullDPS')?.status).toBe('not_applicable');
+
+    // 5. Negative oracle FullDPS must NEVER be treated as not_applicable
+    const evalNegativeFullDps = evaluateSnapshot(
+      { ...firstRealSnapshot, oracle: { ...firstRealSnapshot.oracle, FullDPS: -100 } },
+      build,
+      { ...out, offence: { ...out.offence, fullDps: undefined } },
+    );
+    expect(evalNegativeFullDps.metrics.find((m) => m.metric === 'FullDPS')?.status).toBe('missing');
+    expect(evalNegativeFullDps.corePassed).toBe(false);
   });
 
   it('rejects NaN, Infinity, -Infinity, and string non-finite sentinels as invalid', () => {
