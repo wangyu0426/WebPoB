@@ -1,45 +1,107 @@
-# AGENTS.md — `WebPoB` 展示层 Agent 开发、测试与上线规范
+# AGENTS.md — `WebPoB` Display Layer Engineering, Testing & Release Standard
 
-本文件约束所有在 `WebPoB` 仓库工作的 AI Agent（Codex / Claude / Antigravity / Orca Workers）。完整的数据同步与预发布流水线见维护者手册。
-
----
-
-## 1. 仓库定位与基本原则
-
-- 本仓库为 **WebPoB 开源展示与计算层**（`apps/web`、`packages/{core,i18n,data,codec,calc}`、静态数据契约 `apps/web/public/data/manifest.json`、公开回归测试与发版脚本）。
-- **严禁**将私有凭证、内部运营脚本或未验证的半成品数据提交到本仓库。
-- **严禁**破坏历史版本天赋树兼容性（`apps/web/public/data/manifest.json` 必须保留既有历史树映射）。
+This document is binding for all AI Agents (Codex, Claude, Antigravity, Orca Workers) operating in the public `WebPoB` repository. Private data extraction, the QA staging gate, and internal operations are documented in the maintainer runbook.
 
 ---
 
-## 2. 提交与测试门禁（必须全部通过）
+## 1. Repository Scope & Core Rules
 
-任何改动提交或发版前必须执行并 100% 通过：
+- This repository is the **public open-source display & calculation layer** (`apps/web`, `packages/{core,i18n,data,codec,calc}`, static data contract `apps/web/public/data/manifest.json`, public regression suites, and release CLI).
+- **Never** commit private credentials, internal ops scripts, or unverified partial data into this repo.
+- **Never** break backward compatibility for historical passive trees (`apps/web/public/data/manifest.json` must preserve existing versioned tree mappings).
+
+---
+
+## 2. Mandatory Pre-Commit & Pre-Release Checks
+
+Every code or data change MUST pass 100% before commit or release:
 ```bash
 pnpm typecheck
-pnpm test      # 含单元测试 + 131 条 LuaJIT Oracle 对拍 + 39 条 poe.ninja 回归 + 27 条发版单测 + 23 条 manifest 契约单测
+pnpm test      # unit tests + 131 LuaJIT Oracle tests + 39 poe.ninja tests + 27 release tests + 23 manifest tests
 pnpm build
 ```
-涉及 UI、天赋树渲染、中文词库或编解码改动时，还应执行双端真实浏览器 E2E 回归：
+For changes touching UI, passive tree rendering, localization, or codec import/export, also run the dual-viewport real-browser E2E suite:
 ```bash
 BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja
 ```
 
 ---
 
-## 3. 正式上线与回滚铁律
+## 3. Production Release & Rollback Rules
 
-1. **先预发再生产**：重大改动或数据更新须按维护者手册部署到预发并通过 QA 门禁后再发生产。
-2. **禁止裸跑根目录 `wrangler`**：严禁从仓库根目录运行 `wrangler pages deploy apps/web/dist`（会遗漏 `apps/web/functions/api/proxy.ts` 导致线上 `pobb.in / poe.ninja` 导入全挂）。
-3. **统一走发版 CLI（带自动回滚）**：
+1. **Staging First**: For major changes or data updates, follow the private maintainer runbook to deploy to staging and verify the gate reports `READY TO RELEASE` before promoting to production.
+2. **Never Deploy from Repo Root**: Never run `wrangler pages deploy apps/web/dist` from the repository root (it omits `apps/web/functions/api/proxy.ts` and breaks live `pobb.in`/`poe.ninja` imports).
+3. **Always Use the Release CLI (with Auto-Rollback)**:
    ```bash
-   pnpm release:deploy -- --bump patch --notes "<本次上线说明>" --auto-rollback
+   pnpm release:deploy -- --bump patch --notes "<concise release notes>" --auto-rollback
    git push origin main --follow-tags
    ```
-4. **线上异常 10 秒止血回滚**：
+4. **Emergency Rollback (< 10s Mitigation)**:
    ```bash
-   pnpm release:rollback -- --prev --reason "<回滚原因>"
-   # 或指定版本 / 部署 ID：
-   pnpm release:rollback -- v0.2.0 --reason "<回滚原因>"
+   pnpm release:rollback -- --prev --reason "<concise incident reason>"
+   # Or target a specific version / deployment ID:
+   pnpm release:rollback -- v0.2.0 --reason "<concise incident reason>"
    ```
-5. **全量台账留档**：`pnpm release:deploy` 与 `pnpm release:rollback` 会自动更新 [releases.json](./releases.json) 和 [docs/DEPLOY_LOG.md](./docs/DEPLOY_LOG.md)。操作结束后务必提交并推送台账更新。
+
+---
+
+## 4. Deploy & Rollback Documentation Standard
+
+- **`docs/DEPLOY_LOG.md` is strictly an index table.** Every release (`PROD_DEPLOY` / `PREVIEW_DEPLOY`) and rollback (`ROLLBACK` / `AUTO_ROLLBACK`) MUST have its own standalone Markdown file under `docs/deploys/`, automatically created by `scripts/release.mjs`.
+- **File naming convention**:
+  - Production release: `docs/deploys/YYYY-MM-DD-HHMM-prod-vX.Y.Z.md`
+  - Preview deploy: `docs/deploys/YYYY-MM-DD-HHMM-preview-<version>.md`
+  - Manual rollback: `docs/deploys/YYYY-MM-DD-HHMM-rollback-vX.Y.Z.md`
+  - Auto rollback: `docs/deploys/YYYY-MM-DD-HHMM-auto-rollback-vX.Y.Z.md`
+- Always commit and push `releases.json`, `docs/DEPLOY_LOG.md`, and the newly generated `docs/deploys/*.md` file after any release or rollback.
+
+### Release Record Template (`PROD_DEPLOY`)
+
+````markdown
+# Production Release Record: v0.2.2
+
+- **Timestamp (UTC)**: 2026-11-27T08:30:00Z
+- **Action**: `PROD_DEPLOY`
+- **Environment**: Production (`https://webpob.pages.dev`)
+- **Version / Tag**: `v0.2.2`
+- **Commit**: `abc1234`
+- **Deployment**: `12345678` (`https://12345678.webpob.pages.dev`)
+- **Smoke Result**: Smoke 4/4 PASS
+
+## Summary
+
+- Concise summary of changes included in this release.
+
+## Smoke Check Details
+
+- `root-html`: HTTP 200 text/html
+- `version-json`: v0.2.2 (`sha=abc1234`)
+- `proxy-function`: HTTP 200 text/plain
+- `poe2-tree`: 4524 nodes
+
+## Rollback Command
+
+```bash
+pnpm release:rollback -- v0.2.1 --reason "<incident reason>"
+```
+````
+
+### Rollback Record Template (`ROLLBACK` / `AUTO_ROLLBACK`)
+
+```markdown
+# Rollback Record: Revert to v0.2.1
+
+- **Timestamp (UTC)**: 2026-11-27T09:15:00Z
+- **Action**: `ROLLBACK`
+- **Environment**: Production (`https://webpob.pages.dev`)
+- **Replaced Deployment**: `12345678`
+- **Restored Target**: `v0.2.1` (`e486295` / Deployment `e9312d4a`)
+- **Method**: `instant` (Cloudflare Pages Rollback API)
+- **Post-Rollback Smoke**: Smoke 4/4 PASS
+
+## Reason & Postmortem
+
+- **Trigger / Impact**: Concise incident summary.
+- **Root Cause**: Technical root cause or `TBD — under investigation`.
+- **Follow-up Fix**: Planned fix & verification steps before re-releasing.
+```

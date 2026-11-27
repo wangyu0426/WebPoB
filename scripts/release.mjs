@@ -521,19 +521,96 @@ function sanitizeMdCell(val) {
   return String(val ?? '-').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim() || '-';
 }
 
-function appendDeployLogRow(logPath, { action, env, version, commit, deployment, result, note }) {
-  const header =
-    '# WebPoB 生产上线与回滚台账（Deploy & Rollback Log）\n\n' +
-    '| 时间 (UTC) | 操作 | 环境 | 版本 | Commit | Deployment | 冒烟结果 | 备注 / 原因 |\n' +
-    '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
-  let current = '';
-  if (fs.existsSync(logPath)) {
-    current = fs.readFileSync(logPath, 'utf8');
-  } else {
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    current = header;
+function buildDeployRecordFileName(isoTimestamp, action, version) {
+  const ts = isoTimestamp.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}).*$/, '$1-$2$3');
+  const kindMap = {
+    PROD_DEPLOY: 'prod',
+    PREVIEW_DEPLOY: 'preview',
+    ROLLBACK: 'rollback',
+    AUTO_ROLLBACK: 'auto-rollback',
+    STAGING: 'staging',
+  };
+  const kind = kindMap[action] || String(action || 'deploy').toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  const slug = String(version || 'unknown').replace(/[^a-zA-Z0-9._-]+/g, '-');
+  return `${ts}-${kind}-${slug}.md`;
+}
+
+function renderDeployRecordMarkdown(entry) {
+  const isRollback = entry.action === 'ROLLBACK' || entry.action === 'AUTO_ROLLBACK';
+  const title = isRollback
+    ? `# ${entry.action === 'AUTO_ROLLBACK' ? 'Auto-Rollback' : 'Rollback'} Record: Revert to ${entry.version}`
+    : `# ${entry.env} Release Record: ${entry.version}`;
+  const smokeLines = Array.isArray(entry.smokeChecks) && entry.smokeChecks.length > 0
+    ? entry.smokeChecks.map((c) => `- \`${c.name}\`: ${c.ok ? 'PASS' : 'FAIL'} — ${c.detail}`).join('\n')
+    : `- ${entry.result}`;
+
+  if (isRollback) {
+    return [
+      title,
+      '',
+      `- **Timestamp (UTC)**: ${entry.at}`,
+      `- **Action**: \`${entry.action}\``,
+      `- **Environment**: ${entry.env} (${PROD_URL})`,
+      `- **Replaced Deployment**: \`${entry.replacedDeployment || '-'}\``,
+      `- **Restored Target**: \`${entry.version}\` (\`${entry.commit}\` / Deployment \`${entry.deployment}\`)`,
+      `- **Method**: \`${entry.method || 'instant'}\``,
+      `- **Post-Rollback Smoke**: ${entry.result}`,
+      '',
+      '## Reason & Postmortem',
+      '',
+      `- **Trigger / Impact**: ${entry.note || 'Manual rollback triggered.'}`,
+      '- **Root Cause**: TBD — update after investigation.',
+      '- **Follow-up Fix**: TBD — link fix commit/PR before re-releasing.',
+      '',
+      '## Smoke Check Details',
+      '',
+      smokeLines,
+      '',
+    ].join('\n');
   }
-  const row = `| ${new Date().toISOString()} | \`${sanitizeMdCell(action)}\` | ${sanitizeMdCell(env)} | \`${sanitizeMdCell(version)}\` | \`${sanitizeMdCell(commit)}\` | \`${sanitizeMdCell(deployment)}\` | ${sanitizeMdCell(result)} | ${sanitizeMdCell(note)} |`;
+
+  return [
+    title,
+    '',
+    `- **Timestamp (UTC)**: ${entry.at}`,
+    `- **Action**: \`${entry.action}\``,
+    `- **Environment**: ${entry.env} (${entry.previewUrl || PROD_URL})`,
+    `- **Version / Tag**: \`${entry.version}\``,
+    `- **Commit**: \`${entry.commit}\``,
+    `- **Deployment**: \`${entry.deployment}\`${entry.previewUrl ? ` (${entry.previewUrl})` : ''}`,
+    `- **Smoke Result**: ${entry.result}`,
+    '',
+    '## Summary',
+    '',
+    `- ${entry.note || `Release ${entry.version}`}`,
+    '',
+    '## Smoke Check Details',
+    '',
+    smokeLines,
+    '',
+    '## Rollback Command',
+    '',
+    '```bash',
+    'pnpm release:rollback -- --prev --reason "<incident reason>"',
+    '```',
+    '',
+  ].join('\n');
+}
+
+function writeDeployRecordAndIndex(docsDir, entry, fileName, recordMarkdown) {
+  const deploysDir = path.join(docsDir, 'deploys');
+  fs.mkdirSync(deploysDir, { recursive: true });
+  fs.writeFileSync(path.join(deploysDir, fileName), recordMarkdown, 'utf8');
+
+  const logPath = path.join(docsDir, 'DEPLOY_LOG.md');
+  const header =
+    '# WebPoB Deploy & Rollback Index\n\n' +
+    'This file is an **index only**. Individual records live under [`docs/deploys/`](./deploys/).\n\n' +
+    '| Timestamp (UTC) | Action | Env | Version | Commit | Deployment | Result | Record |\n' +
+    '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
+  const current = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : header;
+  const link = `[${fileName}](./deploys/${fileName})`;
+  const row = `| ${entry.at} | \`${sanitizeMdCell(entry.action)}\` | ${sanitizeMdCell(entry.env)} | \`${sanitizeMdCell(entry.version)}\` | \`${sanitizeMdCell(entry.commit)}\` | \`${sanitizeMdCell(entry.deployment)}\` | ${sanitizeMdCell(entry.result)} | ${link} |`;
   const lines = current.split('\n');
   const sepIdx = lines.findIndex((l) => l.startsWith('| :---'));
   if (sepIdx >= 0) {
@@ -544,9 +621,11 @@ function appendDeployLogRow(logPath, { action, env, version, commit, deployment,
   }
 }
 
-function recordDeployLog(entry) {
-  const localLog = path.join(REPO_ROOT, 'docs/DEPLOY_LOG.md');
-  appendDeployLogRow(localLog, entry);
+function recordDeployLog(rawEntry) {
+  const entry = { at: new Date().toISOString(), ...rawEntry };
+  const fileName = buildDeployRecordFileName(entry.at, entry.action, entry.version);
+  const recordMarkdown = renderDeployRecordMarkdown(entry);
+  writeDeployRecordAndIndex(path.join(REPO_ROOT, 'docs'), entry, fileName, recordMarkdown);
 }
 
 function setActiveRelease(state, deploymentId) {
@@ -633,7 +712,10 @@ async function cmdRollback(positional, flags) {
         version: resolved.tag || (resolved.version ? `v${resolved.version}` : '-'),
         commit: resolved.commit || result.gitRef || '-',
         deployment: `rebuild:${result.gitRef}`,
+        replacedDeployment: resolved.previousTo ? String(resolved.previousTo).slice(0, 8) : '-',
+        method: 'rebuild',
         result: smoke.ok ? `Smoke ${smoke.checks.length}/${smoke.checks.length} PASS` : 'Smoke FAIL',
+        smokeChecks: smoke.checks,
         note: reason,
       });
     }
@@ -669,7 +751,10 @@ async function cmdRollback(positional, flags) {
     deployment: resolved.previousTo
       ? `${String(resolved.previousTo).slice(0, 8)} -> ${String(resolved.deploymentId).slice(0, 8)}`
       : String(resolved.deploymentId).slice(0, 8),
+    replacedDeployment: resolved.previousTo ? String(resolved.previousTo).slice(0, 8) : '-',
+    method: 'instant',
     result: smoke.ok ? `Smoke ${smoke.checks.length}/${smoke.checks.length} PASS` : 'Smoke FAIL',
+    smokeChecks: smoke.checks,
     note: reason,
   });
   return smoke.ok ? 0 : 1;
@@ -828,7 +913,9 @@ async function cmdDeploy(flags) {
       version: shouldVersion ? tag : `v${nextVersion}`,
       commit: sha || '-',
       deployment: deploymentId ? String(deploymentId).slice(0, 8) : shortHash,
+      previewUrl,
       result: smoke.ok ? `Smoke ${smoke.checks.length}/${smoke.checks.length} PASS` : 'Smoke FAIL',
+      smokeChecks: smoke.checks,
       note: notes || (preview ? `preview ${previewUrl}` : `release ${tag}`),
     });
   }
