@@ -593,12 +593,14 @@ async function verifyBuildInViewport(port, entry, viewport) {
             const mobileHeaderBtn = header ? header.querySelector('.md\\\\:hidden button') : null;
             const mobileHeaderText = mobileHeaderBtn ? (mobileHeaderBtn.textContent || '').trim() : '';
             const state = typeof window.__WEBPOB_STATE__ === 'function' ? window.__WEBPOB_STATE__() : null;
+            const treeMetrics = window.__WEBPOB_TREE_METRICS__ || null;
             return {
               lang: document.documentElement?.lang || '',
               bodyText,
               selectedOptionTexts,
               mobileHeaderText,
               state,
+              treeMetrics,
               scrollWidth: document.documentElement?.scrollWidth ?? 0,
               clientWidth: document.documentElement?.clientWidth ?? 0,
               bodyScrollWidth: document.body ? document.body.scrollWidth : 0,
@@ -714,6 +716,17 @@ async function verifyBuildInViewport(port, entry, viewport) {
           if (typeof expectedVal === 'number' && resMap[el] !== expectedVal) {
             issues.push(`Expected ${el} resistance to be ${expectedVal}%, got ${resMap[el]}%`);
           }
+        }
+      }
+      // PoE 2 ascendancy medallion projection drift guard: every ascendancy node must sit inside the center medallion (r <= 1550)
+      if (entry.game === 'poe2' && entry.ascendancyName && entry.ascendancyName !== 'None') {
+        const tm = loadedSnapshot.treeMetrics;
+        if (!tm || tm.ascNodeCount <= 0) {
+          issues.push(`Expected PoE 2 ascendancy nodes to render in medallion, got ascNodeCount=${tm?.ascNodeCount ?? 0}`);
+        } else if (tm.ascMaxProjectedRadius > 1550) {
+          issues.push(
+            `PoE 2 ascendancy nodes drifted outside center medallion: maxRadius=${tm.ascMaxProjectedRadius} (expected <= 1550)`,
+          );
         }
       }
     }

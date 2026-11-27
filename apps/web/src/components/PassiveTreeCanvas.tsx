@@ -222,29 +222,51 @@ export function PassiveTreeCanvas() {
     [build.ascendancyId],
   );
 
-  // In PoE 2, project the active Ascendancy sub-tree directly into the center (0, 0) medallion (matching in-game PoE 2!)
+  // In PoE 2, project the active Ascendancy sub-tree directly into the center (0, 0) medallion (matching in-game PoE 2!).
+  // Derive the exact translation from live tree geometry: the ascendancy start hub anchors on the inner medallion rim
+  // (radius 1332) along the character class's radial direction — pixel-accurate across all GGG patch versions (0.5.0 / 0.5.2+).
   const ascOffset = useMemo(() => {
     if (build.game !== 'poe2' || !isOfficialFull || !ascTreeKey) {
       return { dx: 0, dy: 0 };
     }
-    const bgMeta = resolvePoe2AscBgMeta(artManifest, build.ascendancyId);
-    if (bgMeta) {
-      return { dx: -bgMeta.x, dy: -bgMeta.y };
+    const ascStartId = getAscendancyStartNodeId(tree, build.ascendancyId);
+    const ascStart = ascStartId !== undefined ? tree.nodes[ascStartId] : undefined;
+    const clsStartId = tree.classStartNodeIds[build.classId];
+    const clsStart = clsStartId !== undefined ? tree.nodes[clsStartId] : undefined;
+    if (ascStart && clsStart) {
+      const cr = Math.hypot(clsStart.x, clsStart.y);
+      if (cr > 1) {
+        const MEDALLION_RIM_RADIUS = 1332;
+        const targetX = (clsStart.x / cr) * MEDALLION_RIM_RADIUS;
+        const targetY = (clsStart.y / cr) * MEDALLION_RIM_RADIUS;
+        return { dx: targetX - ascStart.x, dy: targetY - ascStart.y };
+      }
     }
-    // Fallback centroid if manifest hasn't loaded yet
-    let sumX = 0;
-    let sumY = 0;
+
+    // Fallback: compute live ascendancy bounding-box center (only trust art manifest if within 2200 units of actual nodes)
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
     let count = 0;
     for (const n of Object.values(tree.nodes)) {
       if (n.ascendancyId && n.ascendancyId.toLowerCase() === ascTreeKey) {
-        sumX += n.x;
-        sumY += n.y;
+        if (n.x < minX) minX = n.x;
+        if (n.x > maxX) maxX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.y > maxY) maxY = n.y;
         count++;
       }
     }
     if (count === 0) return { dx: 0, dy: 0 };
-    return { dx: -sumX / count, dy: -sumY / count };
-  }, [build.game, build.ascendancyId, isOfficialFull, ascTreeKey, artManifest, tree.nodes]);
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const bgMeta = resolvePoe2AscBgMeta(artManifest, build.ascendancyId);
+    if (bgMeta && Math.hypot(cx - bgMeta.x, cy - bgMeta.y) < 2200) {
+      return { dx: -bgMeta.x, dy: -bgMeta.y };
+    }
+    return { dx: -cx, dy: -cy };
+  }, [build.game, build.classId, build.ascendancyId, isOfficialFull, ascTreeKey, artManifest, tree]);
 
   // Filter visible nodes: main passive tree + selected Ascendancy sub-tree (projected to center in PoE 2)
   const visibleNodes = useMemo(() => {
@@ -259,6 +281,27 @@ export function PassiveTreeCanvas() {
     }
     return out;
   }, [tree, ascTreeKey, ascOffset]);
+
+  // Expose live projected ascendancy geometry metrics for browser E2E drift detection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let ascNodeCount = 0;
+    let ascMaxProjectedRadius = 0;
+    for (const n of visibleNodes) {
+      if (n.ascendancyId) {
+        ascNodeCount++;
+        const r = Math.hypot(n.x, n.y);
+        if (r > ascMaxProjectedRadius) ascMaxProjectedRadius = r;
+      }
+    }
+    (window as unknown as Record<string, unknown>).__WEBPOB_TREE_METRICS__ = {
+      game: build.game,
+      ascendancyId: build.ascendancyId,
+      ascNodeCount,
+      ascMaxProjectedRadius: Math.round(ascMaxProjectedRadius),
+      ascOffset,
+    };
+  }, [build.game, build.ascendancyId, visibleNodes, ascOffset]);
 
   const visibleNodeMap = useMemo(() => {
     const map = new Map<number, PassiveNode>();
