@@ -60,6 +60,7 @@ export interface OracleContextCheckResult {
   valid: boolean;
   gameMatches: boolean;
   skillMatches: boolean;
+  outputSourceVerified: boolean;
   expectedSkillName: string | null;
   actualSkillName: string | null;
   provenance: 'v2_hardened' | 'legacy_unverified';
@@ -537,6 +538,11 @@ export function validateSnapshotCorpus(
     };
   }
 
+  const rootSchemaVersion = (payload as OracleSnapshotFile).schemaVersion;
+  if (rootSchemaVersion !== undefined && rootSchemaVersion !== 1 && rootSchemaVersion !== 2) {
+    errors.push(`Unsupported root schemaVersion "${String(rootSchemaVersion)}" (expected 1 or 2).`);
+  }
+
   const snapshots = (payload as OracleSnapshotFile).snapshots;
   const seen = new Set<string>();
 
@@ -571,8 +577,12 @@ export function validateSnapshotCorpus(
     if (!snap.oracle || typeof snap.oracle !== 'object' || Array.isArray(snap.oracle)) {
       errors.push(`${prefix} (${snap.id ?? 'unknown'}): missing or invalid "oracle" object.`);
     }
-    if (snap.schemaVersion !== 2) {
+    if (snap.schemaVersion === undefined || snap.schemaVersion === 1) {
       legacyCount++;
+    } else if (snap.schemaVersion !== 2) {
+      errors.push(
+        `${prefix} (${snap.id ?? 'unknown'}): unsupported "schemaVersion" value "${String(snap.schemaVersion)}" (expected 1 or 2).`,
+      );
     }
   }
 
@@ -668,11 +678,14 @@ export function validateSkillContext(
   }
 
   const provenance: 'v2_hardened' | 'legacy_unverified' = isV2 ? 'v2_hardened' : 'legacy_unverified';
+  // CalcOutput does not expose a separate minion offense source, so only player-source v2 records can be verified for certification.
+  const outputSourceVerified = isV2 && snapshot.context?.outputSource === 'player';
 
   return {
     valid: errors.length === 0,
     gameMatches,
     skillMatches,
+    outputSourceVerified,
     expectedSkillName,
     actualSkillName,
     provenance,
@@ -778,7 +791,8 @@ export function evaluateSnapshot(
   const corePassed = context.valid && coreMetrics.length > 0 && coreMetrics.every((m) => !isFailing(m));
   const strictPassed = context.valid && metrics.length > 0 && metrics.every((m) => !isFailing(m));
   const usesCanonicalSpecs = specs === ORACLE_METRIC_SPECS;
-  const certified = strictPassed && usesCanonicalSpecs && context.provenance === 'v2_hardened';
+  const certified =
+    strictPassed && usesCanonicalSpecs && context.provenance === 'v2_hardened' && context.outputSourceVerified;
 
   return {
     id: snapshot.id,

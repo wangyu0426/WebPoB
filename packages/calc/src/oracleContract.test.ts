@@ -164,7 +164,13 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(emptySuite.corpus.valid).toBe(false);
     expect(emptySuite.corePassed).toBe(false);
     expect(emptySuite.strictPassed).toBe(false);
-    expect(emptySuite.certified).toBe(false);
+    // Unsupported explicit schemaVersion (e.g. 3) must fail corpus validation
+    const unsupportedVer = validateSnapshotCorpus(
+      { schemaVersion: 3, snapshots: [{ ...firstRealSnapshot, schemaVersion: 3 }] },
+      { minCount: 1 },
+    );
+    expect(unsupportedVer.valid).toBe(false);
+    expect(unsupportedVer.errors.some((e) => e.includes('schemaVersion'))).toBe(true);
   });
 
   it('never certifies legacy v1 snapshots even when all metrics match, and certifies v2 when all metrics match', () => {
@@ -237,6 +243,20 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(v2WrongGroupSuite.snapshots[0]?.context.valid).toBe(false);
     expect(v2WrongGroupSuite.strictPassed).toBe(false);
     expect(v2WrongGroupSuite.certified).toBe(false);
+
+    const v2MinionSource: OracleSnapshotRecord = {
+      ...firstRealSnapshot,
+      schemaVersion: 2,
+      context: { activeSkillName: out.offence.mainSkillName.en, mainSocketGroup: 1, outputSource: 'minion' },
+      oracle: perfectOracle,
+    };
+    const v2MinionSuite = evaluateOracleSuite(
+      { schemaVersion: 2, snapshots: [v2MinionSource] },
+      () => ({ build, out }),
+      { minCount: 1 },
+    );
+    expect(v2MinionSuite.snapshots[0]?.context.outputSourceVerified).toBe(false);
+    expect(v2MinionSuite.certified).toBe(false);
 
     const v2Perfect: OracleSnapshotRecord = {
       ...firstRealSnapshot,
