@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import type { OracleContextMetadata, OracleRawValue } from '@webpob/calc';
 import { ORACLE_BENCHMARKS, type OracleBenchmarkCase } from './benchmarks.js';
 
 const execFileAsync = promisify(execFile);
@@ -12,72 +13,7 @@ const ROOT_DIR = path.resolve(__dirname, '../../..');
 const LUA_RUNNER = path.resolve(__dirname, '../lua/run_oracle.lua');
 const FIXTURES_DIR = path.join(ROOT_DIR, 'fixtures/oracle');
 
-export interface OracleNumericOutput {
-  CombinedDPS: number;
-  TotalDPS: number;
-  FullDPS: number;
-  AverageDamage: number;
-  AverageHit: number;
-  Speed: number;
-  CritChance: number;
-  CritMultiplier: number;
-  HitChance: number;
-  ManaCost: number;
-  Life: number;
-  LifeUnreserved: number;
-  LifeRegen: number;
-  EnergyShield: number;
-  Ward?: number;
-  Mana: number;
-  ManaUnreserved: number;
-  ManaRegen: number;
-  Spirit: number;
-  SpiritReserved: number;
-  SpiritUnreserved: number;
-  Armour: number;
-  PhysicalDamageReduction: number;
-  Evasion: number;
-  MeleeEvadeChance: number;
-  BlockChance: number;
-  SpellBlockChance: number;
-  SpellSuppressionChance: number;
-  FireResist: number;
-  FireResistOverCap: number;
-  FireResistMax: number;
-  ColdResist: number;
-  ColdResistOverCap: number;
-  ColdResistMax: number;
-  LightningResist: number;
-  LightningResistOverCap: number;
-  LightningResistMax: number;
-  ChaosResist: number;
-  ChaosResistOverCap: number;
-  ChaosResistMax: number;
-  Str: number;
-  Dex: number;
-  Int: number;
-  EffectiveMovementSpeedMod: number;
-  TotalEHP: number;
-  PhysicalMaximumHitTaken: number;
-  FireMaximumHitTaken: number;
-  ColdMaximumHitTaken: number;
-  LightningMaximumHitTaken: number;
-  IgniteDPS: number;
-  BleedDPS: number;
-  TotalPoisonDPS: number;
-  ImpaleDPS?: number;
-  SkillTriggerRate?: number;
-  PhysicalMin: number;
-  PhysicalMax: number;
-  FireMin: number;
-  FireMax: number;
-  ColdMin: number;
-  ColdMax: number;
-  LightningMin: number;
-  LightningMax: number;
-  ChaosMin: number;
-  ChaosMax: number;
-}
+export type OracleNumericOutput = Record<string, OracleRawValue>;
 
 export interface OracleGoldenSnapshot {
   id: string;
@@ -86,6 +22,8 @@ export interface OracleGoldenSnapshot {
   xml: string;
   pobCommit: string;
   generatedAt: string;
+  schemaVersion?: number;
+  context?: OracleContextMetadata;
   oracle: OracleNumericOutput;
 }
 
@@ -98,7 +36,9 @@ async function getGitRev(repoDir: string): Promise<string> {
   }
 }
 
-async function runUpstreamOracle(bench: OracleBenchmarkCase): Promise<OracleNumericOutput> {
+async function runUpstreamOracle(
+  bench: OracleBenchmarkCase,
+): Promise<{ schemaVersion: number; context?: OracleContextMetadata; oracle: OracleNumericOutput }> {
   const repoDir = path.join(
     ROOT_DIR,
     bench.game === 'poe2' ? '.cache/upstream-pob2' : '.cache/upstream-pob',
@@ -131,7 +71,17 @@ async function runUpstreamOracle(bench: OracleBenchmarkCase): Promise<OracleNume
       throw new Error(`Oracle marker missing for ${bench.id}.\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`);
     }
     const jsonStr = stdout.slice(sIdx + startMarker.length, eIdx).trim();
-    return JSON.parse(jsonStr) as OracleNumericOutput;
+    const parsed = JSON.parse(jsonStr) as
+      | { schemaVersion?: number; context?: OracleContextMetadata; oracle?: OracleNumericOutput }
+      | OracleNumericOutput;
+    if ('oracle' in parsed && parsed.oracle && typeof parsed.oracle === 'object') {
+      return {
+        schemaVersion: parsed.schemaVersion ?? 2,
+        context: parsed.context,
+        oracle: parsed.oracle,
+      };
+    }
+    return { schemaVersion: 1, oracle: parsed as OracleNumericOutput };
   } finally {
     await fs.unlink(tmpXml).catch(() => {});
   }
@@ -145,9 +95,10 @@ async function main() {
 
   for (const bench of ORACLE_BENCHMARKS) {
     process.stdout.write(`Running official PoB (${bench.game}) on [${bench.id}]... `);
-    const oracle = await runUpstreamOracle(bench);
+    const result = await runUpstreamOracle(bench);
+    const oracle = result.oracle;
     console.log(
-      `OK (Life=${Math.round(oracle.Life)}, ES=${Math.round(oracle.EnergyShield)}, DPS=${Math.round(oracle.CombinedDPS)}, Str/Dex/Int=${Math.round(oracle.Str)}/${Math.round(oracle.Dex)}/${Math.round(oracle.Int)})`,
+      `OK (Life=${oracle.Life}, ES=${oracle.EnergyShield}, DPS=${oracle.CombinedDPS}, Str/Dex/Int=${oracle.Str}/${oracle.Dex}/${oracle.Int})`,
     );
     snapshots.push({
       id: bench.id,
@@ -156,13 +107,15 @@ async function main() {
       xml: bench.xml,
       pobCommit: bench.game === 'poe2' ? poe2Rev : poe1Rev,
       generatedAt: new Date().toISOString(),
+      schemaVersion: result.schemaVersion,
+      context: result.context,
       oracle,
     });
   }
 
   await fs.mkdir(FIXTURES_DIR, { recursive: true });
   const outPath = path.join(FIXTURES_DIR, 'snapshots.json');
-  await fs.writeFile(outPath, JSON.stringify({ snapshots }, null, 2), 'utf-8');
+  await fs.writeFile(outPath, JSON.stringify({ schemaVersion: 2, snapshots }, null, 2), 'utf-8');
   console.log(`\n✓ Wrote ${snapshots.length} Golden Snapshots to ${outPath}`);
 }
 
