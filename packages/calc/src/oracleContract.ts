@@ -191,7 +191,7 @@ export interface OracleMetricSpec {
     out: CalcOutput;
   }) => boolean;
   /** Extract raw oracle value (allows unit normalization like CritMultiplier ratio->pct). */
-  getOracle: (oracle: Record<string, OracleRawValue>) => OracleRawValue;
+  getOracle: (oracle: Record<string, OracleRawValue>, snapshot?: OracleSnapshotRecord) => OracleRawValue;
   /** Extract raw WebPoB actual value. */
   getActual: (out: CalcOutput) => unknown;
 }
@@ -212,10 +212,14 @@ function normalizeOracleCritMulti(raw: OracleRawValue): OracleRawValue {
   return parsed.value > 10 ? parsed.value : parsed.value * 100;
 }
 
-function getOracleAverageDamage(oracle: Record<string, OracleRawValue>): OracleRawValue {
+function getOracleAverageDamage(
+  oracle: Record<string, OracleRawValue>,
+  snapshot?: OracleSnapshotRecord,
+): OracleRawValue {
   const avgDmg = parseOracleNumeric(oracle.AverageDamage);
   if (avgDmg.kind === 'invalid') return oracle.AverageDamage;
-  if (avgDmg.kind === 'number' && avgDmg.value !== 0) return avgDmg.value;
+  const isV2 = snapshot?.schemaVersion === 2;
+  if (avgDmg.kind === 'number' && (isV2 || avgDmg.value !== 0)) return avgDmg.value;
   const avgHit = parseOracleNumeric(oracle.AverageHit);
   if (avgHit.kind === 'invalid') return oracle.AverageHit;
   if (avgHit.kind === 'number') return avgHit.value;
@@ -438,7 +442,7 @@ export const ORACLE_METRIC_SPECS: readonly OracleMetricSpec[] = [
     tier: 'core',
     unit: 'damage',
     tolerance: { kind: 'relative_or_abs', maxRelPct: 0.5, maxAbs: 1 },
-    getOracle: (o) => getOracleAverageDamage(o),
+    getOracle: (o, snap) => getOracleAverageDamage(o, snap),
     getActual: (w) => {
       if (typeof w.offence.averageHit !== 'number' || typeof w.offence.hitChance !== 'number') {
         return undefined;
@@ -715,7 +719,7 @@ export function evaluateMetric(
     };
   }
 
-  const rawOracle = spec.getOracle(snapshot.oracle);
+  const rawOracle = spec.getOracle(snapshot.oracle, snapshot);
   const rawActual = spec.getActual(out);
   const parsedOracle = parseOracleNumeric(rawOracle);
   const parsedActual = parseActualNumeric(rawActual);

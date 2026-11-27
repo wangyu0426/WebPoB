@@ -90,6 +90,21 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(evalMissingImpale.metrics.find((m) => m.metric === 'ImpaleDPS')?.status).toBe('missing');
     expect(evalMissingImpale.corePassed).toBe(false);
 
+    // 3b. v2 AverageDamage: 0 must stay 0 (not fall back to AverageHit), while null falls back to AverageHit
+    const v2ZeroAvgDmg = evaluateSnapshot(
+      {
+        ...firstRealSnapshot,
+        schemaVersion: 2,
+        context: { activeSkillName: out.offence.mainSkillName.en, mainSocketGroup: 1, outputSource: 'player' },
+        oracle: { ...firstRealSnapshot.oracle, AverageDamage: 0, AverageHit: 9999 },
+      },
+      build,
+      out,
+    );
+    const v2ZeroAvgMetric = v2ZeroAvgDmg.metrics.find((m) => m.metric === 'AverageDamage');
+    expect(v2ZeroAvgMetric?.oracle).toBe(0);
+    expect(v2ZeroAvgMetric?.status).toBe('mismatch');
+
     // 4. PoE 2 includeInFullDps group excluded by weaponSets -> FullDPS is not_applicable when oracle=0 and fullDps=undefined
     const inactiveWeaponSetBuild = {
       ...build,
