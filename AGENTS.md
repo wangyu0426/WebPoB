@@ -1,82 +1,124 @@
-# AGENTS.md — `WebPoB` Display Layer Engineering, Testing & Release Standard
+# AGENTS.md — `WebPoB` Engineering, Privacy, Testing & Release Standard
 
-This document is binding for all AI Agents (Codex, Claude, Antigravity, Orca Workers) operating in the public `WebPoB` repository. Private data extraction, the QA staging gate, and internal operations are documented in the maintainer runbook.
+This document is binding for all AI Agents (Codex, Claude, Antigravity, Orca Workers) operating in the public `WebPoB` repository. Private data extraction, staging QA ops, and internal procedures live in the maintainer runbook outside this repo.
 
 ---
 
-## 1. Repository Scope & Core Rules
+## 1. Repository Architecture & Boundaries
 
-- This repository is the **public open-source display & calculation layer** (`apps/web`, `packages/{core,i18n,data,codec,calc}`, static data contract `apps/web/public/data/manifest.json`, public regression suites, and release CLI).
-- **Never** commit private credentials, internal ops scripts, or unverified partial data into this repo. Keep personal paths, private endpoints, and account identifiers out of public docs, test fixtures, and release notes.
-- **Never** break backward compatibility for historical passive trees (`apps/web/public/data/manifest.json` must preserve existing versioned tree mappings).
+`WebPoB` is a **public MIT open-source, zero-backend, bilingual (EN / ZH-CN) Path of Building web viewer & calculation engine** supporting both **Path of Exile 1** and **Path of Exile 2**.
+
+| Path | Responsibility |
+| :--- | :--- |
+| `packages/core` | Shared TypeScript types (`BuildData`, `GameId`, `PassiveTreeData`, items, skills, calcs). |
+| `packages/data` | Data contract loader (`manifest.json`), multi-version passive tree registry, dynamic class/ascendancy & gem/base/unique loaders. |
+| `packages/i18n` | Bilingual `en` / `zh-CN` UI dictionaries, locale detection, `?lang=` override, and stat localization helpers. |
+| `packages/codec` | PoB base64/zlib XML encode/decode, `pobb.in` / `poe.ninja` / pastebin share-link resolution, and character import. |
+| `packages/calc` | Pure-TypeScript stat/DPS/EHP calculation engine, Web Worker entry, LuaJIT Oracle differential tests, and `poe.ninja` regression suite. |
+| `apps/web` | React + Vite + Tailwind frontend, Canvas passive tree renderer, multi-spec tree diff, Service Worker (`public/sw.js`), and `_headers`. |
+| `apps/web/functions/api/proxy.ts` | Cloudflare Pages Function CORS proxy for live `pobb.in` / `poe.ninja` imports. |
+| `apps/web/public/data/` | Versioned static JSON contract (`manifest.json`, trees, classes, gems, bases, uniques, ascendancy art). |
+| `scripts/` | Public verification & release tooling (`verify-ninja-e2e.mjs`, `release.mjs`, `release.test.ts`, `sync-data/`, `oracle-diff/`). |
+
+### Core Engineering Invariants
+
+1. **Dual-Game & Bilingual Parity**: Every user-facing feature MUST work for both PoE 1 and PoE 2, and support both `en` and `zh-CN` (never render raw English keys or PoE 2 `[Key|Display]` markup in `zh-CN` UI/drawers; always honor `statsZh` when present).
+2. **Mobile & Desktop RWD**: UI changes MUST remain clean at Desktop (`1440×860`) and Mobile (`390×844`) with zero horizontal overflow (`scrollWidth <= clientWidth`).
+3. **Backward-Compatible Data Contract**: Never remove or break existing versioned passive tree entries in `apps/web/public/data/manifest.json` — historical shared build URLs depend on them.
+4. **Cache Hygiene**: Keep `apps/web/public/sw.js` Network-First for `/data/*` and bump the SW cache version whenever caching strategy changes; keep `/version.json` `Cache-Control: no-store` in `apps/web/public/_headers`.
+5. **Cloudflare Pages Function Integrity**: Never deploy `apps/web/dist` from the repo root (`wrangler pages deploy` MUST run from `apps/web` via `scripts/release.mjs`, otherwise `/api/proxy` is dropped).
 
 ---
 
 ## 2. Mandatory Privacy, PII & Secret Leak Gate
 
-Because `WebPoB` is a **public open-source repository**, every AI Agent MUST enforce these privacy rules before every commit, tag, release, or push:
+Because `WebPoB` is a **public open-source repository**, every AI Agent MUST pass every check below before any commit, tag, release, or push:
 
-1. **Verify Public Git Identity (No Local Username / Hostname / Personal Email)**:
-   ```bash
-   git var GIT_AUTHOR_IDENT
-   git var GIT_COMMITTER_IDENT
-   ```
-   Both MUST show a public maintainer or GitHub `noreply` identity (never a local OS username, `.local` hostname, or personal email). If misconfigured, set `git config --local user.name` and `git config --local user.email` before committing or tagging.
-2. **Zero-Tolerance Prohibited Content** (across source code, test fixtures, docs, commit messages, release `--notes`, and rollback `--reason`):
-   - Local filesystem paths (`/Users/...`, `/home/...`, `C:\Users\...`), machine hostnames (`.local`), or personal usernames/emails.
-   - Real cloud account IDs (e.g., 32-hex Cloudflare Account IDs), API tokens, OAuth tokens, cookies, `.env` / `.dev.vars` files, or private keys. Unit tests and docs MUST use synthetic placeholders (`00000000000000000000000000000001`, `11111111-...`, `example.test`).
-   - Private repository names, internal staging/ops URLs, or hardcoded local sibling paths (doc mirroring is strictly opt-in via `WEBPOB_RELEASE_MIRROR_DOCS_DIR`).
-   - Personal media exports, browser profile dumps, or unredacted screenshots containing private bookmarks/accounts.
-3. **Mandatory Staged-Diff Privacy Scan (Before Every Commit)**:
-   ```bash
-   git diff --cached | grep -nE '(/Users/|/home/|C:\\Users\\|\.local\b|dash\.cloudflare\.com/[0-9a-f]{32}|gh[pousr]_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|BEGIN .*PRIVATE KEY)' && echo "FAIL: privacy leak detected" && exit 1 || echo "PASS: privacy scan clean"
-   ```
-4. **Leak Response**: If any personal metadata or secret is ever committed to a public branch or tag, **stop immediately**, rotate any exposed credential first, scrub affected commits/tags cleanly, and re-verify `git log --all` before pushing.
+### 2.1 Public Git Identity Check
+```bash
+git var GIT_AUTHOR_IDENT
+git var GIT_COMMITTER_IDENT
+```
+- Both MUST show a public maintainer identity or GitHub `noreply` address (e.g., `<id>+<handle>@users.noreply.github.com` or `WebPoB Maintainer <webpob-maintainer@example.invalid>`).
+- **Never** commit or tag with a local OS username, `.local` hostname, or personal email. Fix with `git config --local user.name` and `git config --local user.email` first.
+
+### 2.2 Zero-Tolerance Prohibited Content
+Across **all** tracked code, test fixtures, docs, commit messages, release `--notes`, and rollback `--reason`:
+- Local filesystem paths (`/Users/...`, `/home/...`, `C:\Users\...`), machine hostnames (`.local`), or personal usernames/emails.
+- Real cloud account IDs (e.g., 32-hex Cloudflare Account IDs), API tokens, OAuth tokens, cookies, `.env*` / `.dev.vars*`, `.npmrc`, or private keys. Tests and docs MUST use synthetic placeholders (`00000000000000000000000000000001`, `11111111-1111-4111-8111-111111111111`, `example.test`).
+- Private repository names, internal staging/ops URLs, or hardcoded sibling paths (log mirroring is strictly opt-in via `WEBPOB_RELEASE_MIRROR_DOCS_DIR`).
+- Unredacted screenshots, recordings, or browser dumps containing personal bookmarks, emails, or accounts.
+
+### 2.3 Safe Staging & Staged-Diff Scan
+- **Never** run `git add -A` or `git add .` blindly. Stage explicit paths and review `git status -s` + `git diff --cached --stat`.
+- Run this scan on staged additions before every commit (excluding documentation regex examples):
+```bash
+git diff --cached --unified=0 -- ':!AGENTS.md' \
+  | grep -E '^\+[^+]' \
+  | grep -nE '(/Users/|/home/|C:\\Users\\|\.local\b|dash\.cloudflare\.com/[0-9a-f]{32}|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|BEGIN .*PRIVATE KEY)' \
+  && echo "FAIL: potential privacy/secret leak in staged diff" && exit 1 \
+  || echo "PASS: staged diff privacy scan clean"
+```
+
+### 2.4 Leak Response Protocol
+If personal metadata or a secret is ever committed to a public branch or tag:
+1. **Stop immediately** — do not push additional commits on top.
+2. **Rotate any exposed credential/token first.**
+3. Scrub affected commits and tags cleanly, re-verify `git log --all` and remote refs, and confirm local `.git/config` identity before pushing.
 
 ---
 
-## 3. Mandatory Pre-Commit & Pre-Release Checks
+## 3. Verification Matrix (Mandatory Before Commit / Release)
 
-Every code or data change MUST pass 100% before commit or release:
-```bash
-pnpm typecheck
-pnpm test      # unit tests + 131 LuaJIT Oracle tests + 39 poe.ninja tests + 30 release tests + 23 manifest tests
-pnpm build
-```
-For changes touching UI, passive tree rendering, localization, or codec import/export, also run the dual-viewport real-browser E2E suite:
-```bash
-BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja
-```
+| Change Scope | Required Checks |
+| :--- | :--- |
+| **Any code, test, or data change** | `pnpm typecheck && pnpm test && pnpm build` (100% pass across `calc`, `oracle`, `ninjaRegression`, `codec`, `manifest`, and `release` suites) |
+| **UI, passive tree, i18n, RWD, or codec import/export** | Above **+** `BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja` (12 PoE 1 & PoE 2 `poe.ninja` builds across Desktop `1440×860` & Mobile `390×844`, 0 console/page errors, 0 overflow) |
+| **Static data / `manifest.json` / tree updates** | Above **+** staging QA release gate (`READY TO RELEASE`) via maintainer runbook |
+| **Docs-only (`*.md`)** | Verify relative Markdown links + Privacy Gate (§2) |
 
 ---
 
-## 4. Production Release & Rollback Rules
+## 4. Production Release & Rollback SOP
 
-1. **Staging First**: For major changes or data updates, follow the private maintainer runbook to deploy to staging and verify the gate reports `READY TO RELEASE` before promoting to production.
-2. **Never Deploy from Repo Root**: Never run `wrangler pages deploy apps/web/dist` from the repository root (it omits `apps/web/functions/api/proxy.ts` and breaks live `pobb.in`/`poe.ninja` imports).
-3. **Always Use the Release CLI (with Auto-Rollback)**:
+### 4.1 Production Release
+1. **Staging Gate First**: For data updates or substantial changes, verify the staging QA gate reports `READY TO RELEASE` via the maintainer runbook.
+2. **Pre-Flight**: Confirm clean working tree (`git status`), updated `CHANGELOG.md`, verified public Git identity (§2.1), and 100% passing checks (§3).
+3. **Deploy Exclusively via Release CLI with Auto-Rollback**:
    ```bash
-   pnpm release:deploy -- --bump patch --notes "<concise release notes>" --auto-rollback
+   # Use --bump patch | minor | major
+   pnpm release:deploy -- --bump patch --notes "<concise public release notes>" --auto-rollback
+   ```
+4. **Verify & Push**: Confirm post-deploy smoke checks pass (`4/4 PASS`), review generated `releases.json`, `docs/DEPLOY_LOG.md`, and `docs/deploys/<record>.md`, commit if needed, and push:
+   ```bash
    git push origin main --follow-tags
    ```
-4. **Emergency Rollback (< 10s Mitigation)**:
-   ```bash
-   pnpm release:rollback -- --prev --reason "<concise incident reason>"
-   # Or target a specific version / deployment ID:
-   pnpm release:rollback -- v0.2.0 --reason "<concise incident reason>"
-   ```
+
+### 4.2 Emergency Rollback (< 10s Mitigation)
+If production shows runtime errors, broken imports, localization regressions, or calculation faults, **roll back first and investigate second**:
+```bash
+# Instant rollback (< 2s via Cloudflare Pages Rollback API, no rebuild):
+pnpm release:rollback -- --prev --reason "<concise public incident reason>"
+
+# Target a specific version tag or deployment ID:
+pnpm release:rollback -- v0.2.0 --reason "<concise public incident reason>"
+
+# Fallback if historical deployment was pruned (clean git worktree rebuild):
+pnpm release:rollback -- v0.2.0 --rebuild --reason "<concise public incident reason>"
+```
+After rollback, verify `pnpm release:status` and `pnpm release:smoke`, then commit and push `releases.json`, `docs/DEPLOY_LOG.md`, and the generated `docs/deploys/<record>.md`.
 
 ---
 
 ## 5. Deploy & Rollback Documentation Standard
 
-- **`docs/DEPLOY_LOG.md` is strictly an index table.** Every release (`PROD_DEPLOY` / `PREVIEW_DEPLOY`) and rollback (`ROLLBACK` / `AUTO_ROLLBACK`) MUST have its own standalone Markdown file under `docs/deploys/`, automatically created by `scripts/release.mjs` (and mirrored when `WEBPOB_RELEASE_MIRROR_DOCS_DIR` points to a docs directory with an existing `DEPLOY_LOG.md`).
-- **File naming convention**:
+- **`docs/DEPLOY_LOG.md` is strictly an index table.** Every release (`PROD_DEPLOY` / `PREVIEW_DEPLOY`) and rollback (`ROLLBACK` / `AUTO_ROLLBACK`) MUST have its own standalone Markdown record under `docs/deploys/`.
+- `scripts/release.mjs` generates the record and updates the index automatically (and mirrors to a separate ops docs directory only when `WEBPOB_RELEASE_MIRROR_DOCS_DIR` is explicitly set and contains an existing `DEPLOY_LOG.md`).
+- **File Naming Convention**:
   - Production release: `docs/deploys/YYYY-MM-DD-HHMM-prod-vX.Y.Z.md`
   - Preview deploy: `docs/deploys/YYYY-MM-DD-HHMM-preview-<version>.md`
   - Manual rollback: `docs/deploys/YYYY-MM-DD-HHMM-rollback-vX.Y.Z.md`
   - Auto rollback: `docs/deploys/YYYY-MM-DD-HHMM-auto-rollback-vX.Y.Z.md`
-- Always commit and push `releases.json`, `docs/DEPLOY_LOG.md`, and the newly generated `docs/deploys/*.md` file after any release or rollback.
 
 ### Release Record Template (`PROD_DEPLOY`)
 
@@ -88,12 +130,12 @@ BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja
 - **Environment**: Production (`https://webpob.pages.dev`)
 - **Version / Tag**: `v0.2.2`
 - **Commit**: `abc1234`
-- **Deployment**: `12345678` (`https://12345678.webpob.pages.dev`)
+- **Deployment**: `11111111` (`https://11111111.webpob.pages.dev`)
 - **Smoke Result**: Smoke 4/4 PASS
 
 ## Summary
 
-- Concise summary of changes included in this release.
+- Concise summary of user-facing changes included in this release.
 
 ## Smoke Check Details
 
@@ -117,8 +159,8 @@ pnpm release:rollback -- v0.2.1 --reason "<incident reason>"
 - **Timestamp (UTC)**: 2026-11-27T09:15:00Z
 - **Action**: `ROLLBACK`
 - **Environment**: Production (`https://webpob.pages.dev`)
-- **Replaced Deployment**: `12345678`
-- **Restored Target**: `v0.2.1` (`e486295` / Deployment `e9312d4a`)
+- **Replaced Deployment**: `11111111` (`v0.2.2`)
+- **Restored Target**: `v0.2.1` (`b2c3d4e` / Deployment `22222222`)
 - **Method**: `instant` (Cloudflare Pages Rollback API)
 - **Post-Rollback Smoke**: Smoke 4/4 PASS
 
