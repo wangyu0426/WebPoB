@@ -628,6 +628,24 @@ export function validateSkillContext(
           `schemaVersion 2 snapshot has missing or invalid "context.outputSource" (${String(snapshot.context.outputSource)}).`,
         );
       }
+      const expectedMainSocketGroup = snapshot.context.mainSocketGroup;
+      if (
+        typeof expectedMainSocketGroup !== 'number' ||
+        !Number.isInteger(expectedMainSocketGroup) ||
+        expectedMainSocketGroup < 1
+      ) {
+        errors.push(
+          `schemaVersion 2 snapshot has missing or invalid "context.mainSocketGroup" (${String(expectedMainSocketGroup)}).`,
+        );
+      } else {
+        const selectedIdx = build.skills.findIndex((g) => g.id === build.mainSkillGroupId);
+        const actualMainSocketGroup = selectedIdx >= 0 ? selectedIdx + 1 : null;
+        if (actualMainSocketGroup !== expectedMainSocketGroup) {
+          errors.push(
+            `Main socket group mismatch: expected #${expectedMainSocketGroup}, got ${actualMainSocketGroup === null ? '<none>' : `#${actualMainSocketGroup}`}.`,
+          );
+        }
+      }
     }
   }
 

@@ -207,6 +207,21 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(v2MissingSkillSuite.strictPassed).toBe(false);
     expect(v2MissingSkillSuite.certified).toBe(false);
 
+    const v2WrongMainGroup: OracleSnapshotRecord = {
+      ...firstRealSnapshot,
+      schemaVersion: 2,
+      context: { activeSkillName: out.offence.mainSkillName.en, mainSocketGroup: 2, outputSource: 'player' },
+      oracle: perfectOracle,
+    };
+    const v2WrongGroupSuite = evaluateOracleSuite(
+      { schemaVersion: 2, snapshots: [v2WrongMainGroup] },
+      () => ({ build, out }),
+      { minCount: 1 },
+    );
+    expect(v2WrongGroupSuite.snapshots[0]?.context.valid).toBe(false);
+    expect(v2WrongGroupSuite.strictPassed).toBe(false);
+    expect(v2WrongGroupSuite.certified).toBe(false);
+
     const v2Perfect: OracleSnapshotRecord = {
       ...firstRealSnapshot,
       schemaVersion: 2,
