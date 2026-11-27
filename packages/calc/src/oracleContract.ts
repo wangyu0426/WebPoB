@@ -279,7 +279,7 @@ export const ORACLE_METRIC_SPECS: readonly OracleMetricSpec[] = [
     tolerance: { kind: 'relative_or_abs', maxRelPct: 0.5, maxAbs: 1 },
     isApplicable: ({ snapshot }) => snapshot.game === 'poe1',
     getOracle: (o) => o.Ward,
-    getActual: (w) => w.defence.ward ?? 0,
+    getActual: (w) => w.defence.ward,
   },
   {
     metric: 'Mana',
@@ -463,7 +463,7 @@ export const ORACLE_METRIC_SPECS: readonly OracleMetricSpec[] = [
     tolerance: { kind: 'relative_or_abs', maxRelPct: 0.5, maxAbs: 1 },
     isApplicable: ({ snapshot }) => snapshot.game === 'poe1',
     getOracle: (o) => o.ImpaleDPS,
-    getActual: (w) => w.offence.impaleDps ?? 0,
+    getActual: (w) => w.offence.impaleDps,
   },
   {
     metric: 'IgniteDPS',

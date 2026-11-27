@@ -68,12 +68,20 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(evalNullLife.metrics.find((m) => m.metric === 'Life')?.status).toBe('missing');
     expect(evalNullLife.corePassed).toBe(false);
 
-    // 3. True zero (Ward = 0 on both sides in PoE 1) -> MUST be 'pass', not skipped
+    // 3. True zero (Ward = 0 on both sides in PoE 1) -> MUST be 'pass', not skipped,
+    //    while omitted actual ward (undefined) -> MUST fail closed as 'missing'
     const evalZeroWard = evaluateSnapshot(firstRealSnapshot, build, out);
     const wardMetric = evalZeroWard.metrics.find((m) => m.metric === 'Ward');
     expect(wardMetric?.status).toBe('pass');
     expect(wardMetric?.oracle).toBe(0);
     expect(wardMetric?.actual).toBe(0);
+
+    const evalMissingWard = evaluateSnapshot(firstRealSnapshot, build, {
+      ...out,
+      defence: { ...out.defence, ward: undefined },
+    });
+    expect(evalMissingWard.metrics.find((m) => m.metric === 'Ward')?.status).toBe('missing');
+    expect(evalMissingWard.corePassed).toBe(false);
 
     // 4. PoE 2 includeInFullDps group excluded by weaponSets -> FullDPS is not_applicable when oracle=0 and fullDps=undefined
     const inactiveWeaponSetBuild = {
