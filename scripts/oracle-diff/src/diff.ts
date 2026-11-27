@@ -14,6 +14,7 @@ import {
 } from '@webpob/data';
 import { xmlToBuild } from '@webpob/codec';
 import { calculateBuild, evaluateOracleSuite, type OracleMetricStatus } from '@webpob/calc';
+import { ORACLE_BENCHMARKS } from './benchmarks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '../../..');
@@ -26,6 +27,7 @@ interface CliOptions {
   json: boolean;
   verbose: boolean;
   snapshotsPath: string;
+  customSnapshots: boolean;
   minCount: number;
 }
 
@@ -76,7 +78,8 @@ function parseCliArgs(argv: string[]): CliOptions {
     json,
     verbose,
     snapshotsPath,
-    minCount: minCount ?? (customSnapshots ? 1 : DEFAULT_MIN_SNAPSHOT_COUNT),
+    customSnapshots,
+    minCount: minCount ?? (customSnapshots ? 1 : Math.max(DEFAULT_MIN_SNAPSHOT_COUNT, ORACLE_BENCHMARKS.length)),
   };
 }
 
@@ -134,7 +137,10 @@ async function main() {
       const out = calculateBuild(build);
       return { build, out };
     },
-    { minCount: opts.minCount },
+    {
+      minCount: opts.minCount,
+      expectedIds: opts.customSnapshots ? undefined : ORACLE_BENCHMARKS.map((b) => b.id),
+    },
   );
 
   if (opts.json) {
