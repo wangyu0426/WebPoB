@@ -6,8 +6,19 @@ build/
 coverage/
 *.tsbuildinfo
 .DS_Store
+# Local credentials and tool settings. Keep shareable env templates trackable.
 .env
-.env.local
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+!.dev.vars.sample
+!.dev.vars.template
+.npmrc
+.claude/settings.local.json
 .wrangler/
 .cache/
 bilibili-export/

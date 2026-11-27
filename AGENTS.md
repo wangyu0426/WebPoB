@@ -7,7 +7,7 @@ This document is binding for all AI Agents (Codex, Claude, Antigravity, Orca Wor
 ## 1. Repository Scope & Core Rules
 
 - This repository is the **public open-source display & calculation layer** (`apps/web`, `packages/{core,i18n,data,codec,calc}`, static data contract `apps/web/public/data/manifest.json`, public regression suites, and release CLI).
-- **Never** commit private credentials, internal ops scripts, or unverified partial data into this repo.
+- **Never** commit private credentials, internal ops scripts, or unverified partial data into this repo. Keep personal paths, private endpoints, and account identifiers out of public docs, test fixtures, and release notes.
 - **Never** break backward compatibility for historical passive trees (`apps/web/public/data/manifest.json` must preserve existing versioned tree mappings).
 
 ---
@@ -17,7 +17,7 @@ This document is binding for all AI Agents (Codex, Claude, Antigravity, Orca Wor
 Every code or data change MUST pass 100% before commit or release:
 ```bash
 pnpm typecheck
-pnpm test      # unit tests + 131 LuaJIT Oracle tests + 39 poe.ninja tests + 27 release tests + 23 manifest tests
+pnpm test      # unit tests + 131 LuaJIT Oracle tests + 39 poe.ninja tests + 30 release tests + 23 manifest tests
 pnpm build
 ```
 For changes touching UI, passive tree rendering, localization, or codec import/export, also run the dual-viewport real-browser E2E suite:
@@ -47,7 +47,7 @@ BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja
 
 ## 4. Deploy & Rollback Documentation Standard
 
-- **`docs/DEPLOY_LOG.md` is strictly an index table.** Every release (`PROD_DEPLOY` / `PREVIEW_DEPLOY`) and rollback (`ROLLBACK` / `AUTO_ROLLBACK`) MUST have its own standalone Markdown file under `docs/deploys/`, automatically created by `scripts/release.mjs`.
+- **`docs/DEPLOY_LOG.md` is strictly an index table.** Every release (`PROD_DEPLOY` / `PREVIEW_DEPLOY`) and rollback (`ROLLBACK` / `AUTO_ROLLBACK`) MUST have its own standalone Markdown file under `docs/deploys/`, automatically created by `scripts/release.mjs` (and mirrored when `WEBPOB_RELEASE_MIRROR_DOCS_DIR` points to a docs directory with an existing `DEPLOY_LOG.md`).
 - **File naming convention**:
   - Production release: `docs/deploys/YYYY-MM-DD-HHMM-prod-vX.Y.Z.md`
   - Preview deploy: `docs/deploys/YYYY-MM-DD-HHMM-preview-<version>.md`

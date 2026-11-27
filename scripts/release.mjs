@@ -621,11 +621,20 @@ function writeDeployRecordAndIndex(docsDir, entry, fileName, recordMarkdown) {
   }
 }
 
-function recordDeployLog(rawEntry) {
+export function recordDeployLog(rawEntry, {
+  docsDir = path.join(REPO_ROOT, 'docs'),
+  mirrorDocsDir = process.env.WEBPOB_RELEASE_MIRROR_DOCS_DIR,
+} = {}) {
   const entry = { at: new Date().toISOString(), ...rawEntry };
   const fileName = buildDeployRecordFileName(entry.at, entry.action, entry.version);
   const recordMarkdown = renderDeployRecordMarkdown(entry);
-  writeDeployRecordAndIndex(path.join(REPO_ROOT, 'docs'), entry, fileName, recordMarkdown);
+  writeDeployRecordAndIndex(docsDir, entry, fileName, recordMarkdown);
+  // Only mirror to a separate, explicitly configured docs directory.
+  if (!mirrorDocsDir?.trim()) return;
+  const mirrorDir = path.resolve(REPO_ROOT, mirrorDocsDir.trim());
+  if (fs.existsSync(path.join(mirrorDir, 'DEPLOY_LOG.md')) && fs.realpathSync(mirrorDir) !== fs.realpathSync(docsDir)) {
+    writeDeployRecordAndIndex(mirrorDir, entry, fileName, recordMarkdown);
+  }
 }
 
 function setActiveRelease(state, deploymentId) {

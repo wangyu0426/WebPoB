@@ -14,6 +14,9 @@
 
 发布前确认工作区干净、目标提交已推送，并确保 `CHANGELOG.md` 已更新对应版本条目。
 
+- 用 `git var GIT_AUTHOR_IDENT` 和 `git var GIT_COMMITTER_IDENT` 核对公开署名和 GitHub `noreply` 邮箱，避免将私人邮箱、本机主机名写入发布提交或标签。
+- `--notes` 和 `--reason` 会写入公开记录，不要包含个人信息、凭据或私有地址。维护者如需将记录同步到私有文档，按私有手册在本机设置 `WEBPOB_RELEASE_MIRROR_DOCS_DIR`，指向已有 `DEPLOY_LOG.md` 的文档目录；未设置则只写本仓库。
+
 ## 2. 标准上线流程
 
 ```bash

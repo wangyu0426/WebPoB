@@ -1,12 +1,9 @@
 // @ts-nocheck
-/**
- * Unit tests for scripts/release.mjs pure helpers.
- *
- * NOTE: vitest.config.ts currently only includes `packages/**` and `apps/**`,
- * so `pnpm test` will not pick this file up automatically. It is still runnable
- * and CI-ready via: `npx vitest run scripts/release.test.ts`.
- */
-import { describe, it, expect } from 'vitest';
+/** Unit tests for the release CLI helpers, using synthetic fixture data. */
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as release from './release.mjs';
 
 const {
@@ -20,6 +17,7 @@ const {
   formatStatusTable,
   formatDeploymentsTable,
   resolveRollbackTarget,
+  recordDeployLog,
 } = release;
 
 const RELEASES = [
@@ -30,7 +28,7 @@ const RELEASES = [
     deploymentId: '11111111-1111-4111-8111-111111111111',
     previewUrl: 'https://11111111.example.test',
     status: 'active',
-    notes: 'Full poedb/PoeCharm ZH tree & gem localization',
+    notes: 'Example patch release',
   },
   {
     version: '0.1.0',
@@ -39,7 +37,7 @@ const RELEASES = [
     deploymentId: '22222222-2222-4222-8222-222222222222',
     previewUrl: 'https://22222222.example.test',
     status: 'previous',
-    notes: 'Mobile RWD overhaul',
+    notes: 'Example previous release',
   },
   {
     version: '0.0.9',
@@ -238,5 +236,56 @@ describe('formatDeploymentsTable', () => {
   });
   it('shows a placeholder when empty', () => {
     expect(formatDeploymentsTable([])).toContain('(none)');
+  });
+});
+
+describe('recordDeployLog', () => {
+  const entry = {
+    at: '2026-01-01T12:00:00.000Z',
+    action: 'PROD_DEPLOY',
+    env: 'Production',
+    version: 'v1.0.0',
+    commit: 'a1b2c3d',
+    deployment: '11111111',
+    result: 'Smoke 4/4 PASS',
+  };
+  const index = 'DEPLOY_LOG.md';
+  const record = join('deploys', '2026-01-01-1200-prod-v1.0.0.md');
+  let dir: string;
+  let docsDir: string;
+  let mirrorDocsDir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'webpob-release-test-'));
+    docsDir = join(dir, 'public');
+    mirrorDocsDir = join(dir, 'mirror');
+    mkdirSync(mirrorDocsDir);
+  });
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('writes only public docs when no mirror is configured', () => {
+    writeFileSync(join(mirrorDocsDir, index), 'Existing index\n');
+    recordDeployLog(entry, { docsDir, mirrorDocsDir: '' });
+    expect(readFileSync(join(docsDir, index), 'utf8')).toContain('2026-01-01-1200-prod-v1.0.0.md');
+    expect(readFileSync(join(docsDir, record), 'utf8')).toContain('Production Release Record: v1.0.0');
+    expect(readFileSync(join(mirrorDocsDir, index), 'utf8')).toBe('Existing index\n');
+    expect(existsSync(join(mirrorDocsDir, record))).toBe(false);
+  });
+
+  it('only mirrors to a configured directory with an existing index', () => {
+    recordDeployLog(entry, { docsDir, mirrorDocsDir });
+    expect(existsSync(join(mirrorDocsDir, index))).toBe(false);
+    writeFileSync(join(mirrorDocsDir, index), 'Existing index\n');
+    recordDeployLog(entry, { docsDir, mirrorDocsDir });
+    expect(readFileSync(join(mirrorDocsDir, index), 'utf8')).toContain('2026-01-01-1200-prod-v1.0.0.md');
+    expect(readFileSync(join(mirrorDocsDir, record), 'utf8')).toBe(readFileSync(join(docsDir, record), 'utf8'));
+  });
+
+  it('does not duplicate public entries if the configured mirror resolves to the same directory', () => {
+    const alias = join(dir, 'alias');
+    symlinkSync(docsDir, alias, 'junction');
+    recordDeployLog(entry, { docsDir, mirrorDocsDir: alias });
+    expect(readFileSync(join(docsDir, index), 'utf8').match(/^\| .*`PROD_DEPLOY`/gm)).toHaveLength(1);
   });
 });
