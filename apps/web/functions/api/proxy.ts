@@ -5,6 +5,8 @@ const ALLOWED_GET_HOSTS = new Set([
   'www.pastebin.com',
   'poe.ninja',
   'www.poe.ninja',
+  'maxroll.gg',
+  'www.maxroll.gg',
   'www.pathofexile.com',
   'pathofexile.com',
   'poe.game.qq.com',

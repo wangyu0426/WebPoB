@@ -766,7 +766,8 @@ export function importBuildFromCode(input: string): { build: Build; xml: string 
 }
 
 /**
- * Resolves `pobb.in`, `poe.ninja` (PoE 1 & PoE 2), and `pastebin.com` share URLs to their raw PoB code endpoints.
+ * Resolves `pobb.in`, `poe.ninja` (PoE 1 & PoE 2), `maxroll.gg` (PoE 1 & PoE 2), and `pastebin.com`
+ * share URLs to their raw PoB code endpoints.
  */
 export function resolveShareUrl(inputUrl: string): string | null {
   const trimmed = inputUrl.trim();
@@ -779,6 +780,13 @@ export function resolveShareUrl(inputUrl: string): string | null {
     const gamePath = ninja[1] ? `${ninja[1].toLowerCase()}/` : '';
     return `https://poe.ninja/${gamePath}pob/raw/${ninja[2]}`;
   }
+  const maxroll = trimmed.match(
+    /^https?:\/\/(?:www\.)?maxroll\.gg\/(poe2?|poe1)\/(?:api\/)?pob\/([A-Za-z0-9_-]+)/i,
+  );
+  if (maxroll) {
+    const gamePath = maxroll[1]!.toLowerCase() === 'poe2' ? 'poe2' : 'poe';
+    return `https://maxroll.gg/${gamePath}/api/pob/${maxroll[2]}`;
+  }
   const pastebin = trimmed.match(/^https?:\/\/(?:www\.)?pastebin\.com\/(?:raw\/)?([A-Za-z0-9]+)/i);
   if (pastebin) {
     return `https://pastebin.com/raw/${pastebin[1]}`;
@@ -787,7 +795,7 @@ export function resolveShareUrl(inputUrl: string): string | null {
 }
 
 /**
- * Fetches a PoB code from a `pobb.in`, `poe.ninja`, or `pastebin.com` URL, optionally routing through
+ * Fetches a PoB code from a `pobb.in`, `poe.ninja`, `maxroll.gg`, or `pastebin.com` URL, optionally routing through
  * a lightweight CORS proxy (e.g. `https://proxy.example.workers.dev/?url=...`).
  */
 export async function fetchRemoteBuildCode(url: string, corsProxyBase?: string): Promise<string> {

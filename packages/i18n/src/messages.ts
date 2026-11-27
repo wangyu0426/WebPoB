@@ -140,7 +140,8 @@ export const UI_MESSAGES = {
     'import.generate': 'Generate Code',
     'import.copy': 'Copy Code',
     'import.copied': 'Copied!',
-    'import.pasteCodePlaceholder': 'Paste a PoB share code (eNq...), pobb.in / poe.ninja / pastebin URL, or WeGame PoE 2 share URL...',
+    'import.pasteCodePlaceholder':
+      'Paste a PoB share code (eNq...), pobb.in / poe.ninja / maxroll.gg / pastebin URL, or WeGame PoE 2 share URL...',
     'import.importBtn': 'Import Build',
     'import.proxyUrl': 'Optional CORS Proxy URL (for pobb.in / pastebin)',
     'import.xmlPreview': 'Decoded PoB XML Preview',
@@ -288,7 +289,8 @@ export const UI_MESSAGES = {
     'import.generate': '生成分享码',
     'import.copy': '复制分享码',
     'import.copied': '已复制！',
-    'import.pasteCodePlaceholder': '粘贴 PoB 分享码（eNq...）、pobb.in / poe.ninja 链接，或 WeGame 降临助手角色分享链接...',
+    'import.pasteCodePlaceholder':
+      '粘贴 PoB 分享码（eNq...）、pobb.in / poe.ninja / maxroll.gg 链接，或 WeGame 降临助手角色分享链接...',
     'import.importBtn': '导入 BD',
     'import.proxyUrl': '可选 CORS 代理地址（用于拉取 pobb.in / pastebin）',
     'import.xmlPreview': '解码后的 PoB XML 预览',

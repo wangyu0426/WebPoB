@@ -94,6 +94,16 @@ Energy Shield: 520 (augmented)
     expect(resolveShareUrl(url)).toBe(expected);
   });
 
+  it.each([
+    ['https://maxroll.gg/poe/pob/ab12cd34', 'https://maxroll.gg/poe/api/pob/ab12cd34'],
+    ['https://maxroll.gg/poe/api/pob/ab12cd34', 'https://maxroll.gg/poe/api/pob/ab12cd34'],
+    ['https://www.maxroll.gg/poe/pob/ab12cd34?tab=tree#top', 'https://maxroll.gg/poe/api/pob/ab12cd34'],
+    ['https://maxroll.gg/poe2/pob/ef56gh78', 'https://maxroll.gg/poe2/api/pob/ef56gh78'],
+    ['https://MAXROLL.GG/POE2/api/pob/ef56gh78', 'https://maxroll.gg/poe2/api/pob/ef56gh78'],
+  ])('resolves Maxroll share URL %s to %s', (url, expected) => {
+    expect(resolveShareUrl(url)).toBe(expected);
+  });
+
   it('imports GGG/Tencent character JSON (passives + items + socketed gems) into a Build', () => {
     const imported = parseCharacterJsonToBuild({
       game: 'poe1',

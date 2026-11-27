@@ -1231,8 +1231,8 @@ export function ImportExportTab() {
           </h3>
           <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-200">
             {locale === 'zh-CN'
-              ? '支持 PoB 码 · pobb.in · poe.ninja · WeGame 降临助手国服分享链接（免登录）'
-              : 'Supports PoB code · pobb.in · poe.ninja · WeGame PoE 2 CN share links'}
+              ? '支持 PoB 码 · pobb.in · poe.ninja · maxroll.gg · WeGame 降临助手国服分享链接'
+              : 'Supports PoB code · pobb.in · poe.ninja · maxroll.gg · WeGame PoE 2 CN share links'}
           </span>
         </div>
         <textarea
