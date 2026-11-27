@@ -128,12 +128,38 @@ const PARSER_RULES: ParserRule[] = [
   },
   // Hybrid Defences common on official PoE 1 & PoE 2 trees and gear
   {
+    pattern: /^(\d+)% increased Global Armour, Evasion(?: Rating)? and Energy Shield$/i,
+    build: (m, src) => [
+      mkMod('Armour', 'INC', Number(m[1]), src),
+      mkMod('Evasion', 'INC', Number(m[1]), src),
+      mkMod('EnergyShield', 'INC', Number(m[1]), src),
+      mkMod('Ward', 'INC', Number(m[1]), src),
+    ],
+  },
+  {
     pattern: /^(\d+)% increased Armour, Evasion(?: Rating)? and Energy Shield$/i,
     build: (m, src) => [
       mkMod('Armour', 'INC', Number(m[1]), src),
       mkMod('Evasion', 'INC', Number(m[1]), src),
       mkMod('EnergyShield', 'INC', Number(m[1]), src),
     ],
+  },
+  {
+    pattern: /^(\d+)% increased Global Defences$/i,
+    build: (m, src) => [
+      mkMod('Armour', 'INC', Number(m[1]), src),
+      mkMod('Evasion', 'INC', Number(m[1]), src),
+      mkMod('EnergyShield', 'INC', Number(m[1]), src),
+      mkMod('Ward', 'INC', Number(m[1]), src),
+    ],
+  },
+  {
+    pattern: /^Gain additional maximum Life equal to (\d+)% of the Item Energy Shield on Equipped Body Armour$/i,
+    build: (m, src) => [mkMod('LifePerBodyEsPct', 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^(\d+)% increased Maximum Life for each Corrupted Item Equipped$/i,
+    build: (m, src) => [mkMod('LifeIncPerCorruptedItem', 'BASE', Number(m[1]), src)],
   },
   {
     pattern: /^(\d+)% increased Armour and Energy Shield$/i,

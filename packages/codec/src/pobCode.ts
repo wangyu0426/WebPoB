@@ -153,8 +153,14 @@ export function buildToPobXml(build: Build): string {
       .filter((s): s is { nodeId: string; numId: number } => Boolean(s.numId));
     const hasWsChildren =
       build.game === 'poe2' && (spec.weaponSet1NodeIds.length > 0 || spec.weaponSet2NodeIds.length > 0);
+    const attrOverrideEntries = Object.entries(spec.attributeOverrides ?? {});
+    const strOverrides = attrOverrideEntries.filter(([, v]) => v === 'str').map(([k]) => k);
+    const dexOverrides = attrOverrideEntries.filter(([, v]) => v === 'dex').map(([k]) => k);
+    const intOverrides = attrOverrideEntries.filter(([, v]) => v === 'int').map(([k]) => k);
+    const hasAttrOverrides =
+      strOverrides.length > 0 || dexOverrides.length > 0 || intOverrides.length > 0;
 
-    if (jewelSockets.length > 0 || hasWsChildren) {
+    if (jewelSockets.length > 0 || hasWsChildren || hasAttrOverrides) {
       lines.push(
         `    <Spec title="${escapeXml(spec.title)}" treeVersion="${escapeXml(spec.treeVersion)}" classId="${classNum}" ascendClassId="0" nodes="${nodesStr}"${wsAttrs}>`,
       );
@@ -170,6 +176,13 @@ export function buildToPobXml(build: Build): string {
           lines.push(`        <Socket nodeId="${s.nodeId}" itemId="${s.numId}" />`);
         }
         lines.push(`      </Sockets>`);
+      }
+      if (hasAttrOverrides) {
+        lines.push(`      <Overrides>`);
+        lines.push(
+          `        <AttributeOverride strNodes="${strOverrides.join(',')}" dexNodes="${dexOverrides.join(',')}" intNodes="${intOverrides.join(',')}" />`,
+        );
+        lines.push(`      </Overrides>`);
       }
       lines.push(`    </Spec>`);
     } else {
@@ -518,6 +531,15 @@ export function xmlToBuild(xml: string): Build {
         specJewels[nodeId] = itemId;
       }
     }
+    const specAttributeOverrides: Record<number, 'str' | 'dex' | 'int'> = {};
+    const attrOverrideRegex = /<AttributeOverride\b([^>]*)\/?>/gi;
+    let aoMatch: RegExpExecArray | null;
+    while ((aoMatch = attrOverrideRegex.exec(specInner)) !== null) {
+      const attrs = parseAttributes(aoMatch[1]!);
+      for (const id of parseNodeList(attrs.strNodes)) specAttributeOverrides[id] = 'str';
+      for (const id of parseNodeList(attrs.dexNodes)) specAttributeOverrides[id] = 'dex';
+      for (const id of parseNodeList(attrs.intNodes)) specAttributeOverrides[id] = 'int';
+    }
     treeSpecs.push({
       title: specAttrs.title || (treeSpecs.length === 0 ? 'Default' : `Spec ${treeSpecs.length + 1}`),
       treeVersion: specAttrs.treeVersion || tree.version,
@@ -526,6 +548,9 @@ export function xmlToBuild(xml: string): Build {
       weaponSet2NodeIds,
       masteryEffects: {},
       ...(Object.keys(specJewels).length > 0 ? { socketedJewels: specJewels } : {}),
+      ...(Object.keys(specAttributeOverrides).length > 0
+        ? { attributeOverrides: specAttributeOverrides }
+        : {}),
     });
   }
   if (treeSpecs.length === 0) {
@@ -665,11 +690,30 @@ export function xmlToBuild(xml: string): Build {
     enemyChilled: false,
   };
   let banditFromConfig: Build['bandit'] | undefined;
+  const questCustomModLines: string[] = [];
   const inputRegex = /<(?:Input|Placeholder)\b([^>]*)\/?>/gi;
   let inputMatch: RegExpExecArray | null;
   while ((inputMatch = inputRegex.exec(xml)) !== null) {
     const attrs = parseAttributes(inputMatch[1]!);
     const key = attrs.name;
+    // PoE 2 optional campaign quest rewards stored as <Input name="quest..." string="..."/>
+    if (game === 'poe2' && key && /^quest/i.test(key) && attrs.string) {
+      for (const rawQuestLine of attrs.string.split(/\r?\n/)) {
+        const ql = rawQuestLine.trim();
+        if (!ql) continue;
+        // Skip fixed campaign baselines already baked into POE2_RULESET
+        if (
+          /^\+?100\s*(?:to\s+)?Spirit$/i.test(ql) ||
+          /^\+?20\s*to maximum Life$/i.test(ql) ||
+          /^5%\s*increased maximum (?:Life|Mana)$/i.test(ql) ||
+          /^\+10%\s*to (?:Fire|Cold|Lightning) Resistance$/i.test(ql) ||
+          /Charm Slot/i.test(ql)
+        ) {
+          continue;
+        }
+        questCustomModLines.push(ql);
+      }
+    }
     if (key === 'bandit' && attrs.string) {
       if (attrs.string === 'None' || attrs.string === 'Alira' || attrs.string === 'Kraityn' || attrs.string === 'Oak') {
         banditFromConfig = attrs.string;
@@ -740,6 +784,11 @@ export function xmlToBuild(xml: string): Build {
       }
     }
     if (key === 'customMods' && attrs.string) config.customMods = attrs.string;
+  }
+  if (questCustomModLines.length > 0) {
+    config.customMods = [config.customMods.trim(), ...questCustomModLines]
+      .filter(Boolean)
+      .join('\n');
   }
 
   // Parse <Notes>

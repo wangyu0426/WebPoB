@@ -820,6 +820,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
           weaponSet2NodeIds: [...target.weaponSet2NodeIds],
           masteryEffects: { ...target.masteryEffects },
           ...(target.socketedJewels ? { socketedJewels: { ...target.socketedJewels } } : {}),
+          ...(target.attributeOverrides ? { attributeOverrides: { ...target.attributeOverrides } } : {}),
         },
         treeSpecs: specs,
         activeTreeSpecIndex: index,
@@ -842,6 +843,7 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
             weaponSet2NodeIds: [...cur.tree.weaponSet2NodeIds],
             masteryEffects: { ...cur.tree.masteryEffects },
             ...(cur.tree.socketedJewels ? { socketedJewels: { ...cur.tree.socketedJewels } } : {}),
+            ...(cur.tree.attributeOverrides ? { attributeOverrides: { ...cur.tree.attributeOverrides } } : {}),
           }
         : {
             title,

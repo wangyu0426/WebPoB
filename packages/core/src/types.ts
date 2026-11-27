@@ -315,6 +315,8 @@ export interface Item {
   explicits: string[];
   /** Optional raw source text (EN or ZH) preserved for tooltip/export. */
   rawText?: string;
+  /** Whether the item is Corrupted (or Twice Corrupted in PoE 2). */
+  corrupted?: boolean;
   /**
    * Whether `armourStats` / `weaponStats` already include local modifiers & quality
    * (true for in-game Ctrl+C clipboard text; false for PoB XML `<Item>` & Unique catalog).
@@ -383,6 +385,8 @@ export interface TreeSpec {
   masteryEffects: Record<number, string>;
   /** Passive tree jewel sockets: jewelNodeId -> itemId in `build.items`. */
   socketedJewels?: Record<number, string>;
+  /** PoE 2: Chosen attribute overrides on "+5 to any Attribute" travel nodes. */
+  attributeOverrides?: Record<number, 'str' | 'dex' | 'int'>;
 }
 
 export interface ItemSetSpec {

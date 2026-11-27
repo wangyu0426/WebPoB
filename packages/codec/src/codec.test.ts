@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSamplePoe1Build, createSamplePoe2Build } from '@webpob/data';
 import {
+  buildToPobXml,
   encodeBuildToPobCode,
   fetchRemoteBuildCode,
   importBuildFromCode,
@@ -8,6 +9,7 @@ import {
   parseItemText,
   parsePoeNinjaCharacterUrl,
   resolveShareUrl,
+  xmlToBuild,
 } from './index.js';
 
 describe('@webpob/codec', () => {
@@ -323,5 +325,64 @@ Energy Shield: 520 (augmented)
     expect(parsedTw!.explicits).toContain('55% increased Spell Damage');
     expect(parsedTw!.explicits).toContain('+3 to Level of all Lightning Spell Skill Gems');
     expect(parsedTw!.explicits).toContain('+18% to Fire and Cold Resistances');
+  });
+
+  it('parses PoE 2 AttributeOverride, optional quest rewards, Corrupted/Twice Corrupted flags, and skips Rune/ModRange noise', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding2>
+  <Build level="100" className="Witch" ascendClassName="Blood Mage" mainSocketGroup="1" />
+  <Tree activeSpec="1">
+    <Spec treeVersion="0_5" nodes="1,2,3">
+      <Overrides>
+        <AttributeOverride strNodes="101,102" dexNodes="201" intNodes="301" />
+      </Overrides>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: UNIQUE
+Morior Invictus
+Grand Regalia
+Energy Shield: 286
+Quality: 20
+Sockets: S S S S S
+Rune: Soul Core of Jiquani
+Implicits: 1
++1% to all Maximum Elemental Resistances
++9% to all Elemental Resistances per Socket filled
+Twice Corrupted
+&lt;ModRange id="1" range="0.5"/&gt;
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Body Armour" itemId="1" />
+    </ItemSet>
+  </Items>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+      <Input name="questAct2" string="+10% to Lightning Resistance" />
+      <Input name="questInterlude" string="30% increased Global Armour, Evasion and Energy Shield" />
+    </ConfigSet>
+  </Config>
+</PathOfBuilding2>`;
+
+    const build = xmlToBuild(xml);
+    expect(build.tree.attributeOverrides).toEqual({
+      101: 'str',
+      102: 'str',
+      201: 'dex',
+      301: 'int',
+    });
+    const chest = build.items['imp_item_1']!;
+    expect(chest.corrupted).toBe(true);
+    expect([...chest.implicits, ...chest.explicits].join('\n')).not.toContain('Rune:');
+    expect([...chest.implicits, ...chest.explicits].join('\n')).not.toContain('Twice Corrupted');
+    expect([...chest.implicits, ...chest.explicits].join('\n')).not.toContain('<ModRange');
+    // Fixed campaign baseline (+10% Lightning Res) is excluded; optional quest reward is kept
+    expect(build.config.customMods).toContain('30% increased Global Armour, Evasion and Energy Shield');
+    expect(build.config.customMods).not.toContain('+10% to Lightning Resistance');
+
+    // Round-trip preserves AttributeOverride
+    const roundTripped = xmlToBuild(buildToPobXml(build));
+    expect(roundTripped.tree.attributeOverrides).toEqual(build.tree.attributeOverrides);
   });
 });

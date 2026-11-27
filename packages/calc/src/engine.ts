@@ -10,6 +10,7 @@ import {
   type DamageType,
   type EquipmentSlotId,
   type GemDefinition,
+  type GemInstance,
   type Item,
   type Mod,
   type NodePowerDelta,
@@ -349,10 +350,21 @@ export function calculateBuild(build: Build): CalcOutput {
     }
   }
 
+  const attrOverrides = build.tree.attributeOverrides ?? {};
   for (const nodeId of activeTreeNodes) {
     const node = tree.nodes[nodeId];
     if (!node) continue;
-    db.addMods(parseModLines(node.stats, `Tree: ${node.name.en}`));
+    const chosenAttr = attrOverrides[nodeId];
+    const effectiveStats = chosenAttr
+      ? node.stats.map((line) => {
+          const m = line.match(/^\+(\d+) to any Attribute$/i);
+          if (!m) return line;
+          const attrName =
+            chosenAttr === 'str' ? 'Strength' : chosenAttr === 'dex' ? 'Dexterity' : 'Intelligence';
+          return `+${m[1]} to ${attrName}`;
+        })
+      : node.stats;
+    db.addMods(parseModLines(effectiveStats, `Tree: ${node.name.en}`));
   }
 
   // Mastery effects chosen on PoE 1 mastery nodes
@@ -411,6 +423,97 @@ export function calculateBuild(build: Build): CalcOutput {
     });
   }
 
+function isKalandrasTouch(item: Item): boolean {
+  const lowerName = item.name.trim().toLowerCase();
+  if (lowerName === "kalandra's touch" || item.nameZh === '卡兰德之触' || item.nameZhTw === '卡蘭德之觸') {
+    return true;
+  }
+  return [...item.implicits, ...item.explicits].some((line) =>
+    /Reflects (?:your other|opposite) Ring|映射另一枚戒指/i.test(line),
+  );
+}
+
+function countFilledSockets(item: Item): number {
+  if (item.rawText) {
+    const runeMatches = item.rawText.match(/^Rune\s*[:：]/gim);
+    if (runeMatches && runeMatches.length > 0) return runeMatches.length;
+  }
+  if (item.sockets) {
+    const tokens = item.sockets.match(/[RGBWSA]/gi);
+    if (tokens && tokens.length > 0) return tokens.length;
+  }
+  return 0;
+}
+
+/**
+ * Expands PoE 2 "per Socket filled" modifiers (e.g. Morior Invictus Grand Regalia)
+ * into concrete scaled stat lines using the item's filled socket count.
+ */
+function expandPerSocketFilledMods(lines: readonly string[], filledSockets: number): string[] {
+  if (filledSockets <= 0) return [...lines];
+  const out: string[] = [];
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const mEle = line.match(/^\+(\d+)% to all Elemental Resistances per Socket filled$/i);
+    if (mEle) {
+      out.push(`+${Number(mEle[1]) * filledSockets}% to all Elemental Resistances`);
+      continue;
+    }
+    const mSingleRes = line.match(/^\+(\d+)% to (Fire|Cold|Lightning|Chaos) Resistance per Socket filled$/i);
+    if (mSingleRes) {
+      out.push(`+${Number(mSingleRes[1]) * filledSockets}% to ${mSingleRes[2]} Resistance`);
+      continue;
+    }
+    const mAllAttr = line.match(/^\+(\d+) to all Attributes per Socket filled$/i);
+    if (mAllAttr) {
+      out.push(`+${Number(mAllAttr[1]) * filledSockets} to all Attributes`);
+      continue;
+    }
+    const mAttr = line.match(/^\+(\d+) to (Strength|Dexterity|Intelligence) per Socket filled$/i);
+    if (mAttr) {
+      out.push(`+${Number(mAttr[1]) * filledSockets} to ${mAttr[2]}`);
+      continue;
+    }
+    const mLife = line.match(/^\+(\d+) to maximum Life per Socket filled$/i);
+    if (mLife) {
+      out.push(`+${Number(mLife[1]) * filledSockets} to maximum Life`);
+      continue;
+    }
+    const mMana = line.match(/^\+(\d+) to maximum Mana per Socket filled$/i);
+    if (mMana) {
+      out.push(`+${Number(mMana[1]) * filledSockets} to maximum Mana`);
+      continue;
+    }
+    const mEs = line.match(/^\+(\d+) to maximum Energy Shield per Socket filled$/i);
+    if (mEs) {
+      out.push(`+${Number(mEs[1]) * filledSockets} to maximum Energy Shield`);
+      continue;
+    }
+    const mSpirit = line.match(/^\+(\d+) to Spirit per Socket filled$/i);
+    if (mSpirit) {
+      out.push(`+${Number(mSpirit[1]) * filledSockets} to Spirit`);
+      continue;
+    }
+    const mIncLife = line.match(/^(\d+)% increased maximum Life per Socket filled$/i);
+    if (mIncLife) {
+      out.push(`${Number(mIncLife[1]) * filledSockets}% increased maximum Life`);
+      continue;
+    }
+    const mIncMana = line.match(/^(\d+)% increased maximum Mana per Socket filled$/i);
+    if (mIncMana) {
+      out.push(`${Number(mIncMana[1]) * filledSockets}% increased maximum Mana`);
+      continue;
+    }
+    const mGlobalDef = line.match(/^(\d+)% increased Global Defences per Socket filled$/i);
+    if (mGlobalDef) {
+      out.push(`${Number(mGlobalDef[1]) * filledSockets}% increased Global Defences`);
+      continue;
+    }
+    out.push(rawLine);
+  }
+  return out;
+}
+
   // 3. Equipped Items & Active Utility Flasks (with PoB-authentic Local Armour/Weapon resolution)
   // PoE 2 Shaman ascendancy ("Shaman" / 萨满) unlocks Bonded ("Bonded:" / "羁绊：") modifiers on items.
   const allowBonded = build.game === 'poe2' && build.ascendancyId.trim().toLowerCase() === 'shaman';
@@ -418,8 +521,24 @@ export function calculateBuild(build: Build): CalcOutput {
   const equippedItems = getActiveEquippedItems(build);
   let bodyLocalArmour = 0;
   let bodyLocalEvasion = 0;
+  let bodyLocalEs = 0;
   let helmetLocalEs = 0;
-  for (const { slot, item } of equippedItems) {
+  let corruptedEquippedCount = 0;
+  for (const { slot, item: rawItem } of equippedItems) {
+    if (!slot.startsWith('Flask ') && !slot.startsWith('Charm ') && rawItem.corrupted) {
+      corruptedEquippedCount++;
+    }
+    let item = rawItem;
+    let mirroredLabel = '';
+    if ((slot === 'Ring 1' || slot === 'Ring 2') && isKalandrasTouch(rawItem)) {
+      const oppositeSlot: EquipmentSlotId = slot === 'Ring 1' ? 'Ring 2' : 'Ring 1';
+      const oppositeId = build.equipped[oppositeSlot];
+      const oppositeItem = oppositeId ? build.items[oppositeId] : undefined;
+      if (oppositeItem && !isKalandrasTouch(oppositeItem)) {
+        item = oppositeItem;
+        mirroredLabel = ` → ${oppositeItem.name}`;
+      }
+    }
     if (slot.startsWith('Flask ')) {
       if (!build.activeFlaskSlots?.[slot]) continue;
       const src = `Flask (${slot}): ${item.name}`;
@@ -431,11 +550,15 @@ export function calculateBuild(build: Build): CalcOutput {
       db.addMods(parseModLines(item.explicits, src, itemModOpts));
       continue;
     }
-    const src = `Item (${slot}): ${item.name}`;
+    const src = `Item (${slot}): ${rawItem.name}${mirroredLabel}`;
     const resolved = resolveItemEffectiveStats(item, build.game);
+    const filledSockets = countFilledSockets(item);
+    const effectiveImplicits = expandPerSocketFilledMods(resolved.globalImplicits, filledSockets);
+    const effectiveExplicits = expandPerSocketFilledMods(resolved.globalExplicits, filledSockets);
     if (slot === 'Body Armour') {
       bodyLocalArmour = resolved.armourStats?.armour ?? 0;
       bodyLocalEvasion = resolved.armourStats?.evasion ?? 0;
+      bodyLocalEs = resolved.armourStats?.energyShield ?? 0;
     } else if (slot === 'Helmet') {
       helmetLocalEs = resolved.armourStats?.energyShield ?? 0;
     }
@@ -454,8 +577,8 @@ export function calculateBuild(build: Build): CalcOutput {
     if (resolved.armourStats?.blockChance) {
       db.addMod({ name: 'BlockChance', type: 'BASE', value: resolved.armourStats.blockChance, flags: 0, keywordFlags: 0, source: src });
     }
-    db.addMods(parseModLines(resolved.globalImplicits, `${src} [Implicit]`, itemModOpts));
-    db.addMods(parseModLines(resolved.globalExplicits, src, itemModOpts));
+    db.addMods(parseModLines(effectiveImplicits, `${src} [Implicit]`, itemModOpts));
+    db.addMods(parseModLines(effectiveExplicits, src, itemModOpts));
   }
 
   // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs (with +Gem Level / Empower / Enlighten / Socketed scaling)
@@ -474,6 +597,18 @@ export function calculateBuild(build: Build): CalcOutput {
   const curseEffectPct = db.sum('INC', 'CurseEffect') + customCurseEffect;
   const auraReservations: Array<{ pct: number; flat: number; mult: number }> = [];
   let totalSpiritReserved = 0;
+  // Deduplicate active global auras/buffs by gem ID (PoB2 exports item-granted skills both as a player group and as a source="Item:..." group).
+  const activeGlobalBuffs = new Map<
+    string,
+    {
+      def: GemDefinition;
+      gemInst: GemInstance;
+      effLevel: number;
+      isAura: boolean;
+      isCurseOrMark: boolean;
+      groupEnlightenMult: number;
+    }
+  >();
   for (const group of build.skills) {
     if (!group.enabled) continue;
     if (build.game === 'poe2' && group.weaponSets && !group.weaponSets.includes(build.activeWeaponSet)) {
@@ -516,30 +651,48 @@ export function calculateBuild(build: Build): CalcOutput {
       if (!isGlobalBuff) continue;
       const gemBon = resolveGemBonuses(def, db, groupSocketedRules);
       const effLevel = Math.min(40, Math.max(1, gemInst.level + gemBon.levelBonus + groupEmpowerBonus));
-      const levelEntry = resolveGemLevelEntry(def, effLevel);
-      const auraStats = levelEntry?.stats ?? def.stats;
-      const parsedAuraMods = parseModLines(
-        auraStats,
-        `Aura/Buff: ${def.name.en}${effLevel !== gemInst.level ? ` (Lv.${effLevel})` : ''}`,
-      );
-      if (isAura && auraEffectPct > 0) {
-        db.addMods(scaleNumericMods(parsedAuraMods, 1 + auraEffectPct / 100, true));
-      } else if (isCurseOrMark && curseEffectPct > 0) {
-        db.addMods(scaleNumericMods(parsedAuraMods, 1 + curseEffectPct / 100, false));
-      } else {
-        db.addMods(parsedAuraMods);
-      }
-      if (def.manaReservationPct || def.manaReservationFlat) {
-        auraReservations.push({
-          pct: def.manaReservationPct ?? 0,
-          flat: def.manaReservationFlat ?? 0,
-          mult: groupEnlightenMult,
+      const prev = activeGlobalBuffs.get(def.id);
+      if (
+        !prev ||
+        effLevel > prev.effLevel ||
+        (effLevel === prev.effLevel && groupEnlightenMult < prev.groupEnlightenMult)
+      ) {
+        activeGlobalBuffs.set(def.id, {
+          def,
+          gemInst,
+          effLevel,
+          isAura,
+          isCurseOrMark,
+          groupEnlightenMult,
         });
       }
-      const spiritCost = gemInst.spiritReservationOverride ?? def.spiritReservation ?? 0;
-      if (spiritCost > 0) {
-        totalSpiritReserved += spiritCost;
-      }
+    }
+  }
+
+  for (const { def, gemInst, effLevel, isAura, isCurseOrMark, groupEnlightenMult } of activeGlobalBuffs.values()) {
+    const levelEntry = resolveGemLevelEntry(def, effLevel);
+    const auraStats = levelEntry?.stats ?? def.stats;
+    const parsedAuraMods = parseModLines(
+      auraStats,
+      `Aura/Buff: ${def.name.en}${effLevel !== gemInst.level ? ` (Lv.${effLevel})` : ''}`,
+    );
+    if (isAura && auraEffectPct > 0) {
+      db.addMods(scaleNumericMods(parsedAuraMods, 1 + auraEffectPct / 100, true));
+    } else if (isCurseOrMark && curseEffectPct > 0) {
+      db.addMods(scaleNumericMods(parsedAuraMods, 1 + curseEffectPct / 100, false));
+    } else {
+      db.addMods(parsedAuraMods);
+    }
+    if (def.manaReservationPct || def.manaReservationFlat) {
+      auraReservations.push({
+        pct: def.manaReservationPct ?? 0,
+        flat: def.manaReservationFlat ?? 0,
+        mult: groupEnlightenMult,
+      });
+    }
+    const spiritCost = gemInst.spiritReservationOverride ?? def.spiritReservation ?? 0;
+    if (spiritCost > 0) {
+      totalSpiritReserved += spiritCost;
     }
   }
 
@@ -740,6 +893,28 @@ export function calculateBuild(build: Build): CalcOutput {
       flags: 0,
       keywordFlags: 0,
       source: 'Escape Artist (Helmet Energy Shield)',
+    });
+  }
+  const lifePerBodyEsPct = db.sum('BASE', 'LifePerBodyEsPct');
+  if (lifePerBodyEsPct > 0 && bodyLocalEs > 0) {
+    db.addMod({
+      name: 'Life',
+      type: 'BASE',
+      value: Math.floor((bodyLocalEs * lifePerBodyEsPct) / 100),
+      flags: 0,
+      keywordFlags: 0,
+      source: 'Crimson Power (Body Armour Energy Shield)',
+    });
+  }
+  const lifeIncPerCorrupted = db.sum('BASE', 'LifeIncPerCorruptedItem');
+  if (lifeIncPerCorrupted > 0 && corruptedEquippedCount > 0) {
+    db.addMod({
+      name: 'Life',
+      type: 'INC',
+      value: lifeIncPerCorrupted * corruptedEquippedCount,
+      flags: 0,
+      keywordFlags: 0,
+      source: `Corrupted Items Equipped (${corruptedEquippedCount})`,
     });
   }
   const moreDamagePerMastery = db.sum('BASE', 'MoreDamagePerMastery');

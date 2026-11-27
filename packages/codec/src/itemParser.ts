@@ -202,6 +202,7 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     : lines.slice(bodyStartIdxInFlatLines);
 
   let afterImplicitsMarker = false;
+  let corrupted = false;
   const collectedSections: string[][] = [[]];
 
   for (const rawLine of bodyLines) {
@@ -240,10 +241,16 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
       continue;
     }
 
+    if (/^(?:Corrupted|Twice Corrupted|已腐化|双重腐化)$/i.test(line)) {
+      corrupted = true;
+      continue;
+    }
+
     if (
-      /^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Note|备注|Weapon Range|攻击范围|Limited to|仅限|Radius|影响范围|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile|WardBasePercentile)/i.test(line) ||
+      /^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Note|备注|Weapon Range|攻击范围|Limited to|仅限|Radius|影响范围|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile|WardBasePercentile|<ModRange\b)/i.test(line) ||
+      /^(?:Rune|符文)\s*[:：]/i.test(line) ||
       /^(?:Str|Dex|Int|Strength|Dexterity|Intelligence|力量|敏捷|智慧|Class|职业)\s*[:：]\s*\d+/i.test(line) ||
-      /^(?:Corrupted|已腐化|Unidentified|未鉴定|Mirrored|已复制|Split|已分裂|Synthesised Item|追忆物品|Fractured Item|分裂物品|Searing Exarch Item|Eater of Worlds Item|Shaper Item|Elder Item|Crusader Item|Hunter Item|Redeemer Item|Warlord Item)$/i.test(line)
+      /^(?:Unidentified|未鉴定|Mirrored|已复制|Split|已分裂|Synthesised Item|追忆物品|Fractured Item|分裂物品|Searing Exarch Item|Eater of Worlds Item|Shaper Item|Elder Item|Crusader Item|Hunter Item|Redeemer Item|Warlord Item)$/i.test(line)
     ) {
       continue;
     }
@@ -433,6 +440,7 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     implicits,
     explicits,
     rawText: trimmed,
+    ...(corrupted ? { corrupted: true } : {}),
     localStatsPrecomputed,
   };
 }

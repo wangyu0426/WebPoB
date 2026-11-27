@@ -863,4 +863,166 @@ describe('@webpob/calc', () => {
     expect(shamanWithBonded.defence.life).toBeGreaterThanOrEqual(shamanEmptyChest.defence.life + 40);
     expect(shamanWithBonded.defence.lightningResist).toBe(shamanEmptyChest.defence.lightningResist + 12);
   });
+
+  it("mirrors the opposite ring for Kalandra's Touch and scales Morior Invictus per-Socket-filled mods", () => {
+    const base = createSamplePoe2Build();
+    const rareRing = {
+      id: 'ring_grim_band',
+      name: 'Grim Band',
+      baseName: 'Vitalic Ring',
+      rarity: 'RARE' as const,
+      slotType: 'Ring 2' as const,
+      quality: 0,
+      implicits: ['+21 to maximum Mana', '6% increased maximum Life'],
+      explicits: ['+44% to Lightning Resistance', '+22% to Chaos Resistance'],
+      localStatsPrecomputed: true,
+    };
+    const kalandra = {
+      id: 'ring_kalandra',
+      name: "Kalandra's Touch",
+      baseName: 'Ring',
+      rarity: 'UNIQUE' as const,
+      slotType: 'Ring 1' as const,
+      quality: 0,
+      implicits: [],
+      explicits: ['Reflects opposite Ring'],
+      localStatsPrecomputed: true,
+    };
+    const morior = {
+      id: 'chest_morior',
+      name: 'Morior Invictus',
+      baseName: 'Grand Regalia',
+      rarity: 'UNIQUE' as const,
+      slotType: 'Body Armour' as const,
+      quality: 20,
+      sockets: 'S S S S S',
+      implicits: ['+1% to all Maximum Elemental Resistances'],
+      explicits: [
+        '+7 to all Attributes per Socket filled',
+        '+60 to maximum Life per Socket filled',
+        '+9% to all Elemental Resistances per Socket filled',
+      ],
+      localStatsPrecomputed: true,
+    };
+
+    const baseline = calculateBuild({
+      ...base,
+      equipped: { ...base.equipped, 'Ring 1': undefined, 'Ring 2': rareRing.id, 'Body Armour': undefined },
+      items: { ...base.items, [rareRing.id]: rareRing },
+    });
+    const withKalandraAndMorior = calculateBuild({
+      ...base,
+      equipped: {
+        ...base.equipped,
+        'Ring 1': kalandra.id,
+        'Ring 2': rareRing.id,
+        'Body Armour': morior.id,
+      },
+      items: {
+        ...base.items,
+        [rareRing.id]: rareRing,
+        [kalandra.id]: kalandra,
+        [morior.id]: morior,
+      },
+    });
+
+    // Kalandra's Touch mirrors +22% Chaos Res from Ring 2
+    expect(withKalandraAndMorior.defence.chaosResist).toBe(baseline.defence.chaosResist + 22);
+    // Morior Invictus 5 filled sockets grants +35 Str/Dex/Int, +300 Life, +45% All Ele Res, +1% Max Ele Res (cap 76%)
+    expect(withKalandraAndMorior.defence.str).toBe(baseline.defence.str + 35);
+    expect(withKalandraAndMorior.defence.dex).toBe(baseline.defence.dex + 35);
+    expect(withKalandraAndMorior.defence.int).toBe(baseline.defence.int + 35);
+    expect(withKalandraAndMorior.defence.lightningResist).toBe(76);
+    expect(withKalandraAndMorior.defence.life).toBeGreaterThan(baseline.defence.life + 350);
+  });
+
+  it('applies Crimson Power, Corrupted-item Life scaling, Global Defence Ward scaling, and deduplicates duplicate global auras', () => {
+    const base = createSamplePoe2Build();
+    const chest = {
+      id: 'chest_crimson',
+      name: 'Morior Invictus',
+      baseName: 'Grand Regalia',
+      rarity: 'UNIQUE' as const,
+      slotType: 'Body Armour' as const,
+      quality: 20,
+      corrupted: true,
+      armourStats: { energyShield: 300, ward: 200 },
+      implicits: [],
+      explicits: ['1% increased Maximum Life for each Corrupted Item Equipped'],
+      localStatsPrecomputed: true,
+    };
+    const helm = {
+      id: 'helm_corrupted',
+      name: "Alpha's Howl",
+      baseName: 'Armoured Cap',
+      rarity: 'UNIQUE' as const,
+      slotType: 'Helmet' as const,
+      quality: 20,
+      corrupted: true,
+      armourStats: { ward: 100 },
+      implicits: [],
+      explicits: [],
+      localStatsPrecomputed: true,
+    };
+
+    const withoutCrimson = calculateBuild({
+      ...base,
+      items: { ...base.items, [chest.id]: chest, [helm.id]: helm },
+      equipped: { ...base.equipped, 'Body Armour': chest.id, Helmet: helm.id },
+      config: {
+        ...base.config,
+        customMods: '30% increased Global Armour, Evasion and Energy Shield',
+      },
+    });
+    const withCrimson = calculateBuild({
+      ...base,
+      items: { ...base.items, [chest.id]: chest, [helm.id]: helm },
+      equipped: { ...base.equipped, 'Body Armour': chest.id, Helmet: helm.id },
+      config: {
+        ...base.config,
+        customMods:
+          '30% increased Global Armour, Evasion and Energy Shield\nGain additional maximum Life equal to 100% of the Item Energy Shield on Equipped Body Armour',
+      },
+    });
+
+    // Global Armour/Evasion/ES scales Ward: (200 + 100) * 1.3 = 390
+    expect(withoutCrimson.defence.ward).toBe(390);
+    // Crimson Power adds 300 base Life scaled by 2% increased Life (2 corrupted items equipped) -> +306 Life
+    expect(withCrimson.defence.life - withoutCrimson.defence.life).toBeGreaterThanOrEqual(300);
+
+    // Duplicate persistent aura in two skill groups must NOT double-apply stats or Spirit reservation
+    const singleAura = calculateBuild({
+      ...base,
+      skills: [
+        {
+          id: 'sg_1',
+          label: 'Buff 1',
+          enabled: true,
+          weaponSets: [1, 2],
+          gems: [{ instanceId: 'g1', gemId: 'poe2_herald_of_thunder', level: 20, quality: 0, enabled: true }],
+        },
+      ],
+    });
+    const duplicateAura = calculateBuild({
+      ...base,
+      skills: [
+        {
+          id: 'sg_1',
+          label: 'Buff 1',
+          enabled: true,
+          weaponSets: [1, 2],
+          gems: [{ instanceId: 'g1', gemId: 'poe2_herald_of_thunder', level: 20, quality: 0, enabled: true }],
+        },
+        {
+          id: 'sg_2',
+          label: 'Item Duplicate',
+          enabled: true,
+          slot: 'Gloves',
+          weaponSets: [1, 2],
+          gems: [{ instanceId: 'g2', gemId: 'poe2_herald_of_thunder', level: 20, quality: 0, enabled: true }],
+        },
+      ],
+    });
+    expect(duplicateAura.defence.spiritReserved).toBe(singleAura.defence.spiritReserved);
+  });
 });
