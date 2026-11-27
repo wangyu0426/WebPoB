@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
-import { Copy, Gauge, Plus, Search, Sparkles, Star, Trash2, Zap } from 'lucide-react';
-import type { EquipmentSlotId, WeaponSetId } from '@webpob/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Copy, Gauge, Plus, Search, Sparkles, Star, Trash2, X, Zap } from 'lucide-react';
+import type { EquipmentSlotId, GemDefinition, Locale, WeaponSetId } from '@webpob/core';
 import { getGemsForGame, getRuleset } from '@webpob/data';
 import { calculateBuild, rankSupportGemsForGroup } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, localizeText, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
+import { searchGemsCatalog, type GemCategoryFilter } from '../utils/gemSearch';
 
 const GEM_COLOR_BADGE: Record<string, string> = {
   red: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
@@ -40,6 +41,265 @@ const GEM_TAG_NOISE = new Set([
 
 function displayGemTags(tags: string[]): string[] {
   return tags.filter((tag) => !GEM_TAG_NOISE.has(tag.toLowerCase())).slice(0, 3);
+}
+
+interface GemSearchPickerProps {
+  gemsCatalog: GemDefinition[];
+  locale: Locale;
+  globalQuery: string;
+  hasActiveGem: boolean;
+  onSelectGem: (gemId: string) => void;
+}
+
+function GemSearchPicker({
+  gemsCatalog,
+  locale,
+  globalQuery,
+  hasActiveGem,
+  onSelectGem,
+}: GemSearchPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [localQuery, setLocalQuery] = useState('');
+  const [category, setCategory] = useState<GemCategoryFilter>(hasActiveGem ? 'all' : 'active');
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const effectiveQuery = localQuery.trim() ? localQuery : globalQuery;
+
+  const result = useMemo(
+    () =>
+      searchGemsCatalog(gemsCatalog, effectiveQuery, {
+        category,
+        locale,
+        limit: 80,
+        preferActive: !hasActiveGem,
+      }),
+    [gemsCatalog, effectiveQuery, category, locale, hasActiveGem],
+  );
+
+  // If current category has 0 hits while the other category does have hits, keep tabs visible so user can click right away
+  useEffect(() => {
+    setHighlightIdx(0);
+  }, [effectiveQuery, category, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [open]);
+
+  const handlePick = (gem: GemDefinition) => {
+    onSelectGem(gem.id);
+    setLocalQuery('');
+    // After adding the first active skill, switch default tab to 'all' so adding supports right after is 1-click
+    if (gem.category === 'active' && category === 'active') {
+      setCategory('all');
+    }
+    setOpen(false);
+  };
+
+  return (
+    <div ref={rootRef} className="relative flex-1 min-w-0">
+      <div className="relative flex items-center">
+        <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 pointer-events-none" />
+        <input
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          value={localQuery}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setLocalQuery(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setOpen(false);
+              inputRef.current?.blur();
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              if (!open) setOpen(true);
+              setHighlightIdx((i) => Math.min(Math.max(0, result.items.length - 1), i + 1));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setHighlightIdx((i) => Math.max(0, i - 1));
+            } else if (e.key === 'Enter' && open && result.items.length > 0) {
+              e.preventDefault();
+              const picked = result.items[highlightIdx] ?? result.items[0];
+              if (picked) handlePick(picked);
+            }
+          }}
+          placeholder={
+            locale === 'zh-CN'
+              ? '+ 搜索主动 / 辅助技能（中/英文/标签）...'
+              : '+ Search active / support gems (name / tag)...'
+          }
+          className="pob-input w-full min-w-0 rounded pl-8 pr-12 py-1.5 text-xs"
+        />
+        <div className="absolute right-1.5 flex items-center gap-0.5">
+          {localQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setLocalQuery('');
+                inputRef.current?.focus();
+              }}
+              aria-label={locale === 'zh-CN' ? '清空搜索' : 'Clear search'}
+              className="p-0.5 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen((v) => !v);
+              if (!open) inputRef.current?.focus();
+            }}
+            aria-label={locale === 'zh-CN' ? '展开技能列表' : 'Toggle gem list'}
+            className="p-0.5 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+          >
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-lg border border-[#2c3550] bg-[#0b0e17] shadow-2xl overflow-hidden">
+          {/* Category Filter Header */}
+          <div className="flex flex-wrap items-center justify-between gap-1.5 px-2 py-1.5 border-b border-[#1f2638] bg-[#101423]">
+            <div className="flex items-center gap-1">
+              {(
+                [
+                  {
+                    id: 'all' as GemCategoryFilter,
+                    label: locale === 'zh-CN' ? '全部' : 'All',
+                    count: result.totalActive + result.totalSupport,
+                  },
+                  {
+                    id: 'active' as GemCategoryFilter,
+                    label: locale === 'zh-CN' ? '主动' : 'Active',
+                    count: result.totalActive,
+                  },
+                  {
+                    id: 'support' as GemCategoryFilter,
+                    label: locale === 'zh-CN' ? '辅助' : 'Support',
+                    count: result.totalSupport,
+                  },
+                ]
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setCategory(tab.id)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition cursor-pointer ${
+                    category === tab.id
+                      ? 'bg-amber-500/25 text-amber-200 border border-amber-500/50'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#192033] border border-transparent'
+                  }`}
+                >
+                  {tab.label}
+                  <span className="ml-1 text-[10px] font-mono opacity-75">{tab.count}</span>
+                </button>
+              ))}
+            </div>
+            {globalQuery.trim() && !localQuery.trim() && (
+              <span className="text-[10px] text-amber-300/80 truncate max-w-[10rem]">
+                {locale === 'zh-CN' ? `顶部过滤: ${globalQuery.trim()}` : `Filter: ${globalQuery.trim()}`}
+              </span>
+            )}
+          </div>
+
+          {/* Results List */}
+          <div className="max-h-64 overflow-y-auto divide-y divide-[#171c2b]">
+            {result.items.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-zinc-400 space-y-1.5">
+                <div>
+                  {locale === 'zh-CN'
+                    ? '未找到匹配的技能宝石，可尝试中文名、英文名或标签（如 火焰 / 法术 / spell）'
+                    : 'No matching gems found. Try EN/ZH name or tags (e.g. fire, spell).'}
+                </div>
+                {category !== 'all' && result.totalActive + result.totalSupport > 0 && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setCategory('all')}
+                    className="text-amber-300 hover:underline text-[11px] cursor-pointer"
+                  >
+                    {locale === 'zh-CN'
+                      ? `在「全部」中查看 ${result.totalActive + result.totalSupport} 个结果`
+                      : `Show ${result.totalActive + result.totalSupport} matches in All`}
+                  </button>
+                )}
+              </div>
+            ) : (
+              result.items.map((gem, idx) => {
+                const isHighlighted = idx === highlightIdx;
+                const primaryName = localizeText(gem.name, locale);
+                const secondaryName = locale === 'zh-CN' ? gem.name.en : gem.name.zh;
+                const tags = displayGemTags(gem.tags);
+                return (
+                  <button
+                    key={gem.id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setHighlightIdx(idx)}
+                    onClick={() => handlePick(gem)}
+                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs transition cursor-pointer ${
+                      isHighlighted ? 'bg-[#1a2238] text-amber-100' : 'hover:bg-[#141a2b] text-zinc-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold uppercase shrink-0 ${
+                          GEM_COLOR_BADGE[gem.color] ?? GEM_COLOR_BADGE.white
+                        }`}
+                      >
+                        {gem.category === 'active' ? (gem.isAuraOrBuff ? 'BUFF' : 'ACT') : 'SUP'}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">
+                          {primaryName}
+                          {secondaryName && secondaryName !== primaryName && (
+                            <span className="ml-1.5 text-[10px] text-zinc-400 font-normal">
+                              {secondaryName}
+                            </span>
+                          )}
+                        </div>
+                        {tags.length > 0 && (
+                          <div className="text-[10px] text-zinc-500 font-mono truncate">
+                            {tags.join(' · ')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Plus className="w-3.5 h-3.5 text-amber-300/70 shrink-0" />
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {result.totalMatched > result.items.length && (
+            <div className="px-2.5 py-1 border-t border-[#1f2638] bg-[#0e121f] text-[10px] text-zinc-400 text-center">
+              {locale === 'zh-CN'
+                ? `已显示前 ${result.items.length} / ${result.totalMatched} 颗，继续输入关键词快速定位`
+                : `Showing top ${result.items.length} of ${result.totalMatched} gems — type to narrow down`}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SkillsTab() {
@@ -132,17 +392,6 @@ export function SkillsTab() {
     }
   };
 
-  const q = gemSearch.trim().toLowerCase();
-  const filteredGems = q
-    ? gemsCatalog.filter(
-        (g) =>
-          g.name.en.toLowerCase().includes(q) ||
-          g.name.zh.toLowerCase().includes(q) ||
-          g.tags.some((tag) => tag.toLowerCase().includes(q)),
-      )
-    : gemsCatalog;
-  const activeGems = filteredGems.filter((g) => g.category === 'active').slice(0, 120);
-  const supportGems = filteredGems.filter((g) => g.category === 'support').slice(0, 120);
   const ruleset = getRuleset(build.game);
   const socketableSlots: EquipmentSlotId[] = ruleset.equipmentSlots.filter(
     (s) => !s.startsWith('Flask') && !s.startsWith('Charm') && !s.startsWith('Ring') && s !== 'Amulet' && s !== 'Belt',
@@ -155,7 +404,7 @@ export function SkillsTab() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-5 space-y-4">
+    <div className="h-full overflow-y-auto p-3 sm:p-5 pb-32 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="text-base font-bold text-amber-200">{t(locale, 'skills.title')}</h2>
@@ -207,15 +456,25 @@ export function SkillsTab() {
               </button>
             )}
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={gemSearch}
               onChange={(e) => setGemSearch(e.target.value)}
-              placeholder={locale === 'zh-CN' ? '过滤宝石（中/英文/标签）...' : 'Filter gems (EN/ZH/tag)...'}
-              className="pob-input rounded pl-8 pr-2.5 py-1 text-xs w-56"
+              placeholder={locale === 'zh-CN' ? '全局预过滤宝石（中/英文/标签）...' : 'Global gem filter (EN/ZH/tag)...'}
+              className="pob-input rounded pl-8 pr-7 py-1 text-xs w-full sm:w-56"
             />
+            {gemSearch && (
+              <button
+                type="button"
+                onClick={() => setGemSearch('')}
+                aria-label={locale === 'zh-CN' ? '清空全局过滤' : 'Clear global filter'}
+                className="p-0.5 text-zinc-400 hover:text-zinc-200 absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -601,41 +860,25 @@ export function SkillsTab() {
                 })}
               </div>
 
-              {/* Add Gem Dropdown + Smart Support DPS Recommender */}
+              {/* Searchable Add Gem Picker + Smart Support DPS Recommender */}
               <div className="pt-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <select
-                    defaultValue=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        addGemToGroup(group.id, e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="pob-input flex-1 min-w-0 rounded px-2.5 py-1.5 text-xs"
-                  >
-                    <option value="">+ {t(locale, 'skills.addGem')}...</option>
-                    <optgroup label={t(locale, 'skills.activeGems')}>
-                      {activeGems.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={t(locale, 'skills.supportGems')}>
-                      {supportGems.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {localizeText(g.name, locale)} ({locale === 'zh-CN' ? g.name.en : g.name.zh})
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <GemSearchPicker
+                    gemsCatalog={gemsCatalog}
+                    locale={locale}
+                    globalQuery={gemSearch}
+                    hasActiveGem={group.gems.some((gi) => {
+                      const def = gemsCatalog.find((g) => g.id === gi.gemId);
+                      return def?.category === 'active';
+                    })}
+                    onSelectGem={(gemId) => addGemToGroup(group.id, gemId)}
+                  />
                   <button
                     type="button"
                     onClick={() =>
                       setOptimizerGroupId((cur) => (cur === group.id ? null : group.id))
                     }
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold border shrink-0 cursor-pointer transition ${
+                    className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold border shrink-0 cursor-pointer transition ${
                       optimizerGroupId === group.id
                         ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200'
                         : 'bg-[#161c2b] hover:bg-[#1e263a] border-emerald-500/35 text-emerald-300'
