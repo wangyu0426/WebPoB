@@ -263,6 +263,11 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
       hasArmourStats = true;
       continue;
     }
+    const spiritPropMatch = line.match(/^(?:Spirit|精魂)\s*[:：]\s*\+?(\d+)/i);
+    if (spiritPropMatch) {
+      implicits.push(`+${Number(spiritPropMatch[1])} to Spirit`);
+      continue;
+    }
 
     // Weapon base stats
     const physMatch = line.match(/^(?:Physical Damage|物理伤害)\s*[:：]\s*(.+)$/i);

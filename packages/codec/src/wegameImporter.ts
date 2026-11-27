@@ -11,6 +11,7 @@ import type {
 } from '@webpob/core';
 import {
   createDefaultConfig,
+  getAscendancyStartNodeId,
   getBaseItemStats,
   getClassesForGame,
   getGemsForGame,
@@ -28,6 +29,7 @@ export interface WeGameModEntry {
 
 export interface WeGameProperty {
   name?: string;
+  type?: number;
   values?: Array<[string, number]>;
 }
 
@@ -202,6 +204,7 @@ function parseWeGameItemProperties(
   quality: number;
   armour?: ArmourBaseStats;
   weapon?: WeaponBaseStats;
+  spirit?: number;
   isCharm: boolean;
 } {
   let quality = 0;
@@ -209,6 +212,7 @@ function parseWeGameItemProperties(
   let evasion = 0;
   let energyShield = 0;
   let blockChance: number | undefined;
+  let spirit: number | undefined;
   let physRange: [number, number] | null = null;
   const elementalDamage: Partial<Record<'Fire' | 'Cold' | 'Lightning' | 'Chaos', [number, number]>> = {};
   let critChance: number | null = null;
@@ -236,6 +240,9 @@ function parseWeGameItemProperties(
     } else if (/格挡几率|Chance to Block/i.test(name) && val0) {
       const v = parseFirstNumber(val0);
       if (v !== null) blockChance = v;
+    } else if ((/^(?:精魂|Spirit)$/i.test(name) || prop.type === 25) && val0) {
+      const v = parseFirstNumber(val0);
+      if (v !== null && v > 0) spirit = Math.round(v);
     } else if (/物理伤害|Physical Damage/i.test(name) && val0) {
       physRange = parseRange(val0);
     } else if (/火焰伤害|Fire Damage/i.test(name) && val0) {
@@ -296,7 +303,7 @@ function parseWeGameItemProperties(
         }
       : undefined;
 
-  return { quality, armour: armourStats, weapon: weaponStats, isCharm };
+  return { quality, armour: armourStats, weapon: weaponStats, spirit, isCharm };
 }
 
 const WEGAME_INVENTORY_TO_SLOT: Record<string, EquipmentSlotId> = {
@@ -351,9 +358,14 @@ function buildGemLookup(catalog: GemDefinition[]): (rawName?: string) => GemDefi
   };
 }
 
-function extractGemLevelAndQuality(props?: WeGameProperty[]): { level: number; quality: number } {
+function extractGemLevelAndQuality(props?: WeGameProperty[]): {
+  level: number;
+  quality: number;
+  spiritReservation?: number;
+} {
   let level = 20;
   let quality = 0;
+  let spiritReservation: number | undefined;
   for (const p of props ?? []) {
     const name = cleanWeGameMarkup(p.name);
     const val0 = p.values?.[0]?.[0];
@@ -364,9 +376,12 @@ function extractGemLevelAndQuality(props?: WeGameProperty[]): { level: number; q
     } else if (/^(?:品质|Quality)$/i.test(name)) {
       const n = parseFirstNumber(val0);
       if (n !== null) quality = Math.max(0, Math.min(30, Math.round(n)));
+    } else if (/^(?:保留|Reservation)$/i.test(name) && /精魂|Spirit/i.test(cleanWeGameMarkup(val0))) {
+      const n = parseFirstNumber(val0);
+      if (n !== null) spiritReservation = Math.max(0, Math.round(n));
     }
   }
-  return { level, quality };
+  return { level, quality, spiritReservation };
 }
 
 /**
@@ -411,9 +426,13 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     }
   }
 
-  // Passive tree + Weapon Set I / II dual trees
+  // Passive tree + Weapon Set I / II dual trees + Ascendancy Start Hub
   const startNodeId = tree.classStartNodeIds[classId] ?? Object.values(tree.classStartNodeIds)[0]!;
   const hashSet = new Set<number>([startNodeId]);
+  const ascStartNodeId = getAscendancyStartNodeId(tree, ascendancyId);
+  if (ascStartNodeId) {
+    hashSet.add(ascStartNodeId);
+  }
   const rawTree = bundle.talentTree?.talent_tree;
   for (const h of rawTree?.hashes ?? []) {
     if (typeof h === 'number' && Number.isFinite(h)) hashSet.add(h);
@@ -441,6 +460,10 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     }
     return undefined;
   };
+
+  let ws1SpiritBonus = 0;
+  let ws2SpiritBonus = 0;
+  let sharedSpiritBonus = 0;
 
   let itemIdx = 0;
   for (const rawEq of bundle.equipments?.equipments ?? []) {
@@ -471,16 +494,32 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     const armourStats = parsedProps.armour ?? fallbackStats?.armour;
     const localStatsPrecomputed = Boolean(parsedProps.weapon || parsedProps.armour);
 
+    const hasPrecomputedSpiritProp = Boolean(parsedProps.spirit && parsedProps.spirit > 0);
+    const filterLocalSpiritLine = (line: string): boolean =>
+      !(hasPrecomputedSpiritProp && /(?:该装备|此装备|此物品)?(?:精魂|Spirit)(?:提高|增加)\s*\d+%/i.test(line));
+
     const implicits = [
-      ...extractModLines(rawEq.enchantMods),
-      ...extractModLines(rawEq.implicitMods),
-      ...extractModLines(rawEq.runeMods),
+      ...(hasPrecomputedSpiritProp ? [`+${parsedProps.spirit} to Spirit`] : []),
+      ...extractModLines(rawEq.enchantMods).filter(filterLocalSpiritLine),
+      ...extractModLines(rawEq.implicitMods).filter(filterLocalSpiritLine),
+      ...extractModLines(rawEq.runeMods).filter(filterLocalSpiritLine),
     ];
     const explicits = [
-      ...extractModLines(rawEq.fracturedMods),
-      ...extractModLines(rawEq.explicitMods),
-      ...extractModLines(rawEq.craftedMods),
+      ...extractModLines(rawEq.fracturedMods).filter(filterLocalSpiritLine),
+      ...extractModLines(rawEq.explicitMods).filter(filterLocalSpiritLine),
+      ...extractModLines(rawEq.craftedMods).filter(filterLocalSpiritLine),
     ];
+
+    // Estimate flat Spirit contribution per weapon set so activeWeaponSet picks the Sceptre set when needed
+    let itemFlatSpirit = parsedProps.spirit ?? 0;
+    for (const line of [...implicits, ...explicits]) {
+      if (line === `+${parsedProps.spirit} to Spirit`) continue;
+      const m = line.match(/^(?:\+(\d+)\s*点?(?:最大)?(?:精魂|to Spirit)|(?:最大)?精魂\s*\+?(\d+))$/i);
+      if (m) itemFlatSpirit += Number(m[1] || m[2] || 0);
+    }
+    if (slot === 'Weapon 1' || slot === 'Weapon 2') ws1SpiritBonus += itemFlatSpirit;
+    else if (slot === 'Weapon 1 Swap' || slot === 'Weapon 2 Swap') ws2SpiritBonus += itemFlatSpirit;
+    else sharedSpiritBonus += itemFlatSpirit;
 
     const id = rawEq.id ? `wg_${rawEq.id.slice(0, 12)}` : `wg_item_${itemIdx}`;
     items[id] = {
@@ -518,6 +557,7 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
   })();
 
   const jewelSummaries: string[] = [];
+  const jewelItemIds: string[] = [];
   rawJewelList.forEach((slotEntry, idx) => {
     const j = slotEntry.jewel;
     if (!j) return;
@@ -542,13 +582,24 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
       explicits: jMods,
       localStatsPrecomputed: false,
     };
+    jewelItemIds.push(id);
     jewelSummaries.push(`- ${slotEntry.socket_name || slotEntry.socket_id || `Jewel ${idx + 1}`}: ${jName} (${jBase})${jMods.length ? ` — ${jMods.join(' / ')}` : ''}`);
   });
+
+  // Socket parsed passive jewels into allocated jewel socket nodes on the passive tree
+  const allocatedJewelNodes = [...hashSet]
+    .filter((id) => tree.nodes[id]?.kind === 'jewel')
+    .sort((a, b) => a - b);
+  const socketedJewels: Record<number, string> = {};
+  for (let i = 0; i < Math.min(allocatedJewelNodes.length, jewelItemIds.length); i++) {
+    socketedJewels[allocatedJewelNodes[i]!] = jewelItemIds[i]!;
+  }
 
   // Skills & Support Gems
   const skills: SkillGroup[] = [];
   const seenBareActiveIds = new Set<string>();
   let groupIdx = 0;
+  let totalReservedSpirit = 0;
 
   for (const rawSk of bundle.skills?.skills ?? []) {
     const activeDef = matchGem(rawSk.baseType || rawSk.typeLine);
@@ -564,7 +615,17 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     }
 
     groupIdx++;
-    const { level, quality } = extractGemLevelAndQuality(rawSk.properties);
+    const { level, quality, spiritReservation } = extractGemLevelAndQuality(rawSk.properties);
+    // Item/Ascendancy-granted skills without an explicit reservation property reserve 0 Spirit (e.g. Sceptre Purity of Fire)
+    const isItemOrAscGranted = !rawSk.inventoryId || rawSk.inventoryId === 'AscendancySkills';
+    const spiritReservationOverride =
+      spiritReservation !== undefined
+        ? spiritReservation
+        : isItemOrAscGranted && activeDef.isAuraOrBuff
+          ? 0
+          : undefined;
+    totalReservedSpirit += spiritReservationOverride ?? activeDef.spiritReservation ?? 0;
+
     const groupGems: GemInstance[] = [
       {
         instanceId: `wg_g_${groupIdx}_0`,
@@ -572,6 +633,7 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
         level,
         quality,
         enabled: true,
+        ...(spiritReservationOverride !== undefined ? { spiritReservationOverride } : {}),
       },
     ];
 
@@ -627,7 +689,14 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
       }
     }
     const isMinion = primaryDef?.tags.some((t) => t.toLowerCase() === 'minion') ?? false;
-    const score = (isAttackOrSpell ? 100 : 0) + (isMinion ? -15 : 0) + profileBonus + sg.gems.length * 10;
+    const primaryLevel = sg.gems[0]?.level ?? 20;
+    const lowLevelUtilityPenalty = primaryLevel <= 5 ? -45 : 0;
+    const score =
+      (isAttackOrSpell ? 100 : 0) +
+      (isMinion ? -15 : 0) +
+      lowLevelUtilityPenalty +
+      profileBonus +
+      sg.gems.length * 10;
     if (score > bestScore) {
       bestScore = score;
       mainSkillGroupId = sg.id;
@@ -671,6 +740,23 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     noteLines.push('', 'Socketed Passive Jewels:', ...jewelSummaries);
   }
 
+  // Apply permanent PoE 2 campaign quest bonuses (excluding +100 Spirit already in Campaign Base Spirit
+  // and non-stat counters) into customMods so resistances, life, attributes & defences match in-game.
+  const applicableQuestStats = questStats.filter(
+    (q) =>
+      !/^\+?100\s*(?:精魂|Spirit)$/i.test(q) &&
+      !/毁面首领|咒符栏|BrokenFace|Charm Slot/i.test(q),
+  );
+  const config = {
+    ...createDefaultConfig(),
+    ...(applicableQuestStats.length > 0 ? { customMods: applicableQuestStats.join('\n') } : {}),
+  };
+
+  // Auto-select Weapon Set 2 if Weapon Set 2 holds a Spirit Sceptre needed to cover Spirit reservations
+  const ws1SpiritTotal = 100 + sharedSpiritBonus + ws1SpiritBonus;
+  const activeWeaponSet: 1 | 2 =
+    ws2SpiritBonus > ws1SpiritBonus && totalReservedSpirit > ws1SpiritTotal ? 2 : 1;
+
   return {
     id: `wegame_${Date.now()}`,
     name: buildName,
@@ -678,7 +764,7 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     level,
     classId,
     ascendancyId,
-    activeWeaponSet: 1,
+    activeWeaponSet,
     bandit: 'None',
     tree: {
       title: `${buildName} Tree`,
@@ -687,13 +773,14 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
       weaponSet1NodeIds,
       weaponSet2NodeIds,
       masteryEffects: {},
+      ...(Object.keys(socketedJewels).length > 0 ? { socketedJewels } : {}),
     },
     skills,
     mainSkillGroupId,
     items,
     equipped,
     ...(Object.keys(activeFlaskSlots).length > 0 ? { activeFlaskSlots } : {}),
-    config: createDefaultConfig(),
+    config,
     notes: noteLines.join('\n'),
   };
 }

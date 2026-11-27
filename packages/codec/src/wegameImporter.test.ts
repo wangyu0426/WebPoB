@@ -182,4 +182,68 @@ describe('parseWeGamePoe2Build', () => {
     expect(build.notes).toContain('123,456');
     expect(build.notes).toContain('测试珠宝');
   });
+
+  it('parses Sceptre native Spirit property, selects Weapon Set 2 when needed, and respects item-granted 0-Spirit auras', () => {
+    const bundle: WeGamePoe2Bundle = {
+      roleInfo: {
+        role: { role_id: '20001', name: 'SpiritTester', level: 96, class_name: 'Spirit Walker' },
+      },
+      talentTree: {
+        talent_tree: {
+          hashes: [4367, 26294],
+          quest_stats: ['+100 [Spirit|精魂]', '+20 生命上限', '[Resistances|闪电抗性] +10%', '59 个[BrokenFace|毁面首领]'],
+        },
+      },
+      equipments: {
+        equipments: [
+          {
+            id: 'amulet1',
+            inventoryId: 'Amulet',
+            frameType: 2,
+            baseType: '翠玉项链',
+            explicitMods: [{ description: '+33 [Spirit|精魂]' }],
+          },
+          {
+            id: 'sceptre1',
+            inventoryId: 'Offhand2',
+            frameType: 3,
+            name: '神圣之火',
+            baseType: '圣地权杖',
+            properties: [{ name: '[Spirit|精魂]', type: 25, values: [['115', 1]] }],
+            runeMods: ['该装备[Spirit|精魂]提高 15%'],
+          },
+        ],
+      },
+      skills: {
+        skills: [
+          {
+            inventoryId: null,
+            baseType: 'Herald of Ice',
+            properties: [{ name: '等级', values: [['19', 0]] }],
+          },
+          {
+            inventoryId: 'SkillSlots',
+            baseType: 'Archmage',
+            properties: [
+              { name: '等级', values: [['20', 0]] },
+              { name: '保留', values: [['150 [Spirit|精魂]', 0]] },
+            ],
+          },
+        ],
+      },
+    };
+
+    const build = parseWeGamePoe2Build(bundle);
+    const sceptreId = build.equipped['Weapon 2 Swap'];
+    expect(sceptreId).toBeDefined();
+    expect(build.items[sceptreId!]!.implicits).toContain('+115 to Spirit');
+    expect(build.items[sceptreId!]!.implicits.some((l) => l.includes('提高 15%'))).toBe(false);
+    expect(build.activeWeaponSet).toBe(2);
+    expect(build.skills[0]!.gems[0]!.spiritReservationOverride).toBe(0);
+    expect(build.skills[1]!.gems[0]!.spiritReservationOverride).toBe(150);
+    expect(build.config.customMods).toContain('+20 生命上限');
+    expect(build.config.customMods).toContain('闪电抗性 +10%');
+    expect(build.config.customMods).not.toContain('+100 精魂');
+    expect(build.config.customMods).not.toContain('毁面首领');
+  });
 });

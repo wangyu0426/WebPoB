@@ -533,8 +533,9 @@ export function calculateBuild(build: Build): CalcOutput {
           mult: groupEnlightenMult,
         });
       }
-      if (def.spiritReservation) {
-        totalSpiritReserved += def.spiritReservation;
+      const spiritCost = gemInst.spiritReservationOverride ?? def.spiritReservation ?? 0;
+      if (spiritCost > 0) {
+        totalSpiritReserved += spiritCost;
       }
     }
   }

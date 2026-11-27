@@ -433,6 +433,10 @@ function synthesizeGemDefinition(
 
   const officialStats = Array.isArray(entry.st) ? entry.st : [];
 
+  const isFreeItemAura =
+    game === 'poe2' &&
+    /^(?:Purity of Fire|Purity of Ice|Purity of Lightning|Discipline|Malice)$/i.test(entry.en.trim());
+
   return {
     id: entry.id,
     name: { en: entry.en, zh: entry.zh ?? entry.en },
@@ -453,7 +457,7 @@ function synthesizeGemDefinition(
             ? { manaReservationPct: entry.mrp ?? 35 }
             : {}),
           ...(entry.mrf !== undefined ? { manaReservationFlat: entry.mrf } : {}),
-          spiritReservation: entry.sr ?? (game === 'poe2' ? 30 : undefined),
+          spiritReservation: entry.sr ?? (game === 'poe2' ? (isFreeItemAura ? 0 : 30) : undefined),
           stats: officialStats.length > 0 ? officialStats : [`15% more ${primaryDamageType} Damage`],
         }
       : isAttack

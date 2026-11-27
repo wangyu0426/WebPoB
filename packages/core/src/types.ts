@@ -257,6 +257,8 @@ export interface GemInstance {
   enabled: boolean;
   /** Number of active instances for Full DPS (e.g. 20 SRS minions, 4 Spell Totems). Defaults to 1. */
   count?: number;
+  /** Optional explicit Spirit reservation override (e.g. 0 for Sceptre-granted PoE 2 auras). */
+  spiritReservationOverride?: number;
 }
 
 export interface SkillGroup {

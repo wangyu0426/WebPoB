@@ -1310,7 +1310,8 @@ export function PassiveTreeCanvas() {
         (previewPathSet.has(bId) || sharedSet.has(bId) || set1Set.has(bId) || set2Set.has(bId));
 
       if (bothShared) {
-        activeEdges.push({ edge, color: '#e8bc72', dashed: false });
+        const isAscEdge = Boolean(edge.a.ascendancyId && edge.b.ascendancyId);
+        activeEdges.push({ edge, color: isAscEdge ? '#fbbf24' : '#e8bc72', dashed: false });
         continue;
       }
       if (isSet1Edge) {
@@ -1350,11 +1351,11 @@ export function PassiveTreeCanvas() {
     }
     ctx.stroke();
 
-    // Draw inactive Ascendancy edges in warm antique gold so paths stay crisp over character artwork
+    // Draw inactive Ascendancy edges in muted antique bronze so allocated gold paths stand out clearly
     if (inactiveAscEdges.length > 0) {
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(229, 198, 134, 0.56)';
-      ctx.lineWidth = Math.max(baseLineWidth * 1.15, 1.8 * invZoom);
+      ctx.strokeStyle = 'rgba(128, 114, 88, 0.38)';
+      ctx.lineWidth = Math.max(baseLineWidth * 1.0, 1.4 * invZoom);
       for (const edge of inactiveAscEdges) {
         if (edge.sameOrbitArc && edge.cx !== undefined && edge.cy !== undefined && edge.r !== undefined) {
           ctx.moveTo(edge.a.x, edge.a.y);
@@ -1494,6 +1495,20 @@ export function PassiveTreeCanvas() {
       }
 
       if (isShared || isMasteryChosen) {
+        if (node.ascendancyId) {
+          // Bright outer golden halo so allocated Ascendancy nodes stand out vividly over artwork
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r + 14 * (isOfficialFull ? 1.8 : 0.6), 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.22)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.72)';
+          ctx.lineWidth = Math.max(4, 1.8 * invZoom);
+          ctx.stroke();
+          ctx.restore();
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+        }
         ctx.fillStyle =
           node.kind === 'keystone'
             ? '#7c2d12'
@@ -1502,8 +1517,8 @@ export function PassiveTreeCanvas() {
               : node.kind === 'notable'
                 ? '#5c4119'
                 : '#3e3018';
-        ctx.strokeStyle = isMasteryChosen ? '#38bdf8' : '#f3cc82';
-        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, 2.2 * invZoom);
+        ctx.strokeStyle = isMasteryChosen ? '#38bdf8' : node.ascendancyId ? '#fcd34d' : '#f3cc82';
+        ctx.lineWidth = Math.max(isOfficialFull ? 10 : 2.5, (node.ascendancyId ? 2.8 : 2.2) * invZoom);
       } else if (isSet1) {
         const active = build.activeWeaponSet !== 2;
         ctx.fillStyle = active ? '#0e3a4c' : 'rgba(14, 58, 76, 0.4)';
