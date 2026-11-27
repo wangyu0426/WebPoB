@@ -72,6 +72,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     }
   }
 
+  const canonicalMinCount = Math.max(DEFAULT_MIN_SNAPSHOT_COUNT, ORACLE_BENCHMARKS.length);
   return {
     strict,
     certify,
@@ -79,7 +80,9 @@ function parseCliArgs(argv: string[]): CliOptions {
     verbose,
     snapshotsPath,
     customSnapshots,
-    minCount: minCount ?? (customSnapshots ? 1 : Math.max(DEFAULT_MIN_SNAPSHOT_COUNT, ORACLE_BENCHMARKS.length)),
+    minCount: certify
+      ? Math.max(minCount ?? canonicalMinCount, canonicalMinCount)
+      : (minCount ?? (customSnapshots ? 1 : canonicalMinCount)),
   };
 }
 
@@ -139,7 +142,7 @@ async function main() {
     },
     {
       minCount: opts.minCount,
-      expectedIds: opts.customSnapshots ? undefined : ORACLE_BENCHMARKS.map((b) => b.id),
+      expectedIds: opts.certify || !opts.customSnapshots ? ORACLE_BENCHMARKS.map((b) => b.id) : undefined,
     },
   );
 
