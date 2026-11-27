@@ -4,6 +4,17 @@
   "prodUrl": "https://webpob.pages.dev",
   "releases": [
     {
+      "version": "0.2.1",
+      "tag": "v0.2.1",
+      "commit": "e486295",
+      "deploymentId": "e9312d4a-b795-478c-8ecf-5e07a34916eb",
+      "previewUrl": "https://e9312d4a.webpob.pages.dev",
+      "branch": "main",
+      "notes": "上线 manifest.json 数据契约、多版本历史天赋树支持与动态职业升华加载；增强 Ninja E2E 结构化报告与公网跳转稳健性",
+      "status": "active",
+      "deployedAt": "2026-11-27T05:02:02.710Z"
+    },
+    {
       "version": "0.2.0",
       "tag": "v0.2.0",
       "commit": "6c1c6a4",
@@ -11,7 +22,7 @@
       "previewUrl": "https://f1996f9a.webpob.pages.dev",
       "branch": "main",
       "notes": "版本管理与秒级回滚系统上线；修复 Service Worker 缓存旧天赋树 JSON 导致老用户看到未汉化节点的问题",
-      "status": "active",
+      "status": "previous",
       "deployedAt": "2026-11-26T16:08:56.428Z"
     },
     {
@@ -36,5 +47,5 @@
     }
   ],
   "rollbacks": [],
-  "updatedAt": "2026-11-26T16:08:56.428Z"
+  "updatedAt": "2026-11-27T05:02:02.710Z"
 }
