@@ -412,6 +412,9 @@ export function calculateBuild(build: Build): CalcOutput {
   }
 
   // 3. Equipped Items & Active Utility Flasks (with PoB-authentic Local Armour/Weapon resolution)
+  // PoE 2 Shaman ascendancy ("Shaman" / 萨满) unlocks Bonded ("Bonded:" / "羁绊：") modifiers on items.
+  const allowBonded = build.game === 'poe2' && build.ascendancyId.trim().toLowerCase() === 'shaman';
+  const itemModOpts = allowBonded ? { allowBonded: true } : undefined;
   const equippedItems = getActiveEquippedItems(build);
   let bodyLocalArmour = 0;
   let bodyLocalEvasion = 0;
@@ -424,8 +427,8 @@ export function calculateBuild(build: Build): CalcOutput {
       if (baseBuffs) {
         db.addMods(parseModLines(baseBuffs, `${src} [Base]`));
       }
-      db.addMods(parseModLines(item.implicits, `${src} [Implicit]`));
-      db.addMods(parseModLines(item.explicits, src));
+      db.addMods(parseModLines(item.implicits, `${src} [Implicit]`, itemModOpts));
+      db.addMods(parseModLines(item.explicits, src, itemModOpts));
       continue;
     }
     const src = `Item (${slot}): ${item.name}`;
@@ -451,8 +454,8 @@ export function calculateBuild(build: Build): CalcOutput {
     if (resolved.armourStats?.blockChance) {
       db.addMod({ name: 'BlockChance', type: 'BASE', value: resolved.armourStats.blockChance, flags: 0, keywordFlags: 0, source: src });
     }
-    db.addMods(parseModLines(resolved.globalImplicits, `${src} [Implicit]`));
-    db.addMods(parseModLines(resolved.globalExplicits, src));
+    db.addMods(parseModLines(resolved.globalImplicits, `${src} [Implicit]`, itemModOpts));
+    db.addMods(parseModLines(resolved.globalExplicits, src, itemModOpts));
   }
 
   // 4. Global Auras, Curses/Marks & Persistent Spirit Buffs (with +Gem Level / Empower / Enlighten / Socketed scaling)

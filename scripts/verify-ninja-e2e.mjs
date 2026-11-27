@@ -703,6 +703,19 @@ async function verifyBuildInViewport(port, entry, viewport) {
           issues.push(`Expected non-negative unreserved Spirit, got ${appState.calc.spiritUnreserved}`);
         }
       }
+      if (exp.exactResists && typeof exp.exactResists === 'object') {
+        const resMap = {
+          fire: appState.calc.fireResist,
+          cold: appState.calc.coldResist,
+          lightning: appState.calc.lightningResist,
+          chaos: appState.calc.chaosResist,
+        };
+        for (const [el, expectedVal] of Object.entries(exp.exactResists)) {
+          if (typeof expectedVal === 'number' && resMap[el] !== expectedVal) {
+            issues.push(`Expected ${el} resistance to be ${expectedVal}%, got ${resMap[el]}%`);
+          }
+        }
+      }
     }
 
     // 1. Check required Chinese navigation tabs

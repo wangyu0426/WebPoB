@@ -50,7 +50,13 @@
         "expectPositiveDps": true,
         "expectPositiveEhp": true,
         "minSpirit": 200,
-        "requireNodeIds": [63493]
+        "requireNodeIds": [63493],
+        "exactResists": {
+          "fire": 75,
+          "cold": 75,
+          "lightning": 67,
+          "chaos": -7
+        }
       }
     },
     {

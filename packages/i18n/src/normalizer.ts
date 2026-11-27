@@ -780,10 +780,9 @@ const EN_TO_ZH_RULES: EnToZhRule[] = [
  * so `@webpob/calc`'s ModParser produces identical results regardless of input language.
  */
 export function normalizeStatLineToEn(rawLine: string): string {
-  const cleaned = rawLine
+  const preCleaned = rawLine
     .trim()
     .replace(/\[(?:[^|\]]+\|)?([^\]]+)\]/g, '$1')
-    .replace(/^羁绊[：:]\s*/g, '')
     .replace(/^\{[^}]+\}\s*/g, '')
     .replace(/\{[^}]+\}/g, '')
     .replace(/（[^）]*）/g, '')
@@ -794,11 +793,20 @@ export function normalizeStatLineToEn(rawLine: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 
+  if (!preCleaned) return '';
+
+  // Preserve PoE 2 Shaman-only Bonded prefix ("Bonded:" / "羁绊：" / "羈絆：") so the calc engine
+  // activates Bonded modifiers ONLY for Shaman ascendancy characters.
+  const bondedMatch = preCleaned.match(/^(?:Bonded|羁绊|羈絆)\s*[：:]\s*(.+)$/i);
+  const isBonded = Boolean(bondedMatch);
+  const cleaned = bondedMatch ? bondedMatch[1]!.trim() : preCleaned;
   if (!cleaned) return '';
+
+  const wrapBonded = (en: string) => (isBonded ? `Bonded: ${en}` : en);
 
   // Fast path if purely ASCII
   if (/^[\x00-\x7F]+$/.test(cleaned)) {
-    return cleaned;
+    return wrapBonded(cleaned);
   }
 
   // Normalize Traditional Chinese (International TW) modifiers to Simplified Chinese
@@ -825,12 +833,12 @@ export function normalizeStatLineToEn(rawLine: string): string {
     for (const rule of ZH_TO_EN_RULES) {
       const match = cand.match(rule.zhPattern);
       if (match) {
-        return rule.toEn(...match);
+        return wrapBonded(rule.toEn(...match));
       }
     }
   }
 
-  return cleaned;
+  return wrapBonded(cleaned);
 }
 
 /**
@@ -839,12 +847,15 @@ export function normalizeStatLineToEn(rawLine: string): string {
 export function localizeStatLine(enLine: string, locale: Locale): string {
   if (locale === 'en') return enLine;
   const trimmed = enLine.trim();
+  const bondedMatch = trimmed.match(/^Bonded:\s*(.+)$/i);
+  const body = bondedMatch ? bondedMatch[1]!.trim() : trimmed;
+  const prefix = bondedMatch ? (locale === 'zh-TW' ? '羈絆：' : '羁绊：') : '';
   for (const rule of EN_TO_ZH_RULES) {
-    const match = trimmed.match(rule.enPattern);
+    const match = body.match(rule.enPattern);
     if (match) {
       const zh = rule.toZh(...match);
-      return locale === 'zh-TW' ? toTraditionalZh(zh) : zh;
+      return `${prefix}${locale === 'zh-TW' ? toTraditionalZh(zh) : zh}`;
     }
   }
-  return trimmed;
+  return `${prefix}${locale === 'zh-TW' ? toTraditionalZh(body) : body}`;
 }

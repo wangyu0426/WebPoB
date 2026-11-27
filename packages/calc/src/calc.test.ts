@@ -805,4 +805,62 @@ describe('@webpob/calc', () => {
     expect(after.defence.int).toBe(before.defence.int + 26);
     expect(after.offence.totalDps).toBeGreaterThan(before.offence.totalDps * 1.15);
   });
+
+  it('activates PoE 2 Shaman-exclusive Bonded (羁绊) item modifiers ONLY for Shaman ascendancy', () => {
+    const base = createSamplePoe2Build();
+    const bondedItem = {
+      id: 'bonded_chest',
+      name: 'Bonded Test Vest',
+      baseName: 'Slipstrike Vest',
+      rarity: 'RARE' as const,
+      slotType: 'Body Armour' as const,
+      quality: 0,
+      implicits: [],
+      explicits: [
+        normalizeStatLineToEn('[ShamanOnlyMods|羁绊]： +40 生命上限'),
+        normalizeStatLineToEn('[ShamanOnlyMods|羁绊]： 所有[ElementalDamage|元素][Resistances|抗性] +12%'),
+      ],
+      localStatsPrecomputed: true,
+    };
+    expect(bondedItem.explicits).toEqual([
+      'Bonded: +40 to maximum Life',
+      'Bonded: +12% to all Elemental Resistances',
+    ]);
+    expect(localizeStatLine('Bonded: +40 to maximum Life', 'zh-CN')).toBe('羁绊：最大生命 +40');
+    expect(localizeStatLine('Bonded: +40 to maximum Life', 'zh-TW')).toBe('羈絆：最大生命 +40');
+
+    const nonShamanBase = calculateBuild({ ...base, ascendancyId: 'Spirit Walker' });
+    const nonShamanWithBonded = calculateBuild({
+      ...base,
+      ascendancyId: 'Spirit Walker',
+      items: { ...base.items, [bondedItem.id]: bondedItem },
+      equipped: { ...base.equipped, 'Body Armour': bondedItem.id },
+    });
+    const nonShamanEmptyChest = calculateBuild({
+      ...base,
+      ascendancyId: 'Spirit Walker',
+      equipped: { ...base.equipped, 'Body Armour': undefined },
+    });
+    // Non-Shaman must NOT gain the Bonded +40 Life or +12% All Res
+    expect(nonShamanWithBonded.defence.life).toBe(nonShamanEmptyChest.defence.life);
+    expect(nonShamanWithBonded.defence.lightningResist).toBe(nonShamanEmptyChest.defence.lightningResist);
+    void nonShamanBase;
+
+    // Shaman MUST gain both Bonded +40 Life and +12% All Res
+    const shamanEmptyChest = calculateBuild({
+      ...base,
+      classId: 'Druid',
+      ascendancyId: 'Shaman',
+      equipped: { ...base.equipped, 'Body Armour': undefined },
+    });
+    const shamanWithBonded = calculateBuild({
+      ...base,
+      classId: 'Druid',
+      ascendancyId: 'Shaman',
+      items: { ...base.items, [bondedItem.id]: bondedItem },
+      equipped: { ...base.equipped, 'Body Armour': bondedItem.id },
+    });
+    expect(shamanWithBonded.defence.life).toBeGreaterThanOrEqual(shamanEmptyChest.defence.life + 40);
+    expect(shamanWithBonded.defence.lightningResist).toBe(shamanEmptyChest.defence.lightningResist + 12);
+  });
 });

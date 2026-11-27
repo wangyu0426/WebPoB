@@ -25,8 +25,8 @@ describe('wegameImporter URL & markup helpers', () => {
 
   it('normalizes PoE 2 WeGame Chinese stat lines into canonical English mods', () => {
     expect(normalizeStatLineToEn('+45 生命上限')).toBe('+45 to maximum Life');
-    expect(normalizeStatLineToEn('[ShamanOnlyMods|羁绊]： +40 生命上限')).toBe('+40 to maximum Life');
-    expect(normalizeStatLineToEn('[ShamanOnlyMods|羁绊]： +40 魔力上限')).toBe('+40 to maximum Mana');
+    expect(normalizeStatLineToEn('[ShamanOnlyMods|羁绊]： +40 生命上限')).toBe('Bonded: +40 to maximum Life');
+    expect(normalizeStatLineToEn('[ShamanOnlyMods|羁绊]： +40 魔力上限')).toBe('Bonded: +40 to maximum Mana');
     expect(normalizeStatLineToEn('+297 点[Evasion|闪避]值')).toBe('+297 to Evasion Rating');
     expect(normalizeStatLineToEn('[Evasion|闪避]值提高 109%')).toBe('109% increased Evasion Rating');
     expect(normalizeStatLineToEn('[Resistances|闪电抗性] +37%')).toBe('+37% to Lightning Resistance');
@@ -191,7 +191,15 @@ describe('parseWeGamePoe2Build', () => {
       talentTree: {
         talent_tree: {
           hashes: [4367, 26294],
-          quest_stats: ['+100 [Spirit|精魂]', '+20 生命上限', '[Resistances|闪电抗性] +10%', '59 个[BrokenFace|毁面首领]'],
+          quest_stats: [
+            '+100 [Spirit|精魂]',
+            '+20 生命上限',
+            '生命上限提高 5%',
+            '[Resistances|闪电抗性] +10%',
+            '+5 [Strength|力量]',
+            '魔力再生率提高 25%',
+            '59 个[BrokenFace|毁面首领]',
+          ],
         },
       },
       equipments: {
@@ -241,8 +249,12 @@ describe('parseWeGamePoe2Build', () => {
     expect(build.activeWeaponSet).toBe(2);
     expect(build.skills[0]!.gems[0]!.spiritReservationOverride).toBe(0);
     expect(build.skills[1]!.gems[0]!.spiritReservationOverride).toBe(150);
-    expect(build.config.customMods).toContain('+20 生命上限');
-    expect(build.config.customMods).toContain('闪电抗性 +10%');
+    expect(build.config.customMods).toContain('+5 力量');
+    expect(build.config.customMods).toContain('魔力再生率提高 25%');
+    // Fixed campaign baselines already in POE2_RULESET must NOT be double-counted in customMods
+    expect(build.config.customMods).not.toContain('+20 生命上限');
+    expect(build.config.customMods).not.toContain('生命上限提高 5%');
+    expect(build.config.customMods).not.toContain('闪电抗性 +10%');
     expect(build.config.customMods).not.toContain('+100 精魂');
     expect(build.config.customMods).not.toContain('毁面首领');
   });

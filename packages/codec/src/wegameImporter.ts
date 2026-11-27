@@ -740,11 +740,16 @@ export function parseWeGamePoe2Build(bundle: WeGamePoe2Bundle): Build {
     noteLines.push('', 'Socketed Passive Jewels:', ...jewelSummaries);
   }
 
-  // Apply permanent PoE 2 campaign quest bonuses (excluding +100 Spirit already in Campaign Base Spirit
-  // and non-stat counters) into customMods so resistances, life, attributes & defences match in-game.
+  // Apply optional/choice PoE 2 campaign quest bonuses into customMods while excluding fixed campaign
+  // baselines ALREADY built into POE2_RULESET (+100 Spirit, +20 Life, 5% inc Life, 5% inc Mana,
+  // and Act 1-3 +10% Fire/Cold/Lightning Res baked into net -50% endgameResistPenalty) so they are never double-counted.
   const applicableQuestStats = questStats.filter(
     (q) =>
       !/^\+?100\s*(?:精魂|Spirit)$/i.test(q) &&
+      !/^\+?20\s*(?:生命上限|最大生命|to maximum Life)$/i.test(q) &&
+      !/^(?:(?:生命上限|最大生命)(?:提高|增加)\s*5%|5%\s*increased maximum Life)$/i.test(q) &&
+      !/^(?:(?:魔力上限|最大魔力)(?:提高|增加)\s*5%|5%\s*increased maximum Mana)$/i.test(q) &&
+      !/^(?:(?:火焰|冰霜|冰冷|闪电)抗性\s*\+?10%|\+10%\s*to (?:Fire|Cold|Lightning) Resistance)$/i.test(q) &&
       !/毁面首领|咒符栏|BrokenFace|Charm Slot/i.test(q),
   );
   const config = {

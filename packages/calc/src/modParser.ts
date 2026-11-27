@@ -951,12 +951,24 @@ const PARSER_RULES: ParserRule[] = [
   },
 ];
 
+export interface ParseModOptions {
+  /** Enable PoE 2 Shaman-exclusive Bonded ("Bonded:" / "羁绊：") modifiers. Defaults to false. */
+  allowBonded?: boolean;
+}
+
 /**
  * Parses a single stat line (English OR Chinese) into typed `Mod` entries.
  */
-export function parseModLine(rawLine: string, source: string): Mod[] {
-  const canonical = normalizeStatLineToEn(rawLine);
+export function parseModLine(rawLine: string, source: string, opts?: ParseModOptions): Mod[] {
+  let canonical = normalizeStatLineToEn(rawLine);
   if (!canonical) return [];
+
+  const bondedMatch = canonical.match(/^Bonded:\s*(.+)$/i);
+  if (bondedMatch) {
+    if (!opts?.allowBonded) return [];
+    canonical = bondedMatch[1]!.trim();
+    if (!canonical) return [];
+  }
 
   for (const rule of PARSER_RULES) {
     const match = canonical.match(rule.pattern);
@@ -967,13 +979,17 @@ export function parseModLine(rawLine: string, source: string): Mod[] {
   return [];
 }
 
-export function parseModLines(lines: readonly string[], source: string): Mod[] {
+export function parseModLines(
+  lines: readonly string[],
+  source: string,
+  opts?: ParseModOptions,
+): Mod[] {
   const result: Mod[] = [];
   for (const rawEntry of lines) {
     // Official PoB passive tree nodes often pack multiple stat lines separated by `\n` (e.g. Resolute Technique)
     for (const line of rawEntry.split(/\r?\n/)) {
       if (line.trim()) {
-        result.push(...parseModLine(line, source));
+        result.push(...parseModLine(line, source, opts));
       }
     }
   }
