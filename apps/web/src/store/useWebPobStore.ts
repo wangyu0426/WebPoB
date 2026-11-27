@@ -771,9 +771,13 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
     addItem: (item, autoEquipSlot) => {
       const cur = get().build;
       const nextItems = { ...cur.items, [item.id]: item };
-      const targetSlot = autoEquipSlot ?? (item.slotType !== 'Any' ? item.slotType : undefined);
+      const targetSlot = autoEquipSlot;
       const nextEquipped = targetSlot ? { ...cur.equipped, [targetSlot]: item.id } : cur.equipped;
-      commitBuild({ ...cur, items: nextItems, equipped: nextEquipped });
+      const nextFlasks =
+        targetSlot && targetSlot.startsWith('Flask ')
+          ? { ...(cur.activeFlaskSlots ?? {}), [targetSlot]: true }
+          : cur.activeFlaskSlots;
+      commitBuild({ ...cur, items: nextItems, equipped: nextEquipped, activeFlaskSlots: nextFlasks });
     },
 
     equipItem: (slot, itemId) => {

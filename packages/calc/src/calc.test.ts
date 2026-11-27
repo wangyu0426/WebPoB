@@ -761,4 +761,48 @@ describe('@webpob/calc', () => {
       expect(localizeStatLine(en, 'zh-CN')).toBe(zh);
     }
   });
+
+  it('applies pasted Chinese PoE 1 & PoE 2 Ctrl+C item stats (Life, ES, Armour, Res, Attributes, Extra Damage, DPS)', () => {
+    const base = createSamplePoe1Build();
+    const withoutChest = {
+      ...base,
+      equipped: { ...base.equipped, 'Body Armour': undefined },
+    };
+    const before = calculateBuild(withoutChest);
+
+    // Simulate real Chinese Ctrl+C Body Armour with rune, dual res, dual attr, spell damage, gain as extra lightning
+    const pastedChest = {
+      id: 'pasted_cn_chest',
+      name: '苍穹 守护者',
+      baseName: '符文冠军胸甲',
+      rarity: 'RARE' as const,
+      slotType: 'Body Armour' as const,
+      quality: 20,
+      armourStats: { armour: 850, energyShield: 520, ward: 320 },
+      implicits: [normalizeStatLineToEn('+45 生命上限 (rune)')],
+      explicits: [
+        normalizeStatLineToEn('+115 生命上限'),
+        normalizeStatLineToEn('火焰和闪电抗性 +38%'),
+        normalizeStatLineToEn('力量和智慧 +26'),
+        normalizeStatLineToEn('该装备的护甲提高 85%'),
+        normalizeStatLineToEn('法术伤害提高 48%'),
+        normalizeStatLineToEn('获得相当于伤害 15% 的额外闪电伤害'),
+      ],
+      localStatsPrecomputed: true,
+    };
+
+    const after = calculateBuild({
+      ...withoutChest,
+      items: { ...withoutChest.items, [pastedChest.id]: pastedChest },
+      equipped: { ...withoutChest.equipped, 'Body Armour': pastedChest.id },
+    });
+
+    expect(after.defence.life).toBeGreaterThan(before.defence.life + 150);
+    expect(after.defence.energyShield).toBeGreaterThan(before.defence.energyShield + 400);
+    expect(after.defence.armour).toBeGreaterThan(before.defence.armour + 500);
+    expect(after.defence.ward ?? 0).toBeGreaterThanOrEqual(320);
+    expect(after.defence.str).toBe(before.defence.str + 26);
+    expect(after.defence.int).toBe(before.defence.int + 26);
+    expect(after.offence.totalDps).toBeGreaterThan(before.offence.totalDps * 1.15);
+  });
 });

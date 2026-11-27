@@ -383,13 +383,27 @@ function matchGemId(game: GameId, rawGemId?: string, rawNameSpec?: string, rawSk
  * Parses official Path of Building XML (PoE 1 or PoE 2) into a WebPoB `Build` object.
  */
 export function xmlToBuild(xml: string): Build {
+  const trimmedXml = xml.trim();
+  if (/^(?:<!doctype\s+html\b|<html\b)/i.test(trimmedXml)) {
+    throw new Error(
+      'Received an HTML webpage instead of a Path of Building XML/code. If this is a poe.ninja character page, click "Copy PoB code" on the page and paste the PoB code or poe.ninja/poe2/pob/... link instead.',
+    );
+  }
+  const hasPobRoot = /<PathOfBuilding2?\b/i.test(trimmedXml);
+  const hasBuildTag = /<Build\b/i.test(trimmedXml);
+  if (!hasPobRoot && !hasBuildTag) {
+    throw new Error(
+      'Invalid Path of Building XML: missing <PathOfBuilding> or <PathOfBuilding2> root element.',
+    );
+  }
+
   const isPoe2 =
-    /<PathOfBuilding2\b/i.test(xml) ||
-    /className="(?:Sorceress|Monk|Warrior|Mercenary|Huntress|Druid)"/i.test(xml) ||
-    /weaponSet1Nodes="/i.test(xml);
+    /<PathOfBuilding2\b/i.test(trimmedXml) ||
+    /className="(?:Sorceress|Monk|Warrior|Mercenary|Huntress|Druid)"/i.test(trimmedXml) ||
+    /weaponSet1Nodes="/i.test(trimmedXml);
   const game: GameId = isPoe2 ? 'poe2' : 'poe1';
 
-  const buildTag = xml.match(/<Build\b([^>]*)\/?>/i);
+  const buildTag = trimmedXml.match(/<Build\b([^>]*)\/?>/i);
   const buildAttrs = buildTag ? parseAttributes(buildTag[1]!) : {};
 
   const classes = getClassesForGame(game);
@@ -765,6 +779,32 @@ export function importBuildFromCode(input: string): { build: Build; xml: string 
   return { build, xml };
 }
 
+export interface PoeNinjaCharacterUrlInfo {
+  game: GameId;
+  league: string;
+  account: string;
+  character: string;
+}
+
+/**
+ * Detects a `poe.ninja` character detail webpage URL (PoE 1 or PoE 2),
+ * e.g. `https://poe.ninja/poe2/builds/forbiddenrites/character/brazwv-1435/ArkkFR`.
+ */
+export function parsePoeNinjaCharacterUrl(inputUrl: string): PoeNinjaCharacterUrlInfo | null {
+  const trimmed = inputUrl.trim();
+  const match = trimmed.match(
+    /^https?:\/\/(?:www\.)?poe\.ninja\/(?:(poe[12])\/)?builds\/([^/?#]+)\/character\/([^/?#]+)\/([^/?#]+)/i,
+  );
+  if (!match) return null;
+  const game: GameId = match[1]?.toLowerCase() === 'poe2' ? 'poe2' : 'poe1';
+  return {
+    game,
+    league: decodeURIComponent(match[2]!),
+    account: decodeURIComponent(match[3]!),
+    character: decodeURIComponent(match[4]!),
+  };
+}
+
 /**
  * Resolves `pobb.in`, `poe.ninja` (PoE 1 & PoE 2), `maxroll.gg` (PoE 1 & PoE 2), and `pastebin.com`
  * share URLs to their raw PoB code endpoints.
@@ -799,6 +839,13 @@ export function resolveShareUrl(inputUrl: string): string | null {
  * a lightweight CORS proxy (e.g. `https://proxy.example.workers.dev/?url=...`).
  */
 export async function fetchRemoteBuildCode(url: string, corsProxyBase?: string): Promise<string> {
+  const ninjaChar = parsePoeNinjaCharacterUrl(url);
+  if (ninjaChar) {
+    const exampleLink = ninjaChar.game === 'poe2' ? 'poe.ninja/poe2/pob/xxxx' : 'poe.ninja/poe1/pob/xxxx';
+    throw new Error(
+      `poe.ninja character webpage (${ninjaChar.game.toUpperCase()} · ${ninjaChar.character}) cannot be fetched directly because poe.ninja protects character pages behind Cloudflare. Click "Copy PoB code" on that page and paste the PoB code or ${exampleLink} link instead.`,
+    );
+  }
   const rawEndpoint = resolveShareUrl(url) ?? url.trim();
   const target = corsProxyBase?.trim()
     ? `${corsProxyBase.replace(/\/+$/, '')}/?url=${encodeURIComponent(rawEndpoint)}`
@@ -807,5 +854,11 @@ export async function fetchRemoteBuildCode(url: string, corsProxyBase?: string):
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} fetching ${rawEndpoint}`);
   }
-  return (await response.text()).trim();
+  const text = (await response.text()).trim();
+  if (/^(?:<!doctype\s+html\b|<html\b)/i.test(text)) {
+    throw new Error(
+      `The URL returned an HTML webpage instead of a raw PoB share code (${rawEndpoint}). Please paste a raw PoB code or a supported share link (pobb.in / poe.ninja/pob / maxroll.gg / WeGame).`,
+    );
+  }
+  return text;
 }

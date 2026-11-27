@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   buildToPobXml,
+  decodePobCodeToXml,
   encodeBuildToPobCode,
   fetchCharacterProfileBuild,
   fetchRemoteBuildCode,
@@ -23,6 +24,7 @@ import {
   importBuildFromCode,
   isWeGamePoe2ShareUrl,
   parseCharacterJsonToBuild,
+  parsePoeNinjaCharacterUrl,
   type PoeRealm,
 } from '@webpob/codec';
 import { t, uiText } from '@webpob/i18n';
@@ -1153,14 +1155,30 @@ export function ImportExportTab() {
         return;
       }
 
+      const ninjaChar = parsePoeNinjaCharacterUrl(raw);
+      if (ninjaChar) {
+        const sampleLink =
+          ninjaChar.game === 'poe2' ? 'poe.ninja/poe2/pob/xxxx' : 'poe.ninja/poe1/pob/xxxx';
+        setMessage({
+          ok: false,
+          text: uiText(
+            locale,
+            `检测到 poe.ninja 角色详情页链接（${ninjaChar.game.toUpperCase()} · ${ninjaChar.character}）。poe.ninja 角色页受 Cloudflare 防护，无法直接抓取网页；请在该页面点击「Copy PoB code」复制 PoB 分享码，或复制 ${sampleLink} 短链接后再导入。`,
+            `Detected a poe.ninja character webpage (${ninjaChar.game.toUpperCase()} · ${ninjaChar.character}). poe.ninja character pages are Cloudflare-protected and cannot be fetched directly; click "Copy PoB code" on that page and paste the PoB code or ${sampleLink} link instead.`,
+          ),
+        });
+        return;
+      }
+
       let code = raw;
       if (/^https?:\/\//i.test(raw)) {
-        code = await fetchRemoteBuildCode(raw, corsProxyUrl);
+        code = await fetchRemoteBuildCode(raw, effectiveProxy);
       }
-      const { build: imported } = importBuildFromCode(code);
-      if (imported.game !== build.game) {
-        await ensureOfficialDataLoaded(imported.game);
-      }
+      const trimmedCode = code.trim();
+      const xml = trimmedCode.startsWith('<') ? trimmedCode : decodePobCodeToXml(trimmedCode);
+      const targetGame = /<PathOfBuilding2\b/i.test(xml) ? 'poe2' : 'poe1';
+      await ensureOfficialDataLoaded(targetGame);
+      const { build: imported } = importBuildFromCode(xml);
       replaceBuild(imported);
       setMessage({ ok: true, text: `${t(locale, 'import.success')} (${imported.name})` });
       setImportInput('');

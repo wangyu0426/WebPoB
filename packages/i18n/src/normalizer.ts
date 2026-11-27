@@ -46,26 +46,30 @@ const EN_ATTR_TO_ZH: Record<string, string> = {
 };
 
 const ZH_TO_EN_RULES: StatRewriteRule[] = [
-  // Flat Life / Mana / ES / Spirit (supports both PoE 1 最大生命 and PoE 2 生命上限)
+  // Flat Life / Mana / ES / Spirit / Ward (supports PoE 1 最大生命, PoE 2 生命上限, and TW variants)
   {
-    zhPattern: /^(?:(?:最大生命|生命上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大生命|生命上限))$/,
+    zhPattern: /^(?:(?:最大生命值?|生命值?上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大生命值?|生命值?上限|生命))$/,
     toEn: (_, a, b) => `+${a || b} to maximum Life`,
   },
   {
-    zhPattern: /^(?:(?:最大魔力|魔力上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大魔力|魔力上限))$/,
+    zhPattern: /^(?:(?:最大魔力值?|魔力值?上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大魔力值?|魔力值?上限|魔力))$/,
     toEn: (_, a, b) => `+${a || b} to maximum Mana`,
   },
   {
-    zhPattern: /^(?:(?:最大能量护盾|能量护盾上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大能量护盾|能量护盾上限))$/,
+    zhPattern: /^(?:(?:最大能量护盾|能量护盾上限|能量护盾)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大能量护盾|能量护盾上限|能量护盾))$/,
     toEn: (_, a, b) => `+${a || b} to maximum Energy Shield`,
   },
   {
-    zhPattern: /^(?:(?:最大精魂|精魂上限)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大)?精魂|精魂\s*\+?(\d+))$/,
-    toEn: (_, a, b, c) => `+${a || b || c} to Spirit`,
+    zhPattern: /^(?:(?:最大精魂|精魂上限|精魂)\s*\+?(\d+)|\+(\d+)\s*点?(?:最大)?精魂(?:上限)?)$/,
+    toEn: (_, a, b) => `+${a || b} to Spirit`,
   },
-  // Increased % Life / ES / Mana / Armour / Evasion
   {
-    zhPattern: /^(?:最大生命|生命上限)(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^(?:(?:最大)?(?:符文)?结界(?:上限)?\s*\+?(\d+)|\+(\d+)\s*点?(?:最大)?(?:符文)?结界(?:上限)?)$/,
+    toEn: (_, a, b) => `+${a || b} to Ward`,
+  },
+  // Increased % Life / ES / Mana / Armour / Evasion / Ward / Hybrid Defences
+  {
+    zhPattern: /^(?:最大生命值?|生命值?上限)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased maximum Life`,
   },
   {
@@ -77,8 +81,32 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `${v}% increased Energy Shield`,
   },
   {
-    zhPattern: /^(?:最大魔力|魔力上限)(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^(?:最大魔力值?|魔力值?上限)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased maximum Mana`,
+  },
+  {
+    zhPattern: /^(?:符文)?结界(?:上限)?(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Ward`,
+  },
+  {
+    zhPattern: /^护甲值?、闪避值?[和与]能量护盾(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Armour, Evasion and Energy Shield`,
+  },
+  {
+    zhPattern: /^护甲值?[和与]闪避值?(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Armour and Evasion`,
+  },
+  {
+    zhPattern: /^闪避值?[和与]护甲值?(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Evasion Rating and Armour`,
+  },
+  {
+    zhPattern: /^(?:护甲值?[和与]能量护盾|能量护盾[和与]护甲值?)(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Armour and Energy Shield`,
+  },
+  {
+    zhPattern: /^(?:闪避值?[和与]能量护盾|能量护盾[和与]闪避值?)(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Evasion and Energy Shield`,
   },
   {
     zhPattern: /^护甲值?(?:提高|增加)\s*(\d+)%$/,
@@ -89,23 +117,32 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, v) => `${v}% increased Evasion Rating`,
   },
   {
-    zhPattern: /^\+(\d+)\s*点?护甲值?$/,
-    toEn: (_, v) => `+${v} to Armour`,
+    zhPattern: /^(?:护甲值?\s*\+(\d+)|\+(\d+)\s*点?护甲值?)$/,
+    toEn: (_, a, b) => `+${a || b} to Armour`,
   },
   {
-    zhPattern: /^\+(\d+)\s*点?闪避值?$/,
-    toEn: (_, v) => `+${v} to Evasion Rating`,
+    zhPattern: /^(?:闪避值?\s*\+(\d+)|\+(\d+)\s*点?闪避值?)$/,
+    toEn: (_, a, b) => `+${a || b} to Evasion Rating`,
   },
-  // Attributes
+  // Attributes (single, dual, all)
   {
-    zhPattern: /^\+(\d+)\s*(力量|敏捷|智慧|全属性|所有属性)$/,
+    zhPattern: /^(?:\+(\d+)\s*(力量|敏捷|智慧)[和与](力量|敏捷|智慧)|(力量|敏捷|智慧)[和与](力量|敏捷|智慧)\s*\+(\d+))$/,
+    toEn: (_, v1, a1, b1, a2, b2, v2) => {
+      const v = v1 || v2;
+      const first = ZH_ATTR_TO_EN[a1 || a2] ?? (a1 || a2);
+      const second = ZH_ATTR_TO_EN[b1 || b2] ?? (b1 || b2);
+      return `+${v} to ${first} and ${second}`;
+    },
+  },
+  {
+    zhPattern: /^\+(\d+)\s*点?(力量|敏捷|智慧|全属性|所有属性)$/,
     toEn: (_, v, attr) => `+${v} to ${ZH_ATTR_TO_EN[attr] ?? attr}`,
   },
   {
     zhPattern: /^(力量|敏捷|智慧|全属性|所有属性)\s*\+(\d+)$/,
     toEn: (_, attr, v) => `+${v} to ${ZH_ATTR_TO_EN[attr] ?? attr}`,
   },
-  // Resistances
+  // Resistances (all elemental, dual, max, single)
   {
     zhPattern: /^(?:全元素抗性|所有元素抗性)\s*([+-]?\d+)%$/,
     toEn: (_, v) => `${v.startsWith('-') ? v : `+${v.replace(/^\+/, '')}`}% to all Elemental Resistances`,
@@ -113,6 +150,19 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
   {
     zhPattern: /^([+-]?\d+)%\s*(?:全元素抗性|所有元素抗性)$/,
     toEn: (_, v) => `${v.startsWith('-') ? v : `+${v.replace(/^\+/, '')}`}% to all Elemental Resistances`,
+  },
+  {
+    zhPattern: /^(?:(?:所有|全)?元素抗性上限\s*\+?(\d+)%|\+(\d+)%\s*(?:所有|全)?元素抗性上限)$/,
+    toEn: (_, a, b) => `+${a || b}% to all maximum Elemental Resistances`,
+  },
+  {
+    zhPattern: /^(?:(火焰|冰霜|冰冷|闪电|混沌)[和与](火焰|冰霜|冰冷|闪电|混沌)抗性\s*\+?(\d+)%|\+(\d+)%\s*(火焰|冰霜|冰冷|闪电|混沌)[和与](火焰|冰霜|冰冷|闪电|混沌)抗性)$/,
+    toEn: (_, e1, e2, v1, v2, e3, e4) => {
+      const v = v1 || v2;
+      const first = ZH_DAMAGE_TYPE_TO_EN[e1 || e3] ?? (e1 || e3);
+      const second = ZH_DAMAGE_TYPE_TO_EN[e2 || e4] ?? (e2 || e4);
+      return `+${v}% to ${first} and ${second} Resistances`;
+    },
   },
   {
     zhPattern: /^(火焰|冰霜|冰冷|闪电|混沌)抗性上限\s*\+?(\d+)%$/,
@@ -132,16 +182,33 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
   },
   // Added flat damage
   {
-    zhPattern: /^附加\s*(\d+)\s*(?:-|到|至)\s*(\d+)\s*点?(?:基础)?(物理|火焰|冰霜|冰冷|闪电|混沌)伤害$/,
+    zhPattern: /^(?:击中)?附加\s*(\d+)\s*(?:-|–|~|到|至)\s*(\d+)\s*点?(?:基础)?(物理|火焰|冰霜|冰冷|闪电|混沌)伤害$/,
     toEn: (_, min, max, el) => `Adds ${min} to ${max} ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage`,
   },
   {
-    zhPattern: /^法术附加\s*(\d+)\s*(?:-|到|至)\s*(\d+)\s*点?(?:基础)?(物理|火焰|冰霜|冰冷|闪电|混沌)伤害$/,
+    zhPattern: /^法术附加\s*(\d+)\s*(?:-|–|~|到|至)\s*(\d+)\s*点?(?:基础)?(物理|火焰|冰霜|冰冷|闪电|混沌)伤害$/,
     toEn: (_, min, max, el) => `Adds ${min} to ${max} ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage to Spells`,
   },
   {
-    zhPattern: /^攻击附加\s*(\d+)\s*(?:-|到|至)\s*(\d+)\s*点?(?:基础)?(物理|火焰|冰霜|冰冷|闪电|混沌)伤害$/,
+    zhPattern: /^攻击附加\s*(\d+)\s*(?:-|–|~|到|至)\s*(\d+)\s*点?(?:基础)?(物理|火焰|冰霜|冰冷|闪电|混沌)伤害$/,
     toEn: (_, min, max, el) => `Adds ${min} to ${max} ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage to Attacks`,
+  },
+  // Gain as Extra Damage (PoE 1 & PoE 2)
+  {
+    zhPattern: /^获得相当于伤害\s*(\d+)%\s*的所有元素额外伤害$/,
+    toEn: (_, v) => `Gain ${v}% of Damage as Extra Elemental Damage`,
+  },
+  {
+    zhPattern: /^获得相当于伤害\s*(\d+)%\s*的额外(火焰|冰霜|冰冷|闪电|混沌)伤害$/,
+    toEn: (_, v, el) => `Gain ${v}% of Damage as Extra ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage`,
+  },
+  {
+    zhPattern: /^获得相当于物理伤害\s*(\d+)%\s*的额外(火焰|冰霜|冰冷|闪电|混沌)伤害$/,
+    toEn: (_, v, el) => `Gain ${v}% of Physical Damage as Extra ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage`,
+  },
+  {
+    zhPattern: /^获得相当于元素伤害\s*(\d+)%\s*的额外混沌伤害$/,
+    toEn: (_, v) => `Gain ${v}% of Elemental Damage as Extra Chaos Damage`,
   },
   // Increased / More Damage
   {
@@ -149,7 +216,7 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     toEn: (_, el, v) => `${v}% increased ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage`,
   },
   {
-    zhPattern: /^攻击(物理|火焰|冰霜|冰冷|闪电|混沌|元素)伤害(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^攻击(?:技能的?)?(物理|火焰|冰霜|冰冷|闪电|混沌|元素)伤害(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, el, v) => `${v}% increased ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Damage with Attack Skills`,
   },
   {
@@ -163,6 +230,10 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
   {
     zhPattern: /^投射物伤害(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased Projectile Damage`,
+  },
+  {
+    zhPattern: /^近战物理伤害(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Melee Physical Damage`,
   },
   {
     zhPattern: /^近战伤害(?:提高|增加)\s*(\d+)%$/,
@@ -194,7 +265,7 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
   },
   // Speed
   {
-    zhPattern: /^攻击和施法速度(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^攻击[和与]施法速度(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased Attack and Cast Speed`,
   },
   {
@@ -211,44 +282,60 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
   },
   // Crit
   {
-    zhPattern: /^法术暴击率(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^法术暴击(?:率|几率)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased Critical Strike Chance for Spells`,
   },
   {
-    zhPattern: /^(?:攻击)?暴击率(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^全局暴击(?:率|几率)(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Global Critical Strike Chance`,
+  },
+  {
+    zhPattern: /^(?:攻击)?暴击(?:率|几率)(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased Critical Strike Chance`,
   },
   {
-    zhPattern: /^(?:全局)?暴击伤害加成(?:提高|增加)\s*(\d+)%$/,
+    zhPattern: /^(?:全局|法术)?暴击伤害加成(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `+${v}% to Global Critical Strike Multiplier`,
   },
   {
-    zhPattern: /^(?:全局)?暴击伤害加成\s*\+?(\d+)%$/,
+    zhPattern: /^(?:全局|法术)?暴击伤害加成\s*\+?(\d+)%$/,
     toEn: (_, v) => `+${v}% to Global Critical Strike Multiplier`,
   },
   {
-    zhPattern: /^\+(\d+)%\s*(?:全局)?暴击伤害加成$/,
+    zhPattern: /^\+(\d+)%\s*(?:全局|法术)?暴击伤害加成$/,
     toEn: (_, v) => `+${v}% to Global Critical Strike Multiplier`,
   },
-  // Accuracy, Block, Spell Suppression, Regen, Penetration
+  // Accuracy, Block, Spell Suppression, Regen, Mana Regen, Penetration
   {
-    zhPattern: /^(?:命中值\s*\+?(\d+)|\+(\d+)\s*点?命中值)$/,
+    zhPattern: /^(?:命中值?\s*\+?(\d+)|\+(\d+)\s*点?命中值?)$/,
     toEn: (_, a, b) => `+${a || b} to Accuracy Rating`,
   },
   {
-    zhPattern: /^法术伤害压制率\s*\+?(\d+)%$/,
-    toEn: (_, v) => `+${v}% chance to Suppress Spell Damage`,
+    zhPattern: /^命中值?(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Accuracy Rating`,
   },
   {
-    zhPattern: /^\+(\d+)%\s*攻击格挡率$/,
-    toEn: (_, v) => `+${v}% Chance to Block Attack Damage`,
+    zhPattern: /^魔力(?:再生率|回复速度)(?:提高|增加)\s*(\d+)%$/,
+    toEn: (_, v) => `${v}% increased Mana Regeneration Rate`,
   },
   {
-    zhPattern: /^每秒再生\s*(\d+(?:\.\d+)?)\s*(?:点)?生命$/,
-    toEn: (_, v) => `Regenerate ${v} Life per second`,
+    zhPattern: /^(?:法术伤害压制率\s*\+?(\d+)%|\+(\d+)%\s*法术伤害压制率)$/,
+    toEn: (_, a, b) => `+${a || b}% chance to Suppress Spell Damage`,
   },
   {
-    zhPattern: /^每秒再生\s*(\d+(?:\.\d+)?)%\s*生命$/,
+    zhPattern: /^(?:\+(\d+)%\s*攻击格挡(?:率|几率)|攻击格挡(?:率|几率)\s*\+?(\d+)%)$/,
+    toEn: (_, a, b) => `+${a || b}% Chance to Block Attack Damage`,
+  },
+  {
+    zhPattern: /^(?:\+(\d+)%\s*法术格挡(?:率|几率)|法术格挡(?:率|几率)\s*\+?(\d+)%)$/,
+    toEn: (_, a, b) => `+${a || b}% Chance to Block Spell Damage`,
+  },
+  {
+    zhPattern: /^(?:每秒再生\s*(\d+(?:\.\d+)?)\s*(?:点)?生命|每秒(?:生命再生|回复)\s*(\d+(?:\.\d+)?)\s*(?:点)?生命?)$/,
+    toEn: (_, a, b) => `Regenerate ${a || b} Life per second`,
+  },
+  {
+    zhPattern: /^每秒(?:再生|回复|生命再生)\s*(\d+(?:\.\d+)?)%\s*(?:最大)?生命$/,
     toEn: (_, v) => `Regenerate ${v}% of Life per second`,
   },
   {
@@ -362,22 +449,22 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
     zhPattern: /^受到的伤害(?:提高|增加)\s*(\d+)%$/,
     toEn: (_, v) => `${v}% increased Damage taken`,
   },
-  // Skill Gem Level & Quality bonuses (PoE 1 & PoE 2 Chinese clipboard / custom mods)
+  // Skill Gem Level & Quality bonuses (PoE 1 & PoE 2 Chinese/TW clipboard / custom mods)
   {
-    zhPattern: /^所有技能宝石等级\s*\+(\d+)$/,
-    toEn: (_, v) => `+${v} to Level of all Skill Gems`,
+    zhPattern: /^(?:\+(\d+)\s*)?所有技能(?:宝石|石)的?等级(?:\s*\+(\d+))?$/,
+    toEn: (_, a, b) => `+${a || b} to Level of all Skill Gems`,
   },
   {
-    zhPattern: /^所有技能等级\s*\+(\d+)$/,
-    toEn: (_, v) => `+${v} to Level of all Skills`,
+    zhPattern: /^(?:\+(\d+)\s*)?所有技能的?等级(?:\s*\+(\d+))?$/,
+    toEn: (_, a, b) => `+${a || b} to Level of all Skills`,
   },
   {
-    zhPattern: /^所有(火焰|冰霜|冰冷|闪电|物理|混沌|元素)法术技能(?:宝石)?等级\s*\+(\d+)$/,
-    toEn: (_, el, v) => `+${v} to Level of all ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Spell Skill Gems`,
+    zhPattern: /^(?:\+(\d+)\s*)?所有(火焰|冰霜|冰冷|闪电|物理|混沌|元素)法术技能(?:宝石|石)?的?等级(?:\s*\+(\d+))?$/,
+    toEn: (_, a, el, b) => `+${a || b} to Level of all ${ZH_DAMAGE_TYPE_TO_EN[el] ?? el} Spell Skill Gems`,
   },
   {
-    zhPattern: /^所有(法术|攻击|近战|投射物|弓|召唤生物|光环|诅咒|火焰|冰霜|冰冷|闪电|物理|混沌|元素)技能(?:宝石)?等级\s*\+(\d+)$/,
-    toEn: (_, tag, v) => {
+    zhPattern: /^(?:\+(\d+)\s*)?所有(法术|攻击|近战|投射物|弓|召唤生物|光环|诅咒|火焰|冰霜|冰冷|闪电|物理|混沌|元素)技能(?:宝石|石)?的?等级(?:\s*\+(\d+))?$/,
+    toEn: (_, a, tag, b) => {
       const map: Record<string, string> = {
         法术: 'Spell',
         攻击: 'Attack',
@@ -389,12 +476,12 @@ const ZH_TO_EN_RULES: StatRewriteRule[] = [
         诅咒: 'Curse',
         ...ZH_DAMAGE_TYPE_TO_EN,
       };
-      return `+${v} to Level of all ${map[tag] ?? tag} Skill Gems`;
+      return `+${a || b} to Level of all ${map[tag] ?? tag} Skill Gems`;
     },
   },
   {
-    zhPattern: /^所有技能宝石品质\s*\+(\d+)%$/,
-    toEn: (_, v) => `+${v}% to Quality of all Skill Gems`,
+    zhPattern: /^(?:\+(\d+)%\s*)?所有技能(?:宝石|石)?的?品质(?:\s*\+(\d+)%)?$/,
+    toEn: (_, a, b) => `+${a || b}% to Quality of all Skill Gems`,
   },
   {
     zhPattern: /^所有元素抗性上限\s*\+(\d+)%$/,
@@ -700,7 +787,10 @@ export function normalizeStatLineToEn(rawLine: string): string {
     .replace(/^\{[^}]+\}\s*/g, '')
     .replace(/\{[^}]+\}/g, '')
     .replace(/（[^）]*）/g, '')
-    .replace(/\((?:implicit|crafted|enchant|fractured)\)/gi, '')
+    .replace(
+      /\((?:implicit|crafted|enchant|fractured|rune|desecrated|scourge|mutated|augmented|unmet|crucible|veiled|synthetic)\)/gi,
+      '',
+    )
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -714,11 +804,22 @@ export function normalizeStatLineToEn(rawLine: string): string {
   // Normalize Traditional Chinese (International TW) modifiers to Simplified Chinese
   // so both CN and TW client lines reuse the full rule table seamlessly.
   const normalized = toSimplifiedZh(cleaned);
-  // Handle TW prefix-style "提高/增加 X% Y伤害" (e.g. "增加 24% 法術傷害" -> "法术伤害提高 24%")
-  const twPrefixInc = normalized.match(/^(?:提高|增加)\s*(\d+)%\s*(.+)$/);
-  const candidates = twPrefixInc
-    ? [normalized, `${twPrefixInc[2]!.trim()}提高 ${twPrefixInc[1]}%`]
-    : [normalized];
+  // Strip local-item prefixes like "该装备的护甲提高 85%" / "该武器附加 12 - 24 点物理伤害"
+  const withoutLocalPrefix = normalized.replace(/^(?:该|此)(?:装备|物品|武器)的?\s*/, '').trim();
+  const baseCandidates =
+    withoutLocalPrefix && withoutLocalPrefix !== normalized
+      ? [normalized, withoutLocalPrefix]
+      : [normalized];
+
+  const candidates: string[] = [];
+  for (const base of baseCandidates) {
+    candidates.push(base);
+    // Handle TW prefix-style "提高/增加 X% Y伤害" (e.g. "增加 24% 法術傷害" -> "法术伤害提高 24%")
+    const twPrefixInc = base.match(/^(?:提高|增加)\s*(\d+)%\s*(.+)$/);
+    if (twPrefixInc) {
+      candidates.push(`${twPrefixInc[2]!.trim()}提高 ${twPrefixInc[1]}%`);
+    }
+  }
 
   for (const cand of candidates) {
     for (const rule of ZH_TO_EN_RULES) {

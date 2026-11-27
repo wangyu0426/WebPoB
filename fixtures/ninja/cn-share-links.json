@@ -9,7 +9,14 @@
       "importUrl": "https://poe.ninja/poe1/pob/9d4c8",
       "className": "Witch",
       "ascendancyName": "Necromancer",
-      "level": 94
+      "level": 94,
+      "expected": {
+        "minAllocatedNodes": 60,
+        "minItems": 6,
+        "minSkills": 2,
+        "expectPositiveDps": false,
+        "expectPositiveEhp": true
+      }
     },
     {
       "id": "cn-poe1-maxroll-elementalist-ignite",
@@ -18,7 +25,14 @@
       "importUrl": "https://maxroll.gg/poe/pob/6qq2m0gg",
       "className": "Witch",
       "ascendancyName": "Elementalist",
-      "level": 93
+      "level": 93,
+      "expected": {
+        "minAllocatedNodes": 60,
+        "minItems": 6,
+        "minSkills": 2,
+        "expectPositiveDps": true,
+        "expectPositiveEhp": true
+      }
     },
     {
       "id": "cn-poe2-wegame-spirit-walker",
@@ -28,16 +42,33 @@
       "unencodedImport": true,
       "className": "Huntress",
       "ascendancyName": "Spirit Walker",
-      "level": 96
+      "level": 96,
+      "expected": {
+        "minAllocatedNodes": 80,
+        "minItems": 8,
+        "minSkills": 2,
+        "expectPositiveDps": true,
+        "expectPositiveEhp": true,
+        "minSpirit": 200,
+        "requireNodeIds": [63493]
+      }
     },
     {
       "id": "cn-poe2-wegame-infernalist",
       "game": "poe2",
       "title": "CN PoE 2 Witch Infernalist (WeGame)",
       "importUrl": "https://www.wegame.com.cn/helper/poe2/#/share/tTQBxug4aBR-pnf4ZaHqRb-yNE85rlIaiXeJfALO6oWFlinNUtUa011PN9ARHNfX",
+      "unencodedImport": true,
       "className": "Witch",
       "ascendancyName": "Infernalist",
-      "level": 97
+      "level": 97,
+      "expected": {
+        "minAllocatedNodes": 80,
+        "minItems": 8,
+        "minSkills": 2,
+        "expectPositiveDps": true,
+        "expectPositiveEhp": true
+      }
     },
     {
       "id": "tw-poe1-maxroll-elementalist",
@@ -47,7 +78,14 @@
       "importUrl": "https://maxroll.gg/poe/pob/6qq2m0gg",
       "className": "Witch",
       "ascendancyName": "Elementalist",
-      "level": 93
+      "level": 93,
+      "expected": {
+        "minAllocatedNodes": 60,
+        "minItems": 6,
+        "minSkills": 2,
+        "expectPositiveDps": true,
+        "expectPositiveEhp": true
+      }
     },
     {
       "id": "tw-poe2-wegame-infernalist",
@@ -55,9 +93,17 @@
       "locale": "zh-TW",
       "title": "Intl TW PoE 2 Witch Infernalist (WeGame · zh-TW)",
       "importUrl": "https://www.wegame.com.cn/helper/poe2/#/share/tTQBxug4aBR-pnf4ZaHqRb-yNE85rlIaiXeJfALO6oWFlinNUtUa011PN9ARHNfX",
+      "unencodedImport": true,
       "className": "Witch",
       "ascendancyName": "Infernalist",
-      "level": 97
+      "level": 97,
+      "expected": {
+        "minAllocatedNodes": 80,
+        "minItems": 8,
+        "minSkills": 2,
+        "expectPositiveDps": true,
+        "expectPositiveEhp": true
+      }
     }
   ]
 }

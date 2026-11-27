@@ -17,6 +17,7 @@ import {
   fetchWeGamePoe2Build,
   importBuildFromCode,
   isWeGamePoe2ShareUrl,
+  parsePoeNinjaCharacterUrl,
 } from '@webpob/codec';
 import { t, type MessageKey, uiText } from '@webpob/i18n';
 import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
@@ -51,7 +52,53 @@ export function App() {
   const { locale, activeTab, setActiveTab, build, calc, ensureOfficialDataLoaded, ensureSecondaryDataLoaded, replaceBuild, undo, redo } =
     useWebPobStore();
   const [hashToast, setHashToast] = useState<string | null>(null);
+  const [importErrorToast, setImportErrorToast] = useState<string | null>(null);
   const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
+
+  // Expose read-only runtime state snapshot for browser E2E verification
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as unknown as Record<string, unknown>).__WEBPOB_STATE__ = () => {
+      const s = useWebPobStore.getState();
+      return {
+        locale: s.locale,
+        activeTab: s.activeTab,
+        dataLoading: s.dataLoading,
+        build: {
+          game: s.build.game,
+          name: s.build.name,
+          classId: s.build.classId,
+          ascendancyId: s.build.ascendancyId,
+          level: s.build.level,
+          activeWeaponSet: s.build.activeWeaponSet,
+          allocatedNodeCount: s.build.tree.allocatedNodeIds.length,
+          allocatedNodeIds: s.build.tree.allocatedNodeIds,
+          equippedSlots: Object.keys(s.build.equipped),
+          equippedCount: Object.keys(s.build.equipped).length,
+          skillGroupCount: s.build.skills.length,
+          itemCount: Object.keys(s.build.items).length,
+        },
+        calc: {
+          totalDps: s.calc.offence.totalDps,
+          fullDps: s.calc.offence.fullDps,
+          hitDps: s.calc.offence.hitDps,
+          life: s.calc.defence.life,
+          energyShield: s.calc.defence.energyShield,
+          mana: s.calc.defence.mana,
+          armour: s.calc.defence.armour,
+          evasion: s.calc.defence.evasion,
+          ward: s.calc.defence.ward ?? 0,
+          spirit: s.calc.defence.spirit,
+          spiritUnreserved: s.calc.defence.spiritUnreserved,
+          fireResist: s.calc.defence.fireResist,
+          coldResist: s.calc.defence.coldResist,
+          lightningResist: s.calc.defence.lightningResist,
+          chaosResist: s.calc.defence.chaosResist,
+          effectiveHitPool: s.calc.defence.effectiveHitPool,
+        },
+      };
+    };
+  }, []);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteMode, setCommandPaletteMode] = useState<CommandPaletteMode>('command');
   const pendingUrlImportRef = useRef<boolean>(
@@ -143,8 +190,25 @@ export function App() {
             const imported = await fetchWeGamePoe2Build(importUrl, proxy);
             if (cancelled) return;
             replaceBuild(imported);
+            setImportErrorToast(null);
             setHashToast(imported.name);
             setTimeout(() => setHashToast(null), 4500);
+            return;
+          }
+          const ninjaChar = parsePoeNinjaCharacterUrl(importUrl);
+          if (ninjaChar) {
+            const activeLocale = useWebPobStore.getState().locale;
+            const sampleLink =
+              ninjaChar.game === 'poe2' ? 'poe.ninja/poe2/pob/xxxx' : 'poe.ninja/poe1/pob/xxxx';
+            pendingUrlImportRef.current = false;
+            setImportErrorToast(
+              uiText(
+                activeLocale,
+                `poe.ninja 角色页（${ninjaChar.game.toUpperCase()} · ${ninjaChar.character}）无法直接导入：请在角色页点击「Copy PoB code」复制 PoB 码或 ${sampleLink} 短链接后再导入。`,
+                `Cannot import poe.ninja character page (${ninjaChar.game.toUpperCase()} · ${ninjaChar.character}) directly: click "Copy PoB code" on that page and paste the PoB code or ${sampleLink} link.`,
+              ),
+            );
+            void ensureOfficialDataLoaded(useWebPobStore.getState().build.game);
             return;
           }
           const code = await fetchRemoteBuildCode(importUrl, proxy);
@@ -154,13 +218,19 @@ export function App() {
           pendingUrlImportRef.current = false;
           await ensureOfficialDataLoaded(game);
           if (cancelled) return;
-          const { build: imported } = importBuildFromCode(code);
+          const { build: imported } = importBuildFromCode(xml);
           replaceBuild(imported);
+          setImportErrorToast(null);
           setHashToast(imported.name);
           setTimeout(() => setHashToast(null), 4500);
           return;
         } catch (err) {
           console.warn('[WebPoB] Failed to load ?import URL build:', err);
+          const activeLocale = useWebPobStore.getState().locale;
+          const detail = err instanceof Error ? err.message : String(err);
+          setImportErrorToast(
+            uiText(activeLocale, `分享链接导入失败：${detail}`, `Failed to import URL: ${detail}`),
+          );
           pendingUrlImportRef.current = false;
           void ensureOfficialDataLoaded(useWebPobStore.getState().build.game);
         }
@@ -283,6 +353,22 @@ export function App() {
             {hashToast && (
               <div className="absolute top-12 right-2 md:top-3 md:right-3 z-50 rounded-md bg-emerald-950/90 border border-emerald-500/50 px-3 py-1.5 text-xs text-emerald-200 shadow-lg pointer-events-none">
                 {uiText(locale, `已从分享链接加载：${hashToast}`, `Loaded shared build: ${hashToast}`)}
+              </div>
+            )}
+            {importErrorToast && (
+              <div
+                role="alert"
+                className="absolute top-12 right-2 left-2 md:left-auto md:top-3 md:right-3 md:max-w-lg z-50 rounded-md bg-rose-950/95 border border-rose-500/60 px-3 py-2 text-xs text-rose-100 shadow-xl flex items-start justify-between gap-2"
+              >
+                <span>{importErrorToast}</span>
+                <button
+                  type="button"
+                  onClick={() => setImportErrorToast(null)}
+                  className="text-rose-300 hover:text-white shrink-0 cursor-pointer"
+                  aria-label="Dismiss import error"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
             {activeTab === 'tree' && <PassiveTreeCanvas />}

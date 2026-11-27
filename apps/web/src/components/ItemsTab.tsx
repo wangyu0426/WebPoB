@@ -12,7 +12,7 @@ import {
   type CompactUniqueEntry,
 } from '@webpob/data';
 import { parseItemText } from '@webpob/codec';
-import { calculateBuild, rankUniqueUpgradesForSlot, resolveItemEffectiveStats } from '@webpob/calc';
+import { calculateBuild, parseModLine, rankUniqueUpgradesForSlot, resolveItemEffectiveStats } from '@webpob/calc';
 import { getSlotLabel, localizeStatLine, t, toTraditionalZh, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { ItemCompareModal } from './ItemCompareModal';
@@ -209,18 +209,65 @@ export function ItemsTab() {
       setStatusMsg({ ok: false, text: t(locale, 'items.parseError') });
       return;
     }
-    const targetSlot =
-      autoEquip
-        ? parsed.slotType !== 'Any'
-          ? parsed.slotType
-          : selectedSlot
-        : undefined;
+    const resolveEquipSlot = (): EquipmentSlotId => {
+      if (parsed.slotType === 'Any') return selectedSlot;
+      if (build.game === 'poe2' && build.activeWeaponSet === 2) {
+        if (parsed.slotType === 'Weapon 1') return 'Weapon 1 Swap';
+        if (parsed.slotType === 'Weapon 2') return 'Weapon 2 Swap';
+      }
+      return parsed.slotType;
+    };
+    const targetSlot = autoEquip ? resolveEquipSlot() : undefined;
+    const beforeCalc = calc;
     addItem(parsed, targetSlot);
+    if (targetSlot) {
+      setSelectedSlot(targetSlot);
+    }
+
+    // Count how many item modifiers + base stats actively participate in calculation
+    const resolved = resolveItemEffectiveStats(parsed, build.game);
+    const totalModLines = parsed.implicits.length + parsed.explicits.length;
+    const consumedLocalCount =
+      totalModLines - (resolved.globalImplicits.length + resolved.globalExplicits.length);
+    const parsedGlobalCount = [...resolved.globalImplicits, ...resolved.globalExplicits].filter(
+      (line) => parseModLine(line, 'Check').length > 0,
+    ).length;
+    const activeModCount = consumedLocalCount + parsedGlobalCount;
+
+    let deltaSummary = '';
+    if (targetSlot) {
+      const afterCalc = useWebPobStore.getState().calc;
+      const parts: string[] = [];
+      const dDps = Math.round(afterCalc.offence.totalDps - beforeCalc.offence.totalDps);
+      const dLife = Math.round(afterCalc.defence.life - beforeCalc.defence.life);
+      const dEs = Math.round(afterCalc.defence.energyShield - beforeCalc.defence.energyShield);
+      const dArm = Math.round(afterCalc.defence.armour - beforeCalc.defence.armour);
+      const dEva = Math.round(afterCalc.defence.evasion - beforeCalc.defence.evasion);
+      const dRes =
+        (afterCalc.defence.fireResist - beforeCalc.defence.fireResist) +
+        (afterCalc.defence.coldResist - beforeCalc.defence.coldResist) +
+        (afterCalc.defence.lightningResist - beforeCalc.defence.lightningResist) +
+        (afterCalc.defence.chaosResist - beforeCalc.defence.chaosResist);
+      if (dDps !== 0) parts.push(`DPS ${dDps > 0 ? '+' : ''}${dDps.toLocaleString()}`);
+      if (dLife !== 0) parts.push(`${uiText(locale, '生命', 'Life')} ${dLife > 0 ? '+' : ''}${dLife}`);
+      if (dEs !== 0) parts.push(`${uiText(locale, '护盾', 'ES')} ${dEs > 0 ? '+' : ''}${dEs}`);
+      if (dArm !== 0) parts.push(`${uiText(locale, '护甲', 'Armour')} ${dArm > 0 ? '+' : ''}${dArm}`);
+      if (dEva !== 0) parts.push(`${uiText(locale, '闪避', 'Evasion')} ${dEva > 0 ? '+' : ''}${dEva}`);
+      if (dRes !== 0) parts.push(`${uiText(locale, '抗性', 'Res')} ${dRes > 0 ? '+' : ''}${dRes}%`);
+      if (parts.length > 0) {
+        deltaSummary = ` · ${parts.join(' / ')}`;
+      }
+    }
+    const modCountNote =
+      totalModLines > 0
+        ? ` · ${uiText(locale, `词缀已生效 ${activeModCount}/${totalModLines}`, `${activeModCount}/${totalModLines} mods active`)}`
+        : '';
+
     setStatusMsg({
       ok: true,
       text: `${t(locale, 'items.parseSuccess')} (${parsed.name} → ${
         targetSlot ? getSlotLabel(locale, targetSlot) : t(locale, 'items.stash')
-      })`,
+      }${modCountNote}${deltaSummary})`,
     });
     setPasteText('');
   };

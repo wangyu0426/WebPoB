@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createSamplePoe1Build, createSamplePoe2Build } from '@webpob/data';
 import {
   encodeBuildToPobCode,
+  fetchRemoteBuildCode,
   importBuildFromCode,
   parseCharacterJsonToBuild,
   parseItemText,
+  parsePoeNinjaCharacterUrl,
   resolveShareUrl,
 } from './index.js';
 
@@ -229,5 +231,97 @@ Energy Shield: 520 (augmented)
     expect(decoded.activeSkillSetIndex).toBe(1);
     expect(decoded.skills[0]!.gems[0]!.gemId).toBe('poe1_fireball');
     expect(decoded.config.enemyBlinded).toBe(true);
+  });
+
+  it('detects poe.ninja character URLs and rejects HTML / non-PoB XML instead of falling back to PoE 1', async () => {
+    const info = parsePoeNinjaCharacterUrl(
+      'https://poe.ninja/poe2/builds/forbiddenrites/character/brazwv-1435/ArkkFR',
+    );
+    expect(info).toEqual({
+      game: 'poe2',
+      league: 'forbiddenrites',
+      account: 'brazwv-1435',
+      character: 'ArkkFR',
+    });
+
+    const poe1Info = parsePoeNinjaCharacterUrl(
+      'https://poe.ninja/poe1/builds/covens/character/sample-1234/HeroName',
+    );
+    expect(poe1Info?.game).toBe('poe1');
+
+    await expect(
+      fetchRemoteBuildCode('https://poe.ninja/poe2/builds/forbiddenrites/character/brazwv-1435/ArkkFR'),
+    ).rejects.toThrow(/Copy PoB code/i);
+
+    expect(() =>
+      importBuildFromCode('<!doctype html><html><head><title>Just a moment...</title></head><body></body></html>'),
+    ).toThrow(/HTML webpage/i);
+
+    expect(() => importBuildFromCode('<NotPoB><Foo /></NotPoB>')).toThrow(/Invalid Path of Building XML/i);
+  });
+
+  it('parses real PoE 1/2 CN & TW Ctrl+C items with 物品种类, 护甲值, 符文结界, (rune), dual res/attr & local prefixes', () => {
+    const cnPoe2Chest = `物品种类: 胸甲
+稀有度: 稀有
+苍穹 守护者
+符文冠军胸甲
+--------
+品质: +20% (augmented)
+护甲值: 850 (augmented)
+能量护盾: 520 (augmented)
+符文结界: 320 (augmented)
+--------
+需求:
+等级: 78
+力量: 112
+智慧: 112
+--------
++45 生命上限 (rune)
+--------
++115 生命上限
+火焰和闪电抗性 +38%
+力量和智慧 +26
+该装备的护甲提高 85%
+法术伤害提高 48%
+获得相当于伤害 15% 的额外闪电伤害`;
+
+    const parsedCn = parseItemText(cnPoe2Chest, 'test_cn_chest', 'poe2');
+    expect(parsedCn).not.toBeNull();
+    expect(parsedCn!.slotType).toBe('Body Armour');
+    expect(parsedCn!.armourStats?.armour).toBe(850);
+    expect(parsedCn!.armourStats?.energyShield).toBe(520);
+    expect(parsedCn!.armourStats?.ward).toBe(320);
+    expect(parsedCn!.implicits).toContain('+45 to maximum Life');
+    expect(parsedCn!.explicits).toContain('+115 to maximum Life');
+    expect(parsedCn!.explicits).toContain('+38% to Fire and Lightning Resistances');
+    expect(parsedCn!.explicits).toContain('+26 to Strength and Intelligence');
+    expect(parsedCn!.explicits).toContain('85% increased Armour');
+    expect(parsedCn!.explicits).toContain('48% increased Spell Damage');
+    expect(parsedCn!.explicits).toContain('Gain 15% of Damage as Extra Lightning Damage');
+    // Requirements sub-lines like "力量: 112" must never leak into implicits/explicits
+    expect([...parsedCn!.implicits, ...parsedCn!.explicits].join('\n')).not.toContain('力量: 112');
+
+    const twWeapon = `物品類型: 法杖
+稀有度: 稀有
+雷霆 魔杖
+先知法杖
+--------
+物理傷害: 35-68 (augmented)
+元素傷害: 20-45 (augmented), 15-85 (augmented)
+攻擊暴擊率: 9.50%
+每秒攻擊次數: 1.55
+--------
+增加 55% 法術傷害
++3 所有閃電法術技能的等級
++18% 火焰與冰冷抗性`;
+    const parsedTw = parseItemText(twWeapon, 'test_tw_wand', 'poe2');
+    expect(parsedTw).not.toBeNull();
+    expect(parsedTw!.slotType).toBe('Weapon 1');
+    expect(parsedTw!.weaponStats?.critChance).toBe(9.5);
+    expect(parsedTw!.weaponStats?.elementalDamage?.Fire).toEqual([20, 45]);
+    expect(parsedTw!.weaponStats?.elementalDamage?.Cold).toEqual([15, 85]);
+    expect(parsedTw!.explicits).toContain('55% increased Spell Damage');
+    expect(parsedTw!.explicits).toContain('+3 to Level of all Lightning Spell Skill Gems');
+    expect(parsedTw!.explicits).toContain('+18% to Fire and Cold Resistances');
   });
 });

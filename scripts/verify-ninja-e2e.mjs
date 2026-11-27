@@ -592,11 +592,13 @@ async function verifyBuildInViewport(port, entry, viewport) {
             const selectedOptionTexts = visibleSelects.map((sel) => sel.options[sel.selectedIndex]?.text?.trim() || '');
             const mobileHeaderBtn = header ? header.querySelector('.md\\\\:hidden button') : null;
             const mobileHeaderText = mobileHeaderBtn ? (mobileHeaderBtn.textContent || '').trim() : '';
+            const state = typeof window.__WEBPOB_STATE__ === 'function' ? window.__WEBPOB_STATE__() : null;
             return {
               lang: document.documentElement?.lang || '',
               bodyText,
               selectedOptionTexts,
               mobileHeaderText,
+              state,
               scrollWidth: document.documentElement?.scrollWidth ?? 0,
               clientWidth: document.documentElement?.clientWidth ?? 0,
               bodyScrollWidth: document.body ? document.body.scrollWidth : 0,
@@ -619,6 +621,88 @@ async function verifyBuildInViewport(port, entry, viewport) {
     // 0. Document language should reflect the requested locale (zh-CN or zh-TW)
     if ((loadedSnapshot.lang || '').toLowerCase() !== targetLocale.toLowerCase()) {
       issues.push(`Expected document.lang to be ${targetLocale}, got "${loadedSnapshot.lang || ''}"`);
+    }
+
+    // 0b. Deep functional & numeric integrity assertions against live app state
+    const appState = loadedSnapshot.state;
+    if (!appState || !appState.build || !appState.calc) {
+      issues.push('Live app state getter window.__WEBPOB_STATE__ returned null');
+    } else {
+      // Exact game mode check (catches PoE 2 -> PoE 1 mis-import regressions immediately!)
+      if (appState.build.game !== entry.game) {
+        issues.push(`Game mode mismatch: expected "${entry.game}", got "${appState.build.game}"`);
+      }
+      if (viewport.mobile) {
+        const expectedBadge = entry.game === 'poe2' ? 'PoE2' : 'PoE1';
+        if (!loadedSnapshot.mobileHeaderText.includes(expectedBadge)) {
+          issues.push(`Mobile header badge expected "${expectedBadge}", got "${loadedSnapshot.mobileHeaderText}"`);
+        }
+      }
+      // Exact class & ascendancy IDs
+      if (entry.className && appState.build.classId.toLowerCase() !== entry.className.toLowerCase()) {
+        issues.push(`Build classId mismatch: expected "${entry.className}", got "${appState.build.classId}"`);
+      }
+      if (
+        entry.ascendancyName &&
+        entry.ascendancyName !== 'None' &&
+        appState.build.ascendancyId.toLowerCase() !== entry.ascendancyName.toLowerCase()
+      ) {
+        issues.push(
+          `Build ascendancyId mismatch: expected "${entry.ascendancyName}", got "${appState.build.ascendancyId}"`,
+        );
+      }
+      // Real build hydration thresholds (passives, equipped gear, skills)
+      const exp = entry.expected || {};
+      const minNodes = typeof exp.minAllocatedNodes === 'number' ? exp.minAllocatedNodes : 30;
+      const minItems = typeof exp.minItems === 'number' ? exp.minItems : 4;
+      const minSkills = typeof exp.minSkills === 'number' ? exp.minSkills : 1;
+      if (appState.build.allocatedNodeCount < minNodes) {
+        issues.push(
+          `Allocated passive nodes too low: got ${appState.build.allocatedNodeCount}, expected >= ${minNodes}`,
+        );
+      }
+      if (appState.build.itemCount < minItems) {
+        issues.push(
+          `Parsed item count too low: got ${appState.build.itemCount}, expected >= ${minItems}`,
+        );
+      }
+      if (appState.build.equippedCount < 5) {
+        issues.push(
+          `Equipped item count too low: got ${appState.build.equippedCount}, expected >= 5`,
+        );
+      }
+      if (appState.build.skillGroupCount < minSkills) {
+        issues.push(
+          `Skill group count too low: got ${appState.build.skillGroupCount}, expected >= ${minSkills}`,
+        );
+      }
+      if (Array.isArray(exp.requireNodeIds)) {
+        const nodeSet = new Set(appState.build.allocatedNodeIds || []);
+        for (const reqId of exp.requireNodeIds) {
+          if (!nodeSet.has(reqId)) {
+            issues.push(`Expected required passive/ascendancy node #${reqId} to be allocated`);
+          }
+        }
+      }
+      // Numeric calculation sanity (DPS, EHP, Life/ES, Spirit)
+      const effectiveDps = appState.calc.fullDps ?? appState.calc.totalDps;
+      if (!Number.isFinite(effectiveDps) || (exp.expectPositiveDps !== false && effectiveDps <= 0)) {
+        issues.push(`Expected positive finite DPS, got ${effectiveDps}`);
+      }
+      if (!Number.isFinite(appState.calc.effectiveHitPool) || (exp.expectPositiveEhp !== false && appState.calc.effectiveHitPool <= 0)) {
+        issues.push(`Expected positive finite EHP, got ${appState.calc.effectiveHitPool}`);
+      }
+      if ((appState.calc.life ?? 0) <= 0 && (appState.calc.energyShield ?? 0) <= 0) {
+        issues.push(`Expected Life > 0 or ES > 0, got life=${appState.calc.life}, es=${appState.calc.energyShield}`);
+      }
+      if (typeof exp.minSpirit === 'number') {
+        if ((appState.calc.spirit ?? 0) < exp.minSpirit) {
+          issues.push(`Expected Spirit >= ${exp.minSpirit}, got ${appState.calc.spirit}`);
+        }
+        if ((appState.calc.spiritUnreserved ?? -1) < 0) {
+          issues.push(`Expected non-negative unreserved Spirit, got ${appState.calc.spiritUnreserved}`);
+        }
+      }
     }
 
     // 1. Check required Chinese navigation tabs
@@ -741,6 +825,266 @@ async function verifyBuildInViewport(port, entry, viewport) {
     cdp.close();
     await closePageTarget(port, target.id);
   }
+}
+
+async function verifyFunctionalRegressions(port) {
+  const checks = [];
+
+  // Functional Check 1: poe.ninja character webpage URL MUST show actionable error and NEVER mis-import as PoE 1
+  {
+    const id = 'fn-poe-ninja-char-url-reject';
+    const target = await createPageTarget(port);
+    const cdp = new CdpClient(target.webSocketDebuggerUrl);
+    const issues = [];
+    const pageErrors = [];
+    const consoleErrors = [];
+    try {
+      await cdp.connect();
+      await cdp.send('Page.enable');
+      await cdp.send('Runtime.enable');
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: 1440,
+        height: 860,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      cdp.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.text || 'exception')));
+      cdp.on('Runtime.consoleAPICalled', (p) => {
+        if (p.type === 'error') consoleErrors.push((p.args || []).map((a) => a.value ?? a.description).join(' '));
+      });
+
+      const badUrl = 'https://poe.ninja/poe2/builds/forbiddenrites/character/brazwv-1435/ArkkFR';
+      await cdp.send('Page.navigate', {
+        url: `${BASE_URL}/?lang=zh-CN&import=${encodeURIComponent(badUrl)}`,
+      });
+      const deadline = Date.now() + 12_000;
+      let alertText = '';
+      let bodyText = '';
+      while (Date.now() < deadline) {
+        const res = await cdp.evaluate(`(() => {
+          const alertEl = document.querySelector('[role="alert"]');
+          return {
+            alertText: alertEl ? (alertEl.textContent || '').trim() : '',
+            bodyText: document.body ? document.body.innerText || '' : '',
+          };
+        })()`);
+        alertText = res.alertText;
+        bodyText = res.bodyText;
+        if (alertText) break;
+        await sleep(150);
+      }
+      if (!alertText || !alertText.includes('Copy PoB code')) {
+        issues.push(`Expected [role="alert"] explaining "Copy PoB code" for poe.ninja character URL, got "${alertText}"`);
+      }
+      if (bodyText.includes('已从分享链接加载')) {
+        issues.push('Unexpected fake success toast "已从分享链接加载" shown for unsupported poe.ninja character URL');
+      }
+
+      // Also verify pasting the poe.ninja PoE 2 character URL inside Import tab while in PoE 2 mode stays in PoE 2!
+      const pastedCheck = await cdp.evaluate(`(async () => {
+        // Click PoE 2 switcher button in header
+        const headerBtns = Array.from(document.querySelectorAll('header button'));
+        const poe2Btn = headerBtns.find((b) => (b.textContent || '').includes('流放之路 2') || (b.textContent || '').includes('PoE 2'));
+        if (poe2Btn) poe2Btn.click();
+        await new Promise((r) => setTimeout(r, 400));
+        // Switch to 导入 / 导出 tab
+        const navBtns = Array.from(document.querySelectorAll('nav button'));
+        const importTab = navBtns.find((b) => (b.textContent || '').includes('导入'));
+        if (!importTab) return { ok: false, reason: 'missing import tab' };
+        importTab.click();
+        for (let i = 0; i < 30; i++) {
+          const ta = document.querySelector('textarea:not([readonly])');
+          if (ta) break;
+          await new Promise((r) => setTimeout(r, 150));
+        }
+        const ta = document.querySelector('textarea:not([readonly])');
+        if (!ta) return { ok: false, reason: 'missing import textarea' };
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(ta, ${JSON.stringify(badUrl)});
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 100));
+        const submitBtn = Array.from(document.querySelectorAll('main button')).find((b) =>
+          (b.textContent || '').trim() === '导入 BD'
+        );
+        if (!submitBtn) return { ok: false, reason: 'missing import submit button' };
+        submitBtn.click();
+        await new Promise((r) => setTimeout(r, 400));
+        const state = typeof window.__WEBPOB_STATE__ === 'function' ? window.__WEBPOB_STATE__() : null;
+        const text = document.body ? document.body.innerText || '' : '';
+        return {
+          ok: true,
+          game: state?.build?.game || null,
+          hasErrorHint: text.includes('Copy PoB code'),
+          hasFakeSuccess: text.includes('BD 导入成功'),
+        };
+      })()`);
+      if (!pastedCheck.ok) {
+        issues.push(`Import tab rejection check setup failed: ${pastedCheck.reason}`);
+      } else {
+        if (pastedCheck.game !== 'poe2') {
+          issues.push(`Expected game to remain "poe2" after rejecting poe.ninja character URL, got "${pastedCheck.game}"`);
+        }
+        if (!pastedCheck.hasErrorHint) {
+          issues.push('Import tab did not display actionable "Copy PoB code" error message');
+        }
+        if (pastedCheck.hasFakeSuccess) {
+          issues.push('Import tab displayed fake "BD 导入成功" for poe.ninja character URL');
+        }
+      }
+      for (const e of pageErrors) issues.push(`pageerror: ${e}`);
+      for (const e of consoleErrors) issues.push(`console.error: ${e}`);
+    } finally {
+      cdp.close();
+      await closePageTarget(port, target.id);
+    }
+    const passed = issues.length === 0;
+    checks.push({
+      game: 'poe2',
+      id,
+      title: 'Reject poe.ninja character page URL (no PoE 1 fallback)',
+      className: 'Guard',
+      ascendancyName: 'ImportValidation',
+      durationMs: 0,
+      desktop: { passed, issues, pageErrors, consoleErrors },
+      mobile: { passed, issues: [], pageErrors: [], consoleErrors: [] },
+    });
+  }
+
+  // Functional Check 2: Real Chinese Ctrl+C item paste MUST equip and visibly increase Life, ES, Armour, Res & DPS
+  {
+    const id = 'fn-item-paste-stat-effect-zh';
+    const target = await createPageTarget(port);
+    const cdp = new CdpClient(target.webSocketDebuggerUrl);
+    const issues = [];
+    const pageErrors = [];
+    const consoleErrors = [];
+    try {
+      await cdp.connect();
+      await cdp.send('Page.enable');
+      await cdp.send('Runtime.enable');
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: 1440,
+        height: 860,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      cdp.on('Runtime.exceptionThrown', (p) => pageErrors.push(String(p.exceptionDetails?.text || 'exception')));
+      cdp.on('Runtime.consoleAPICalled', (p) => {
+        if (p.type === 'error') consoleErrors.push((p.args || []).map((a) => a.value ?? a.description).join(' '));
+      });
+
+      await cdp.send('Page.navigate', { url: `${BASE_URL}/?lang=zh-CN` });
+      const deadline = Date.now() + 12_000;
+      while (Date.now() < deadline) {
+        const ready = await cdp.evaluate(`document.body && document.body.innerText.includes('装备') && typeof window.__WEBPOB_STATE__ === 'function'`);
+        if (ready) break;
+        await sleep(150);
+      }
+
+      const cnItemText = [
+        '物品种类: 胸甲',
+        '稀有度: 稀有',
+        '苍穹 守护者',
+        '符文冠军胸甲',
+        '--------',
+        '品质: +20% (augmented)',
+        '护甲值: 850 (augmented)',
+        '能量护盾: 520 (augmented)',
+        '--------',
+        '需求:',
+        '等级: 78',
+        '力量: 112',
+        '智慧: 112',
+        '--------',
+        '+45 生命上限 (rune)',
+        '--------',
+        '+115 生命上限',
+        '火焰和闪电抗性 +38%',
+        '力量和智慧 +26',
+        '该装备的护甲提高 85%',
+        '法术伤害提高 48%',
+        '获得相当于伤害 15% 的额外闪电伤害',
+      ].join('\n');
+
+      const result = await cdp.evaluate(`(async () => {
+        const navBtns = Array.from(document.querySelectorAll('nav button'));
+        const itemsBtn = navBtns.find((b) => (b.textContent || '').includes('装备'));
+        if (!itemsBtn) return { ok: false, reason: 'missing items tab' };
+        itemsBtn.click();
+        for (let i = 0; i < 30; i++) {
+          if (document.querySelector('textarea')) break;
+          await new Promise((r) => setTimeout(r, 150));
+        }
+        // Unequip existing Body Armour first if present so we test a pure clean equip delta
+        const slotCards = Array.from(document.querySelectorAll('main div.pob-panel'));
+        const chestRow = slotCards.find((el) => {
+          const label = el.querySelector('div.text-zinc-400');
+          return label && (label.textContent || '').trim() === '胸甲';
+        });
+        const unequipBtn = chestRow ? chestRow.querySelector('button[title="卸下"]') : null;
+        if (unequipBtn) {
+          unequipBtn.click();
+          await new Promise((r) => setTimeout(r, 150));
+        }
+        const before = window.__WEBPOB_STATE__();
+        const ta = document.querySelector('textarea');
+        if (!ta) return { ok: false, reason: 'missing paste textarea' };
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(ta, ${JSON.stringify(cnItemText)});
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 100));
+        const equipBtn = Array.from(document.querySelectorAll('main button')).find((b) =>
+          (b.textContent || '').includes('解析并穿戴')
+        );
+        if (!equipBtn) return { ok: false, reason: 'missing parse-and-equip button' };
+        equipBtn.click();
+        await new Promise((r) => setTimeout(r, 300));
+        const after = window.__WEBPOB_STATE__();
+        const bodyText = document.body ? document.body.innerText || '' : '';
+        return { ok: true, before, after, bodyText };
+      })()`);
+
+      if (!result.ok) {
+        issues.push(`Item paste test setup failed: ${result.reason}`);
+      } else {
+        const b = result.before.calc;
+        const a = result.after.calc;
+        if (!(a.life > b.life + 100)) {
+          issues.push(`Expected Life to increase by >100 after pasting CN chest, before=${b.life}, after=${a.life}`);
+        }
+        if (!(a.energyShield > b.energyShield + 400)) {
+          issues.push(`Expected ES to increase by >400 after pasting CN chest, before=${b.energyShield}, after=${a.energyShield}`);
+        }
+        if (!(a.armour > b.armour + 500)) {
+          issues.push(`Expected Armour to increase by >500 after pasting CN chest, before=${b.armour}, after=${a.armour}`);
+        }
+        if (!(a.totalDps > b.totalDps * 1.1)) {
+          issues.push(`Expected Total DPS to increase by >10% after pasting CN chest, before=${b.totalDps}, after=${a.totalDps}`);
+        }
+        if (!result.bodyText.includes('词缀已生效')) {
+          issues.push('Expected "词缀已生效" feedback banner after pasting CN item');
+        }
+      }
+      for (const e of pageErrors) issues.push(`pageerror: ${e}`);
+      for (const e of consoleErrors) issues.push(`console.error: ${e}`);
+    } finally {
+      cdp.close();
+      await closePageTarget(port, target.id);
+    }
+    const passed = issues.length === 0;
+    checks.push({
+      game: 'poe1',
+      id,
+      title: 'CN Ctrl+C item paste equips & updates Life/ES/Armour/DPS',
+      className: 'Items',
+      ascendancyName: 'PasteCalcDelta',
+      durationMs: 0,
+      desktop: { passed, issues, pageErrors, consoleErrors },
+      mobile: { passed, issues: [], pageErrors: [], consoleErrors: [] },
+    });
+  }
+
+  return checks;
 }
 
 function padRight(str, width) {
@@ -870,6 +1214,14 @@ async function main() {
         desktop,
         mobile,
       });
+    }
+
+    const fnStart = Date.now();
+    console.log('\nRunning interactive functional E2E checks (poe.ninja character URL guard + CN Ctrl+C item paste stat delta)...');
+    const functionalResults = await verifyFunctionalRegressions(port);
+    for (const fr of functionalResults) {
+      fr.durationMs = Math.round((Date.now() - fnStart) / Math.max(1, functionalResults.length));
+      results.push(fr);
     }
 
     printSummaryTable(results);

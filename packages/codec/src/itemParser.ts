@@ -14,12 +14,14 @@ const RARITY_MAP: Record<string, ItemRarity> = {
   暗金: 'UNIQUE',
 };
 
-const SLOT_KEYWORDS: Array<{ pattern: RegExp; slot: EquipmentSlotId; weaponType?: WeaponBaseStats['weaponType']; twoHanded?: boolean }> = [
-  { pattern: /wand|法杖/i, slot: 'Weapon 1', weaponType: 'Wand', twoHanded: false },
-  { pattern: /quarterstaff|细杖|长杖/i, slot: 'Weapon 1', weaponType: 'Quarterstaff', twoHanded: true },
-  { pattern: /staff|staves|长杖/i, slot: 'Weapon 1', weaponType: 'Staff', twoHanded: true },
-  { pattern: /crossbow|弩/i, slot: 'Weapon 1', weaponType: 'Crossbow', twoHanded: true },
-  { pattern: /bow|弓/i, slot: 'Weapon 1', weaponType: 'Bow', twoHanded: true },
+const SLOT_KEYWORDS: Array<{ pattern: RegExp; slot: EquipmentSlotId | 'Any'; weaponType?: WeaponBaseStats['weaponType']; twoHanded?: boolean }> = [
+  { pattern: /\bjewel\b|珠宝/i, slot: 'Any' },
+  { pattern: /wand|法杖|魔杖/i, slot: 'Weapon 1', weaponType: 'Wand', twoHanded: false },
+  { pattern: /quarterstaff|细杖/i, slot: 'Weapon 1', weaponType: 'Quarterstaff', twoHanded: true },
+  { pattern: /staff|staves|warstaff|长杖|符文之叉/i, slot: 'Weapon 1', weaponType: 'Staff', twoHanded: true },
+  { pattern: /crossbow|战弩|十字弓|弩/i, slot: 'Weapon 1', weaponType: 'Crossbow', twoHanded: true },
+  { pattern: /bow|长弓|弓/i, slot: 'Weapon 1', weaponType: 'Bow', twoHanded: true },
+  { pattern: /spear|战矛|长矛/i, slot: 'Weapon 1', weaponType: 'Sword', twoHanded: false },
   { pattern: /dagger|匕首/i, slot: 'Weapon 1', weaponType: 'Dagger', twoHanded: false },
   { pattern: /claw|爪/i, slot: 'Weapon 1', weaponType: 'Claw', twoHanded: false },
   { pattern: /two hand sword|双手剑/i, slot: 'Weapon 1', weaponType: 'Sword', twoHanded: true },
@@ -27,16 +29,16 @@ const SLOT_KEYWORDS: Array<{ pattern: RegExp; slot: EquipmentSlotId; weaponType?
   { pattern: /two hand axe|双手斧/i, slot: 'Weapon 1', weaponType: 'Axe', twoHanded: true },
   { pattern: /axe|斧/i, slot: 'Weapon 1', weaponType: 'Axe', twoHanded: false },
   { pattern: /two hand mace|双手锤/i, slot: 'Weapon 1', weaponType: 'Mace', twoHanded: true },
-  { pattern: /mace|sceptre|短杖|锤/i, slot: 'Weapon 1', weaponType: 'Mace', twoHanded: false },
-  { pattern: /shield|focus|quiver|盾|法器|箭袋/i, slot: 'Weapon 2' },
-  { pattern: /helmet|circlet|crown|tiara|helm|头盔|头环|王冠/i, slot: 'Helmet' },
-  { pattern: /body armour|robe|garb|plate|regalia|vestment|胸甲|长袍|战甲/i, slot: 'Body Armour' },
-  { pattern: /gloves|gauntlets|mitts|手套|护手/i, slot: 'Gloves' },
-  { pattern: /boots|greaves|sandals|shoes|鞋子|长靴|战靴|便鞋/i, slot: 'Boots' },
-  { pattern: /amulet|talisman|项链|护身符/i, slot: 'Amulet' },
+  { pattern: /mace|sceptre|flail|权杖|短杖|连枷|锤/i, slot: 'Weapon 1', weaponType: 'Mace', twoHanded: false },
+  { pattern: /shield|buckler|focus|quiver|盾|法器|箭袋/i, slot: 'Weapon 2' },
+  { pattern: /helmet|circlet|crown|tiara|helm|mask|hood|cap|头盔|头环|王冠|冠冕|头冠|帽|面具|兜帽/i, slot: 'Helmet' },
+  { pattern: /body armour|robe|garb|plate|regalia|vestment|vest|coat|tunic|brigandine|doublet|jacket|胸甲|长袍|战甲|法衣|背心|外衣|护胸|盔甲/i, slot: 'Body Armour' },
+  { pattern: /gloves|gauntlets|mitts|bracers|wraps|手套|护手|手甲|护腕/i, slot: 'Gloves' },
+  { pattern: /boots|greaves|sandals|shoes|slippers|sabatons|鞋子|长靴|战靴|便鞋|行靴|护胫|靴/i, slot: 'Boots' },
+  { pattern: /amulet|talisman|项链|护颈|护身符/i, slot: 'Amulet' },
   { pattern: /ring|戒指|指环/i, slot: 'Ring 1' },
-  { pattern: /belt|vise|腰带|束带/i, slot: 'Belt' },
-  { pattern: /charm|护符/i, slot: 'Charm 1' },
+  { pattern: /belt|vise|sash|腰带|束带/i, slot: 'Belt' },
+  { pattern: /charm|咒符|护符/i, slot: 'Charm 1' },
   { pattern: /flask|药剂/i, slot: 'Flask 1' },
 ];
 
@@ -59,13 +61,26 @@ function inferSlotAndWeapon(hintText: string): {
 }
 
 function stripAugmented(val: string): string {
-  return val.replace(/\(augmented\)|\(unmet\)|（已增强）|（已增強）|（未满足）|（未滿足）/gi, '').trim();
+  return val
+    .replace(/\(augmented\)|\(unmet\)|\(fire\)|\(cold\)|\(lightning\)|\(chaos\)|（已增强）|（已增強）|（未满足）|（未滿足）/gi, '')
+    .trim();
 }
 
 function parseDamageRange(val: string): [number, number] | null {
-  const m = stripAugmented(val).match(/(\d+)\s*-\s*(\d+)/);
+  const m = stripAugmented(val).match(/(\d+)\s*(?:-|–|~|至|到)\s*(\d+)/);
   if (!m) return null;
   return [Number(m[1]), Number(m[2])];
+}
+
+function parseAllDamageRanges(val: string): Array<[number, number]> {
+  const cleaned = stripAugmented(val);
+  const ranges: Array<[number, number]> = [];
+  const re = /(\d+)\s*(?:-|–|~|至|到)\s*(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(cleaned)) !== null) {
+    ranges.push([Number(m[1]), Number(m[2])]);
+  }
+  return ranges;
 }
 
 /**
@@ -124,7 +139,7 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
   if (hasSeparators) {
     for (const line of headerLines) {
       const sLine = toSimplifiedZh(line);
-      const classMatch = sLine.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
+      const classMatch = sLine.match(/^(?:Item Class|物品类别|物品种类|物品类型)\s*[:：]\s*(.+)$/i);
       if (classMatch) {
         itemClassHint = classMatch[1]!.trim();
         continue;
@@ -144,7 +159,7 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     while (idx < lines.length) {
       const line = lines[idx]!;
       const sLine = toSimplifiedZh(line);
-      const classMatch = sLine.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
+      const classMatch = sLine.match(/^(?:Item Class|物品类别|物品种类|物品类型)\s*[:：]\s*(.+)$/i);
       if (classMatch) {
         itemClassHint = classMatch[1]!.trim();
         idx++;
@@ -226,14 +241,15 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     }
 
     if (
-      /^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Note|备注|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile|WardBasePercentile)/i.test(line) ||
-      /^(?:Corrupted|已腐化|Unidentified|未鉴定)$/i.test(line)
+      /^(?:Unique ID|Requirements|需求|Item Level|物品等级|Requires|需求等级|Note|备注|Weapon Range|攻击范围|Limited to|仅限|Radius|影响范围|ArmourBasePercentile|EvasionBasePercentile|EnergyShieldBasePercentile|WardBasePercentile)/i.test(line) ||
+      /^(?:Str|Dex|Int|Strength|Dexterity|Intelligence|力量|敏捷|智慧|Class|职业)\s*[:：]\s*\d+/i.test(line) ||
+      /^(?:Corrupted|已腐化|Unidentified|未鉴定|Mirrored|已复制|Split|已分裂|Synthesised Item|追忆物品|Fractured Item|分裂物品|Searing Exarch Item|Eater of Worlds Item|Shaper Item|Elder Item|Crusader Item|Hunter Item|Redeemer Item|Warlord Item)$/i.test(line)
     ) {
       continue;
     }
 
     // Defensive base stats
-    const armMatch = line.match(/^(?:Armour|护甲)\s*[:：]\s*(\d+)/i);
+    const armMatch = line.match(/^(?:Armour|护甲值|护甲)\s*[:：]\s*(\d+)/i);
     if (armMatch) {
       armourStats.armour = Number(armMatch[1]);
       hasArmourStats = true;
@@ -251,13 +267,13 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
       hasArmourStats = true;
       continue;
     }
-    const wardMatch = line.match(/^(?:Ward|结界)\s*[:：]\s*(\d+)/i);
+    const wardMatch = line.match(/^(?:Ward|符文结界|结界)\s*[:：]\s*(\d+)/i);
     if (wardMatch) {
       armourStats.ward = Number(wardMatch[1]);
       hasArmourStats = true;
       continue;
     }
-    const blkMatch = line.match(/^(?:Chance to Block|格挡几率|格挡率)\s*[:：]\s*(\d+)%/i);
+    const blkMatch = line.match(/^(?:Chance to Block|Block Chance|格挡几率|格挡率)\s*[:：]\s*(\d+)%/i);
     if (blkMatch) {
       armourStats.blockChance = Number(blkMatch[1]);
       hasArmourStats = true;
@@ -275,13 +291,42 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
       physDamage = parseDamageRange(physMatch[1]!);
       continue;
     }
-    const eleMatch = line.match(/^(?:Elemental Damage|元素伤害)\s*[:：]\s*(.+)$/i);
-    if (eleMatch) {
-      const range = parseDamageRange(eleMatch[1]!);
+    const fireDmgMatch = line.match(/^(?:Fire Damage|火焰伤害)\s*[:：]\s*(.+)$/i);
+    if (fireDmgMatch) {
+      const range = parseDamageRange(fireDmgMatch[1]!);
+      if (range) eleDamage.Fire = range;
+      continue;
+    }
+    const coldDmgMatch = line.match(/^(?:Cold Damage|冰霜伤害|冰冷伤害)\s*[:：]\s*(.+)$/i);
+    if (coldDmgMatch) {
+      const range = parseDamageRange(coldDmgMatch[1]!);
+      if (range) eleDamage.Cold = range;
+      continue;
+    }
+    const lightDmgMatch = line.match(/^(?:Lightning Damage|闪电伤害)\s*[:：]\s*(.+)$/i);
+    if (lightDmgMatch) {
+      const range = parseDamageRange(lightDmgMatch[1]!);
       if (range) eleDamage.Lightning = range;
       continue;
     }
-    const critMatch = line.match(/^(?:Critical Strike Chance|Critical Hit Chance|暴击率)\s*[:：]\s*(\d+(?:\.\d+)?)%/i);
+    const chaosDmgMatch = line.match(/^(?:Chaos Damage|混沌伤害)\s*[:：]\s*(.+)$/i);
+    if (chaosDmgMatch) {
+      const range = parseDamageRange(chaosDmgMatch[1]!);
+      if (range) eleDamage.Chaos = range;
+      continue;
+    }
+    const eleMatch = line.match(/^(?:Elemental Damage|元素伤害)\s*[:：]\s*(.+)$/i);
+    if (eleMatch) {
+      const ranges = parseAllDamageRanges(eleMatch[1]!);
+      const slots: Array<'Fire' | 'Cold' | 'Lightning'> = ['Fire', 'Cold', 'Lightning'];
+      ranges.forEach((r, idx) => {
+        const target = slots[idx] ?? 'Lightning';
+        const prev = eleDamage[target];
+        eleDamage[target] = prev ? [prev[0] + r[0], prev[1] + r[1]] : r;
+      });
+      continue;
+    }
+    const critMatch = line.match(/^(?:Critical Strike Chance|Critical Hit Chance|攻击暴击率|暴击几率|暴击率)\s*[:：]\s*(\d+(?:\.\d+)?)%/i);
     if (critMatch) {
       critChance = Number(critMatch[1]);
       continue;
@@ -293,13 +338,13 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     }
 
     // Skip standalone weapon class lines like "Wand" or "One Handed Sword"
-    if (/^(?:One Handed|Two Handed|Bow|Wand|Staff|Quarterstaff|Crossbow|Dagger|Claw|单手|双手)/i.test(line) && !/\d/.test(line)) {
+    if (/^(?:One Handed|Two Handed|Bow|Wand|Staff|Quarterstaff|Crossbow|Spear|Sceptre|Flail|Dagger|Claw|单手|双手|法杖|魔杖|细杖|长杖|权杖|战矛|战弩|十字弓)/i.test(line) && !/\d/.test(line)) {
       itemClassHint = itemClassHint || line;
       continue;
     }
 
     // Ignore flavour text (lines without digits and without known flag keywords)
-    const isImplicitTag = /\(implicit\)|（基底）|（固有）/i.test(line);
+    const isImplicitTag = /\((?:implicit|enchant|rune)\)|（(?:基底|固有|附魔|符文)）/i.test(line);
     const normalized = normalizeStatLineToEn(line);
     if (!normalized) continue;
 
@@ -342,7 +387,9 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
   }
 
   const inferred = inferSlotAndWeapon(`${itemClassHint} ${baseName} ${name}`);
-  const explicitWeaponInHeader = Boolean(physDamage || aps !== null || critChance !== null);
+  const explicitWeaponInHeader = Boolean(
+    physDamage || Object.keys(eleDamage).length > 0 || aps !== null || critChance !== null,
+  );
   const explicitArmourInHeader = hasArmourStats;
   const localStatsPrecomputed = explicitWeaponInHeader || explicitArmourInHeader;
   const officialBase = getBaseItemStats(baseName, localStatsPrecomputed ? quality : 0, game);

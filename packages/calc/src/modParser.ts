@@ -126,7 +126,15 @@ const PARSER_RULES: ParserRule[] = [
       ];
     },
   },
-  // Hybrid Defences common on official PoE 1 & PoE 2 trees
+  // Hybrid Defences common on official PoE 1 & PoE 2 trees and gear
+  {
+    pattern: /^(\d+)% increased Armour, Evasion(?: Rating)? and Energy Shield$/i,
+    build: (m, src) => [
+      mkMod('Armour', 'INC', Number(m[1]), src),
+      mkMod('Evasion', 'INC', Number(m[1]), src),
+      mkMod('EnergyShield', 'INC', Number(m[1]), src),
+    ],
+  },
   {
     pattern: /^(\d+)% increased Armour and Energy Shield$/i,
     build: (m, src) => [
@@ -180,7 +188,7 @@ const PARSER_RULES: ParserRule[] = [
     build: (m, src) => [mkMod(`${m[2]}ResistMax`, 'BASE', Number(m[1]), src)],
   },
   {
-    pattern: /^\+(\d+)% to (Fire|Cold|Lightning) and (Fire|Cold|Lightning) Resistances$/i,
+    pattern: /^\+(\d+)% to (Fire|Cold|Lightning|Chaos) and (Fire|Cold|Lightning|Chaos) Resistances$/i,
     build: (m, src) => [
       mkMod(`${m[2]}Resist`, 'BASE', Number(m[1]), src),
       mkMod(`${m[3]}Resist`, 'BASE', Number(m[1]), src),
@@ -338,6 +346,18 @@ const PARSER_RULES: ParserRule[] = [
     pattern: /^Gain (\d+)% of Damage as Extra (Fire|Cold|Lightning|Chaos) Damage per (\d+) Maximum Mana$/i,
     build: (m, src) => [
       mkMod(`SpellGainAs${m[2]}PerMana100`, 'BASE', (Number(m[1]) * 100) / Math.max(1, Number(m[3])), src, ModFlag.Spell),
+    ],
+  },
+  {
+    pattern: /^Gain (\d+)% of Damage as Extra (Fire|Cold|Lightning|Chaos) Damage$/i,
+    build: (m, src) => [mkMod(`DamageGainAs${m[2]}`, 'BASE', Number(m[1]), src)],
+  },
+  {
+    pattern: /^Gain (\d+)% of Damage as Extra Elemental Damage$/i,
+    build: (m, src) => [
+      mkMod('DamageGainAsFire', 'BASE', Number(m[1]), src),
+      mkMod('DamageGainAsCold', 'BASE', Number(m[1]), src),
+      mkMod('DamageGainAsLightning', 'BASE', Number(m[1]), src),
     ],
   },
   {

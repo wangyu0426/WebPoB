@@ -1674,6 +1674,36 @@ function computeGroupOffence(
     }
   }
 
+  // Generic "Gain X% of Damage as Extra Fire/Cold/Lightning/Chaos Damage" (PoE 2 weapons/runes/rings & PoE 1 effects)
+  const genericExtraPcts = {
+    Fire: skillDb.sum('BASE', 'DamageGainAsFire', flags, kwFlags),
+    Cold: skillDb.sum('BASE', 'DamageGainAsCold', flags, kwFlags),
+    Lightning: skillDb.sum('BASE', 'DamageGainAsLightning', flags, kwFlags),
+    Chaos: skillDb.sum('BASE', 'DamageGainAsChaos', flags, kwFlags),
+  };
+  if (
+    genericExtraPcts.Fire > 0 ||
+    genericExtraPcts.Cold > 0 ||
+    genericExtraPcts.Lightning > 0 ||
+    genericExtraPcts.Chaos > 0
+  ) {
+    let totalPreMin = 0;
+    let totalPreMax = 0;
+    for (const dt of DAMAGE_TYPES) {
+      for (const [mn, mx] of packets[dt].values()) {
+        totalPreMin += mn;
+        totalPreMax += mx;
+      }
+    }
+    for (const target of ['Fire', 'Cold', 'Lightning', 'Chaos'] as const) {
+      const pct = genericExtraPcts[target];
+      if (pct > 0) {
+        const extraFrac = pct / 100;
+        addPacket(target, DMG_BIT[target], totalPreMin * extraFrac, totalPreMax * extraFrac);
+      }
+    }
+  }
+
   // PoE 2 Archmage: Gain X% of ALL Damage as Extra Fire/Cold/Lightning/Chaos per 100 Maximum Mana (Non-Channelling Spells)
   const isChannellingSkill = activeDef.tags.some((t) => t.toLowerCase() === 'channelling');
   if (!isAttack && !isMinion && !isChannellingSkill && _defence.mana >= 100) {
