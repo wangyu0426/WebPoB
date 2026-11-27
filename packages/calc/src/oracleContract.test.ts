@@ -140,6 +140,15 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(dupResult.duplicateIds).toEqual([firstRealSnapshot.id]);
     expect(dupResult.missingIds).toEqual(['missing_fixture_id']);
     expect(dupResult.errors.length).toBeGreaterThanOrEqual(3);
+
+    // Empty corpus must never pass or certify when options are omitted
+    const emptySuite = evaluateOracleSuite({ snapshots: [] }, () => {
+      throw new Error('should not be called');
+    });
+    expect(emptySuite.corpus.valid).toBe(false);
+    expect(emptySuite.corePassed).toBe(false);
+    expect(emptySuite.strictPassed).toBe(false);
+    expect(emptySuite.certified).toBe(false);
   });
 
   it('never certifies legacy v1 snapshots even when all metrics match, and certifies v2 when all metrics match', () => {
@@ -168,6 +177,35 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     );
     expect(legacySuite.strictPassed).toBe(true);
     expect(legacySuite.certified).toBe(false);
+
+    const v2MissingContext: OracleSnapshotRecord = {
+      ...firstRealSnapshot,
+      schemaVersion: 2,
+      oracle: perfectOracle,
+    };
+    const v2MissingCtxSuite = evaluateOracleSuite(
+      { schemaVersion: 2, snapshots: [v2MissingContext] },
+      () => ({ build, out }),
+      { minCount: 1 },
+    );
+    expect(v2MissingCtxSuite.snapshots[0]?.context.valid).toBe(false);
+    expect(v2MissingCtxSuite.strictPassed).toBe(false);
+    expect(v2MissingCtxSuite.certified).toBe(false);
+
+    const v2MissingSkillName: OracleSnapshotRecord = {
+      ...firstRealSnapshot,
+      schemaVersion: 2,
+      context: { activeSkillName: null, mainSocketGroup: 1, outputSource: 'player' },
+      oracle: perfectOracle,
+    };
+    const v2MissingSkillSuite = evaluateOracleSuite(
+      { schemaVersion: 2, snapshots: [v2MissingSkillName] },
+      () => ({ build, out }),
+      { minCount: 1 },
+    );
+    expect(v2MissingSkillSuite.snapshots[0]?.context.valid).toBe(false);
+    expect(v2MissingSkillSuite.strictPassed).toBe(false);
+    expect(v2MissingSkillSuite.certified).toBe(false);
 
     const v2Perfect: OracleSnapshotRecord = {
       ...firstRealSnapshot,
@@ -224,5 +262,18 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
       missingExitCode = (err as { status?: number }).status ?? 1;
     }
     expect(missingExitCode).not.toBe(0);
+
+    // 4. Unknown CLI flag (e.g. typo --certfiy) MUST exit nonzero instead of silently downgrading
+    let unknownFlagExitCode = 0;
+    try {
+      execFileSync(tsxBin, [diffScript, '--certfiy'], {
+        cwd: rootDir,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      });
+    } catch (err) {
+      unknownFlagExitCode = (err as { status?: number }).status ?? 1;
+    }
+    expect(unknownFlagExitCode).not.toBe(0);
   });
 });

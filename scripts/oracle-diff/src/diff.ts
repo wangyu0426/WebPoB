@@ -49,15 +49,24 @@ function parseCliArgs(argv: string[]): CliOptions {
       json = true;
     } else if (arg === '--verbose') {
       verbose = true;
-    } else if (arg === '--snapshots' && argv[i + 1]) {
-      snapshotsPath = path.resolve(process.cwd(), argv[++i]!);
+    } else if (arg === '--snapshots') {
+      const value = argv[++i];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --snapshots');
+      }
+      snapshotsPath = path.resolve(process.cwd(), value);
       customSnapshots = true;
-    } else if (arg === '--min-count' && argv[i + 1]) {
-      const parsed = Number.parseInt(argv[++i]!, 10);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        throw new Error(`Invalid --min-count value: ${argv[i]}`);
+    } else if (arg === '--min-count') {
+      const value = argv[++i];
+      const parsed = value ? Number.parseInt(value, 10) : Number.NaN;
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        throw new Error(`Invalid --min-count value: ${String(value)}`);
       }
       minCount = parsed;
+    } else if (arg === '--') {
+      continue;
+    } else {
+      throw new Error(`Unknown CLI argument: ${arg}`);
     }
   }
 

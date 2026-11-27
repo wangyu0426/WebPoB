@@ -570,8 +570,9 @@ export function validateSnapshotCorpus(
     }
   }
 
-  if (options.minCount !== undefined && snapshots.length < options.minCount) {
-    errors.push(`Expected at least ${options.minCount} snapshots, found ${snapshots.length}.`);
+  const effectiveMinCount = options.minCount ?? 1;
+  if (snapshots.length < effectiveMinCount) {
+    errors.push(`Expected at least ${effectiveMinCount} snapshots, found ${snapshots.length}.`);
   }
 
   if (options.expectedIds) {
@@ -610,7 +611,25 @@ export function validateSkillContext(
 
   const actualSkillName = out.offence.mainSkillName?.en?.trim() || null;
   const expectedSkillName = snapshot.context?.activeSkillName?.trim() || null;
+  const isV2 = snapshot.schemaVersion === 2;
   let skillMatches = true;
+
+  if (isV2) {
+    if (!snapshot.context || typeof snapshot.context !== 'object') {
+      skillMatches = false;
+      errors.push('schemaVersion 2 snapshot is missing required "context" metadata.');
+    } else {
+      if (!expectedSkillName) {
+        skillMatches = false;
+        errors.push('schemaVersion 2 snapshot is missing required "context.activeSkillName".');
+      }
+      if (snapshot.context.outputSource !== 'player' && snapshot.context.outputSource !== 'minion') {
+        errors.push(
+          `schemaVersion 2 snapshot has missing or invalid "context.outputSource" (${String(snapshot.context.outputSource)}).`,
+        );
+      }
+    }
+  }
 
   if (expectedSkillName) {
     if (!actualSkillName || normalizeSkillLabel(actualSkillName) !== normalizeSkillLabel(expectedSkillName)) {
@@ -624,8 +643,7 @@ export function validateSkillContext(
     errors.push('WebPoB produced an empty mainSkillName.');
   }
 
-  const provenance: 'v2_hardened' | 'legacy_unverified' =
-    snapshot.schemaVersion === 2 ? 'v2_hardened' : 'legacy_unverified';
+  const provenance: 'v2_hardened' | 'legacy_unverified' = isV2 ? 'v2_hardened' : 'legacy_unverified';
 
   return {
     valid: errors.length === 0,
@@ -802,9 +820,11 @@ export function evaluateOracleSuite(
     }
   }
 
-  const corePassed = corpus.valid && snapshots.every((s) => s.corePassed);
-  const strictPassed = corpus.valid && snapshots.every((s) => s.strictPassed);
-  const certified = corpus.valid && corpus.legacyCount === 0 && snapshots.every((s) => s.certified);
+  const hasSnapshots = snapshots.length > 0;
+  const corePassed = corpus.valid && hasSnapshots && snapshots.every((s) => s.corePassed);
+  const strictPassed = corpus.valid && hasSnapshots && snapshots.every((s) => s.strictPassed);
+  const certified =
+    corpus.valid && hasSnapshots && corpus.legacyCount === 0 && snapshots.every((s) => s.certified);
 
   return {
     corpus,
