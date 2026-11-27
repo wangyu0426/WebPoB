@@ -294,7 +294,10 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
       () => ({ build, out }),
       { minCount: 1 },
     );
+    expect(v2MinionSuite.snapshots[0]?.context.valid).toBe(false);
     expect(v2MinionSuite.snapshots[0]?.context.outputSourceVerified).toBe(false);
+    expect(v2MinionSuite.corePassed).toBe(false);
+    expect(v2MinionSuite.strictPassed).toBe(false);
     expect(v2MinionSuite.certified).toBe(false);
 
     const v2Perfect: OracleSnapshotRecord = {

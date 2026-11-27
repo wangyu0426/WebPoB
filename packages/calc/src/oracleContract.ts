@@ -647,6 +647,10 @@ export function validateSkillContext(
         errors.push(
           `schemaVersion 2 snapshot has missing or invalid "context.outputSource" (${String(snapshot.context.outputSource)}).`,
         );
+      } else if (snapshot.context.outputSource === 'minion') {
+        errors.push(
+          'schemaVersion 2 snapshot uses "context.outputSource=minion", which cannot be verified because CalcOutput does not expose a separate minion offense source.',
+        );
       }
       const expectedMainSocketGroup = snapshot.context.mainSocketGroup;
       if (
