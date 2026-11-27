@@ -19,6 +19,7 @@ const VIEWPORTS = [
 ];
 
 const REQUIRED_ZH_TABS = ['天赋树', '技能', '装备'];
+const REQUIRED_ZH_TW_TABS = ['天賦樹', '技能', '裝備'];
 const HAS_CJK_RE = /[\u4e00-\u9fff]/;
 const BAD_TEXT_PATTERNS = [
   { name: 'NaN', re: /\bNaN\b/ },
@@ -96,6 +97,73 @@ const CLASS_ZH_MAP = {
     Druid: '德鲁伊',
     Oracle: '神谕者',
     Shaman: '萨满',
+  },
+};
+
+// Official GGG Traditional Chinese (zh-TW) class & ascendancy names
+const CLASS_ZH_TW_MAP = {
+  poe1: {
+    Witch: '女巫',
+    Elementalist: '元素使',
+    Occultist: '秘術家',
+    Necromancer: '死靈師',
+    Ranger: '遊俠',
+    Deadeye: '銳眼',
+    Pathfinder: '追獵者',
+    Warden: '守林人',
+    Duelist: '決鬥者',
+    Slayer: '處刑者',
+    Gladiator: '衛士',
+    Champion: '冠軍',
+    Marauder: '野蠻人',
+    Juggernaut: '勇士',
+    Berserker: '暴徒',
+    Chieftain: '酋長',
+    Templar: '聖堂武僧',
+    Inquisitor: '判官',
+    Hierophant: '聖宗',
+    Guardian: '守護者',
+    Shadow: '暗影刺客',
+    Trickster: '詐欺師',
+    Assassin: '刺客',
+    Saboteur: '破壞者',
+    Scion: '貴族',
+    Ascendant: '昇華使徒',
+    Reliquarian: '遺守使徒',
+    Luminary: '輝耀使徒',
+  },
+  poe2: {
+    Sorceress: '女術者',
+    Stormweaver: '風暴編織者',
+    Chronomancer: '時空幻術師',
+    'Disciple of Varashta': '瓦拉什塔門徒',
+    Monk: '僧侶',
+    Invoker: '祈求者',
+    'Acolyte of Chayula': '夏烏拉侍僧',
+    'Martial Artist': '武術家',
+    Ranger: '遊俠',
+    Deadeye: '銳眼',
+    Pathfinder: '追獵者',
+    Warrior: '戰士',
+    Titan: '泰坦',
+    Warbringer: '戰爭使者',
+    'Smith of Kitava': '奇塔弗工匠',
+    Mercenary: '傭兵',
+    Witchhunter: '女巫獵人',
+    'Gemling Legionnaire': '古靈軍團',
+    Tactician: '智勇軍師',
+    Witch: '女巫',
+    Infernalist: '獄火師',
+    'Blood Mage': '血法師',
+    Lich: '巫妖',
+    'Abyssal Lich': '深淵妖巫',
+    Huntress: '女獵人',
+    Amazon: '亞馬遜',
+    Ritualist: '儀式行者',
+    'Spirit Walker': '魂靈行者',
+    Druid: '德魯伊',
+    Oracle: '天啟先知',
+    Shaman: '狂徒薩滿',
   },
 };
 
@@ -386,7 +454,8 @@ async function closePageTarget(port, targetId) {
 }
 
 function getExpectedZhNames(entry) {
-  const table = CLASS_ZH_MAP[entry.game] || {};
+  const mapRoot = entry.locale === 'zh-TW' ? CLASS_ZH_TW_MAP : CLASS_ZH_MAP;
+  const table = mapRoot[entry.game] || {};
   const expectedClassZh = table[entry.className] || null;
   const expectedAscZh =
     entry.ascendancyName && entry.ascendancyName !== 'None'
@@ -451,16 +520,19 @@ async function verifyBuildInViewport(port, entry, viewport) {
       }
     });
 
+    const targetLocale = entry.locale === 'zh-TW' ? 'zh-TW' : 'zh-CN';
+    const requiredTabs = targetLocale === 'zh-TW' ? REQUIRED_ZH_TW_TABS : REQUIRED_ZH_TABS;
+    const toastPrefix = targetLocale === 'zh-TW' ? '已從分享連結載入：' : '已从分享链接加载：';
     const { expectedClassZh, expectedAscZh } = getExpectedZhNames(entry);
     const targetUrl = entry.importUrl
       ? entry.unencodedImport
-        ? `${BASE_URL}/?lang=zh-CN&import=${entry.importUrl.trim()}`
-        : `${BASE_URL}/?lang=zh-CN&import=${encodeURIComponent(entry.importUrl.trim())}`
-      : `${BASE_URL}/?lang=zh-CN#pob=${entry.pobCode.trim()}`;
+        ? `${BASE_URL}/?lang=${targetLocale}&import=${entry.importUrl.trim()}`
+        : `${BASE_URL}/?lang=${targetLocale}&import=${encodeURIComponent(entry.importUrl.trim())}`
+      : `${BASE_URL}/?lang=${targetLocale}#pob=${entry.pobCode.trim()}`;
 
     await cdp.send('Page.navigate', { url: targetUrl });
 
-    // Poll until React has mounted, switched to zh-CN, and finished importing the build
+    // Poll until React has mounted, switched locale, and finished importing the build
     const startedAt = Date.now();
     const timeoutMs = entry.importUrl ? Math.max(BUILD_TIMEOUT_MS, 30_000) : BUILD_TIMEOUT_MS;
     const deadline = startedAt + timeoutMs;
@@ -469,8 +541,8 @@ async function verifyBuildInViewport(port, entry, viewport) {
     while (Date.now() < deadline) {
       const snapshot = await cdp.evaluate(`(() => {
         const bodyText = document.body ? document.body.innerText || '' : '';
-        const hasTabs = ${JSON.stringify(REQUIRED_ZH_TABS)}.every((t) => bodyText.includes(t));
-        const hasToast = bodyText.includes('已从分享链接加载：');
+        const hasTabs = ${JSON.stringify(requiredTabs)}.every((t) => bodyText.includes(t));
+        const hasToast = bodyText.includes(${JSON.stringify(toastPrefix)});
         const header = document.querySelector('header');
         const selects = header ? Array.from(header.querySelectorAll('select')) : [];
         const visibleSelects = selects.filter((el) => {
@@ -544,13 +616,13 @@ async function verifyBuildInViewport(port, entry, viewport) {
       return { passed: false, issues, pageErrors, consoleErrors };
     }
 
-    // 0. Document language should reflect the requested zh-CN locale
-    if (!/^zh/i.test(loadedSnapshot.lang || '')) {
-      issues.push(`Expected document.lang to be zh-CN, got "${loadedSnapshot.lang || ''}"`);
+    // 0. Document language should reflect the requested locale (zh-CN or zh-TW)
+    if ((loadedSnapshot.lang || '').toLowerCase() !== targetLocale.toLowerCase()) {
+      issues.push(`Expected document.lang to be ${targetLocale}, got "${loadedSnapshot.lang || ''}"`);
     }
 
     // 1. Check required Chinese navigation tabs
-    for (const tabLabel of REQUIRED_ZH_TABS) {
+    for (const tabLabel of requiredTabs) {
       if (!loadedSnapshot.bodyText.includes(tabLabel)) {
         issues.push(`Missing Chinese tab "${tabLabel}"`);
       }
@@ -604,8 +676,9 @@ async function verifyBuildInViewport(port, entry, viewport) {
       }
     }
 
-    // 5. Switch to 技能 and 装备 tabs to verify rendered skills/items text quality in both viewports
-    for (const tabName of ['技能', '装备']) {
+    // 5. Switch to 技能 and 装备/裝備 tabs to verify rendered skills/items text quality in both viewports
+    const tabsToCheck = targetLocale === 'zh-TW' ? ['技能', '裝備'] : ['技能', '装备'];
+    for (const tabName of tabsToCheck) {
       const clicked = await cdp.evaluate(`(() => {
         const buttons = Array.from(document.querySelectorAll('nav button'));
         const btn = buttons.find((b) => (b.textContent || '').trim().includes(${JSON.stringify(tabName)}));
@@ -621,7 +694,7 @@ async function verifyBuildInViewport(port, entry, viewport) {
       let tabText = '';
       while (Date.now() < tabDeadline) {
         tabText = await cdp.evaluate(`document.body ? document.body.innerText || '' : ''`);
-        if (!tabText.includes('加载面板中...')) break;
+        if (!tabText.includes('加载面板中...') && !tabText.includes('載入面板中...')) break;
         await sleep(100);
       }
       await sleep(100);

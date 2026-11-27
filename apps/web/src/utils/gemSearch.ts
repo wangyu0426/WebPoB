@@ -1,4 +1,5 @@
 import type { GemDefinition, Locale } from '@webpob/core';
+import { localizeText, toSimplifiedZh } from '@webpob/i18n';
 
 export type GemCategoryFilter = 'all' | 'active' | 'support';
 
@@ -39,8 +40,10 @@ const ZH_TAG_ALIASES: Record<string, string[]> = {
 };
 
 function expandToken(token: string): string[] {
-  const aliases = ZH_TAG_ALIASES[token];
-  return aliases ? [token, ...aliases] : [token];
+  const simplified = toSimplifiedZh(token);
+  const aliases = ZH_TAG_ALIASES[token] ?? ZH_TAG_ALIASES[simplified];
+  const base = simplified !== token ? [token, simplified] : [token];
+  return aliases ? [...base, ...aliases] : base;
 }
 
 function scoreGemMatch(
@@ -52,8 +55,9 @@ function scoreGemMatch(
 ): number | null {
   const en = gem.name.en.toLowerCase();
   const zh = gem.name.zh.toLowerCase();
-  const primary = locale === 'zh-CN' ? zh : en;
-  const secondary = locale === 'zh-CN' ? en : zh;
+  const zhTw = (gem.name.zhTw ?? '').toLowerCase();
+  const primary = localizeText(gem.name, locale).toLowerCase();
+  const secondaries = [en, zh, zhTw].filter((s) => s && s !== primary);
   const tagsLower = gem.tags.map((tag) => tag.toLowerCase());
 
   if (tokens.length === 0) {
@@ -62,18 +66,18 @@ function scoreGemMatch(
     return catScore;
   }
 
-  // Every token must match name (ZH or EN) or tag (including Chinese tag alias)
+  // Every token must match name (ZH-CN / ZH-TW / EN) or tag (including Chinese tag alias)
   let tokenScore = 0;
   for (const tok of tokens) {
     const candidates = expandToken(tok);
     let bestTok = Infinity;
     for (const c of candidates) {
       if (primary === c) bestTok = Math.min(bestTok, 0);
-      else if (secondary === c) bestTok = Math.min(bestTok, 2);
+      else if (secondaries.some((s) => s === c)) bestTok = Math.min(bestTok, 2);
       else if (primary.startsWith(c)) bestTok = Math.min(bestTok, 5);
-      else if (secondary.startsWith(c)) bestTok = Math.min(bestTok, 8);
+      else if (secondaries.some((s) => s.startsWith(c))) bestTok = Math.min(bestTok, 8);
       else if (primary.includes(c)) bestTok = Math.min(bestTok, 15);
-      else if (secondary.includes(c)) bestTok = Math.min(bestTok, 20);
+      else if (secondaries.some((s) => s.includes(c))) bestTok = Math.min(bestTok, 20);
       else if (tagsLower.some((t) => t === c)) bestTok = Math.min(bestTok, 30);
       else if (tagsLower.some((t) => t.includes(c))) bestTok = Math.min(bestTok, 40);
     }
@@ -82,9 +86,9 @@ function scoreGemMatch(
   }
 
   // Bonus for matching the full query string directly
-  if (primary === rawQuery || secondary === rawQuery) tokenScore -= 50;
-  else if (primary.startsWith(rawQuery) || secondary.startsWith(rawQuery)) tokenScore -= 20;
-  else if (primary.includes(rawQuery) || secondary.includes(rawQuery)) tokenScore -= 8;
+  if (primary === rawQuery || secondaries.some((s) => s === rawQuery)) tokenScore -= 50;
+  else if (primary.startsWith(rawQuery) || secondaries.some((s) => s.startsWith(rawQuery))) tokenScore -= 20;
+  else if (primary.includes(rawQuery) || secondaries.some((s) => s.includes(rawQuery))) tokenScore -= 8;
 
   // Mild tie-breaker favoring active skills when the group has no active gem yet
   if (preferActive && gem.category === 'active') tokenScore -= 3;
@@ -121,8 +125,8 @@ export function searchGemsCatalog(
 
   matched.sort((a, b) => {
     if (a.score !== b.score) return a.score - b.score;
-    const aName = locale === 'zh-CN' ? a.gem.name.zh : a.gem.name.en;
-    const bName = locale === 'zh-CN' ? b.gem.name.zh : b.gem.name.en;
+    const aName = localizeText(a.gem.name, locale);
+    const bName = localizeText(b.gem.name, locale);
     return aName.localeCompare(bName, locale);
   });
 

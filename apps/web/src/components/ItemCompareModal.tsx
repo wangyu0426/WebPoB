@@ -13,7 +13,7 @@ import type { EquipmentSlotId, Item, ItemRarity } from '@webpob/core';
 import { listBaseItemsForGame } from '@webpob/data';
 import { parseItemText } from '@webpob/codec';
 import { calculateBuild, resolveItemEffectiveStats } from '@webpob/calc';
-import { getSlotLabel, localizeStatLine } from '@webpob/i18n';
+import { getSlotLabel, localizeStatLine, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
 const RARITY_COLOR: Record<ItemRarity, string> = {
@@ -195,8 +195,8 @@ export function ItemCompareModal({
   onClose: () => void;
 }) {
   const { locale, build, calc, addItem } = useWebPobStore();
-  const cn = locale === 'zh-CN';
-  const l = (zh: string, en: string) => (cn ? zh : en);
+  const cn = locale !== 'en';
+  const l = (zh: string, en: string) => uiText(locale, zh, en);
 
   const [draft, setDraft] = useState<Draft>(() => ({
     id: newId(),

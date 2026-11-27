@@ -8,3 +8,4 @@ export * from './clusters.js';
 export * from './items.js';
 export * from './samples.js';
 export * from './treeLoader.js';
+export * from './localeOverlay.js';

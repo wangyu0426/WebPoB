@@ -1,6 +1,6 @@
 import type { Build, CalcOutput, Locale } from '@webpob/core';
 import { getClassesForGame } from '@webpob/data';
-import { localizeText } from '@webpob/i18n';
+import { localizeText, uiText } from '@webpob/i18n';
 
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('en-US');
@@ -16,7 +16,7 @@ export function buildSummaryToMarkdown(
   const cls = classes.find((c) => c.id === build.classId);
   const asc = cls?.ascendancies.find((a) => a.id === build.ascendancyId);
   const classLabel = cls ? localizeText(cls.name, locale) : build.classId;
-  const ascLabel = asc ? localizeText(asc.name, locale) : build.ascendancyId || (locale === 'zh-CN' ? '无升华' : 'None');
+  const ascLabel = asc ? localizeText(asc.name, locale) : build.ascendancyId || (uiText(locale, '无升华', 'None'));
   const gameTag = build.game === 'poe2' ? 'PoE 2 (0.5)' : 'PoE 1 (3.30)';
   const o = calc.offence;
   const d = calc.defence;
@@ -25,19 +25,19 @@ export function buildSummaryToMarkdown(
     `### ${build.name} — ${gameTag}`,
     `**${classLabel} (${ascLabel}) Lv.${build.level}** · ${localizeText(o.mainSkillName, locale)}`,
     '',
-    `| ${locale === 'zh-CN' ? '进攻指标' : 'Offence'} | ${locale === 'zh-CN' ? '数值' : 'Value'} | ${locale === 'zh-CN' ? '防御指标' : 'Defence'} | ${locale === 'zh-CN' ? '数值' : 'Value'} |`,
+    `| ${uiText(locale, '进攻指标', 'Offence')} | ${uiText(locale, '数值', 'Value')} | ${uiText(locale, '防御指标', 'Defence')} | ${uiText(locale, '数值', 'Value')} |`,
     '| --- | ---: | --- | ---: |',
-    `| ${locale === 'zh-CN' ? '总 DPS' : 'Total DPS'} | **${fmt(o.totalDps)}** | ${locale === 'zh-CN' ? '生命 / 护盾' : 'Life / ES'} | ${fmt(d.life)} / ${fmt(d.energyShield)} |`,
+    `| ${uiText(locale, '总 DPS', 'Total DPS')} | **${fmt(o.totalDps)}** | ${uiText(locale, '生命 / 护盾', 'Life / ES')} | ${fmt(d.life)} / ${fmt(d.energyShield)} |`,
     ...(o.fullDps
       ? [
-          `| Full DPS | **${fmt(o.fullDps)}** | ${locale === 'zh-CN' ? '有效血池 (EHP)' : 'Effective HP'} | **${fmt(d.effectiveHitPool)}** |`,
+          `| Full DPS | **${fmt(o.fullDps)}** | ${uiText(locale, '有效血池 (EHP)', 'Effective HP')} | **${fmt(d.effectiveHitPool)}** |`,
         ]
       : [
-          `| ${locale === 'zh-CN' ? '击中 DPS' : 'Hit DPS'} | ${fmt(o.hitDps)} | ${locale === 'zh-CN' ? '有效血池 (EHP)' : 'Effective HP'} | **${fmt(d.effectiveHitPool)}** |`,
+          `| ${uiText(locale, '击中 DPS', 'Hit DPS')} | ${fmt(o.hitDps)} | ${uiText(locale, '有效血池 (EHP)', 'Effective HP')} | **${fmt(d.effectiveHitPool)}** |`,
         ]),
-    `| ${locale === 'zh-CN' ? '攻速/施速' : 'Speed'} | ${o.speed.toFixed(2)} /s | ${locale === 'zh-CN' ? '护甲 / 闪避' : 'Armour / Evasion'} | ${fmt(d.armour)} / ${fmt(d.evasion)} |`,
-    `| ${locale === 'zh-CN' ? '暴击 / 爆伤' : 'Crit / Multi'} | ${o.critChance.toFixed(1)}% / ${o.critMultiplier}% | ${locale === 'zh-CN' ? '元素 / 混沌抗' : 'Ele / Chaos Res'} | ${d.fireResist}/${d.coldResist}/${d.lightningResist}/${d.chaosResist}% |`,
-    `| ${locale === 'zh-CN' ? '命中率' : 'Hit Chance'} | ${o.hitChance}% | ${locale === 'zh-CN' ? '力 / 敏 / 智' : 'Str / Dex / Int'} | ${d.str} / ${d.dex} / ${d.int} |`,
+    `| ${uiText(locale, '攻速/施速', 'Speed')} | ${o.speed.toFixed(2)} /s | ${uiText(locale, '护甲 / 闪避', 'Armour / Evasion')} | ${fmt(d.armour)} / ${fmt(d.evasion)} |`,
+    `| ${uiText(locale, '暴击 / 爆伤', 'Crit / Multi')} | ${o.critChance.toFixed(1)}% / ${o.critMultiplier}% | ${uiText(locale, '元素 / 混沌抗', 'Ele / Chaos Res')} | ${d.fireResist}/${d.coldResist}/${d.lightningResist}/${d.chaosResist}% |`,
+    `| ${uiText(locale, '命中率', 'Hit Chance')} | ${o.hitChance}% | ${uiText(locale, '力 / 敏 / 智', 'Str / Dex / Int')} | ${d.str} / ${d.dex} / ${d.int} |`,
   ];
 
   if (shareUrl) {
@@ -97,12 +97,8 @@ export function downloadBuildSummaryPng(build: Build, calc: CalcOutput, locale: 
   // Headline DPS Banner (right side of header)
   const headlineLabel =
     o.fullDps && o.fullDps > 0
-      ? locale === 'zh-CN'
-        ? 'FULL DPS'
-        : 'FULL DPS'
-      : locale === 'zh-CN'
-        ? 'TOTAL DPS'
-        : 'TOTAL DPS';
+      ? uiText(locale, 'FULL DPS', 'FULL DPS')
+      : uiText(locale, 'TOTAL DPS', 'TOTAL DPS');
   const headlineVal = o.fullDps && o.fullDps > 0 ? o.fullDps : o.totalDps;
   ctx.textAlign = 'right';
   ctx.fillStyle = o.fullDps && o.fullDps > 0 ? '#34d399' : '#f59e0b';
@@ -146,35 +142,35 @@ export function downloadBuildSummaryPng(build: Build, calc: CalcOutput, locale: 
     }
   };
 
-  drawCard(36, 142, 264, 274, locale === 'zh-CN' ? '进攻统计 / OFFENCE' : 'OFFENCE', [
-    [locale === 'zh-CN' ? '击中 DPS' : 'Hit DPS', fmt(o.hitDps), '#fde68a'],
-    [locale === 'zh-CN' ? '平均击中' : 'Average Hit', fmt(o.averageHit)],
-    [locale === 'zh-CN' ? '速度' : 'Speed', `${o.speed.toFixed(2)} /s`],
-    [locale === 'zh-CN' ? '暴击率' : 'Crit Chance', `${o.critChance.toFixed(1)}%`, '#fde047'],
-    [locale === 'zh-CN' ? '暴击伤害' : 'Crit Multi', `${o.critMultiplier}%`, '#fef08a'],
-    [locale === 'zh-CN' ? '命中率' : 'Hit Chance', `${o.hitChance}%`],
-    ...(o.igniteDps > 0 ? [[locale === 'zh-CN' ? '点燃 DPS' : 'Ignite DPS', fmt(o.igniteDps), '#fb923c'] as [string, string, string]] : []),
-    ...((o.impaleDps ?? 0) > 0 ? [[locale === 'zh-CN' ? '穿刺 DPS' : 'Impale DPS', fmt(o.impaleDps!), '#fbbf24'] as [string, string, string]] : []),
+  drawCard(36, 142, 264, 274, uiText(locale, '进攻统计 / OFFENCE', 'OFFENCE'), [
+    [uiText(locale, '击中 DPS', 'Hit DPS'), fmt(o.hitDps), '#fde68a'],
+    [uiText(locale, '平均击中', 'Average Hit'), fmt(o.averageHit)],
+    [uiText(locale, '速度', 'Speed'), `${o.speed.toFixed(2)} /s`],
+    [uiText(locale, '暴击率', 'Crit Chance'), `${o.critChance.toFixed(1)}%`, '#fde047'],
+    [uiText(locale, '暴击伤害', 'Crit Multi'), `${o.critMultiplier}%`, '#fef08a'],
+    [uiText(locale, '命中率', 'Hit Chance'), `${o.hitChance}%`],
+    ...(o.igniteDps > 0 ? [[uiText(locale, '点燃 DPS', 'Ignite DPS'), fmt(o.igniteDps), '#fb923c'] as [string, string, string]] : []),
+    ...((o.impaleDps ?? 0) > 0 ? [[uiText(locale, '穿刺 DPS', 'Impale DPS'), fmt(o.impaleDps!), '#fbbf24'] as [string, string, string]] : []),
   ]);
 
-  drawCard(318, 142, 264, 274, locale === 'zh-CN' ? '防御与生存 / DEFENCE' : 'DEFENCE', [
-    [locale === 'zh-CN' ? '最大生命' : 'Life', fmt(d.life), '#fb7185'],
-    [locale === 'zh-CN' ? '能量护盾' : 'Energy Shield', fmt(d.energyShield), '#38bdf8'],
-    ...((d.ward ?? 0) > 0 ? [[locale === 'zh-CN' ? '结界 Ward' : 'Ward', fmt(d.ward!), '#a5b4fc'] as [string, string, string]] : []),
-    [locale === 'zh-CN' ? '护甲 / 闪避' : 'Armour / Eva', `${fmt(d.armour)} / ${fmt(d.evasion)}`],
-    [locale === 'zh-CN' ? '有效血池 EHP' : 'Effective HP', fmt(d.effectiveHitPool), '#34d399'],
-    [locale === 'zh-CN' ? '最大物理承伤' : 'Max Phys Hit', fmt(d.maxPhysHitTaken)],
-    [locale === 'zh-CN' ? '最大元素承伤' : 'Max Ele Hit', fmt(d.maxEleHitTaken)],
+  drawCard(318, 142, 264, 274, uiText(locale, '防御与生存 / DEFENCE', 'DEFENCE'), [
+    [uiText(locale, '最大生命', 'Life'), fmt(d.life), '#fb7185'],
+    [uiText(locale, '能量护盾', 'Energy Shield'), fmt(d.energyShield), '#38bdf8'],
+    ...((d.ward ?? 0) > 0 ? [[uiText(locale, '结界 Ward', 'Ward'), fmt(d.ward!), '#a5b4fc'] as [string, string, string]] : []),
+    [uiText(locale, '护甲 / 闪避', 'Armour / Eva'), `${fmt(d.armour)} / ${fmt(d.evasion)}`],
+    [uiText(locale, '有效血池 EHP', 'Effective HP'), fmt(d.effectiveHitPool), '#34d399'],
+    [uiText(locale, '最大物理承伤', 'Max Phys Hit'), fmt(d.maxPhysHitTaken)],
+    [uiText(locale, '最大元素承伤', 'Max Ele Hit'), fmt(d.maxEleHitTaken)],
   ]);
 
-  drawCard(600, 142, 264, 274, locale === 'zh-CN' ? '抗性与属性 / RES & ATTRS' : 'RESISTS & ATTRIBUTES', [
-    [locale === 'zh-CN' ? '火焰抗性' : 'Fire Res', `${d.fireResist}%`, d.fireResist >= d.fireMaxResist ? '#34d399' : '#fb7185'],
-    [locale === 'zh-CN' ? '冰霜抗性' : 'Cold Res', `${d.coldResist}%`, d.coldResist >= d.coldMaxResist ? '#34d399' : '#fb7185'],
-    [locale === 'zh-CN' ? '闪电抗性' : 'Lightning Res', `${d.lightningResist}%`, d.lightningResist >= d.lightningMaxResist ? '#34d399' : '#fb7185'],
-    [locale === 'zh-CN' ? '混沌抗性' : 'Chaos Res', `${d.chaosResist}%`, d.chaosResist >= 0 ? '#c084fc' : '#fb7185'],
-    [locale === 'zh-CN' ? '力量 / 敏捷 / 智慧' : 'Str / Dex / Int', `${d.str} / ${d.dex} / ${d.int}`],
-    [locale === 'zh-CN' ? '已分配天赋' : 'Passives', `${calc.allocatedPoints}`],
-    ...(build.game === 'poe2' ? [[locale === 'zh-CN' ? '精魂 Spirit' : 'Spirit', `${d.spiritUnreserved} / ${d.spirit}`, '#fbbf24'] as [string, string, string]] : []),
+  drawCard(600, 142, 264, 274, uiText(locale, '抗性与属性 / RES & ATTRS', 'RESISTS & ATTRIBUTES'), [
+    [uiText(locale, '火焰抗性', 'Fire Res'), `${d.fireResist}%`, d.fireResist >= d.fireMaxResist ? '#34d399' : '#fb7185'],
+    [uiText(locale, '冰霜抗性', 'Cold Res'), `${d.coldResist}%`, d.coldResist >= d.coldMaxResist ? '#34d399' : '#fb7185'],
+    [uiText(locale, '闪电抗性', 'Lightning Res'), `${d.lightningResist}%`, d.lightningResist >= d.lightningMaxResist ? '#34d399' : '#fb7185'],
+    [uiText(locale, '混沌抗性', 'Chaos Res'), `${d.chaosResist}%`, d.chaosResist >= 0 ? '#c084fc' : '#fb7185'],
+    [uiText(locale, '力量 / 敏捷 / 智慧', 'Str / Dex / Int'), `${d.str} / ${d.dex} / ${d.int}`],
+    [uiText(locale, '已分配天赋', 'Passives'), `${calc.allocatedPoints}`],
+    ...(build.game === 'poe2' ? [[uiText(locale, '精魂 Spirit', 'Spirit'), `${d.spiritUnreserved} / ${d.spirit}`, '#fbbf24'] as [string, string, string]] : []),
   ]);
 
   // Footer

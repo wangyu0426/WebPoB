@@ -13,7 +13,10 @@
       "bases": "poe1-bases.json",
       "uniques": "poe1-uniques.json",
       "clusters": "poe1-clusters.json",
-      "ascendancyArt": "ascendancy-art.json"
+      "ascendancyArt": "ascendancy-art.json",
+      "i18n": {
+        "zh-TW": "poe1-i18n-zh-TW.json"
+      }
     },
     "poe2": {
       "latestTreeVersion": "0_5",
@@ -24,7 +27,10 @@
       "gems": "poe2-gems.json",
       "bases": "poe2-bases.json",
       "uniques": "poe2-uniques.json",
-      "ascendancyArt": "ascendancy-art.json"
+      "ascendancyArt": "ascendancy-art.json",
+      "i18n": {
+        "zh-TW": "poe2-i18n-zh-TW.json"
+      }
     }
   }
 }

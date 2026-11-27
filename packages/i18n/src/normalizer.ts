@@ -1,4 +1,5 @@
 import type { Locale } from '@webpob/core';
+import { toSimplifiedZh, toTraditionalZh } from './traditional.js';
 
 interface StatRewriteRule {
   zhPattern: RegExp;
@@ -710,10 +711,21 @@ export function normalizeStatLineToEn(rawLine: string): string {
     return cleaned;
   }
 
-  for (const rule of ZH_TO_EN_RULES) {
-    const match = cleaned.match(rule.zhPattern);
-    if (match) {
-      return rule.toEn(...match);
+  // Normalize Traditional Chinese (International TW) modifiers to Simplified Chinese
+  // so both CN and TW client lines reuse the full rule table seamlessly.
+  const normalized = toSimplifiedZh(cleaned);
+  // Handle TW prefix-style "提高/增加 X% Y伤害" (e.g. "增加 24% 法術傷害" -> "法术伤害提高 24%")
+  const twPrefixInc = normalized.match(/^(?:提高|增加)\s*(\d+)%\s*(.+)$/);
+  const candidates = twPrefixInc
+    ? [normalized, `${twPrefixInc[2]!.trim()}提高 ${twPrefixInc[1]}%`]
+    : [normalized];
+
+  for (const cand of candidates) {
+    for (const rule of ZH_TO_EN_RULES) {
+      const match = cand.match(rule.zhPattern);
+      if (match) {
+        return rule.toEn(...match);
+      }
     }
   }
 
@@ -729,7 +741,8 @@ export function localizeStatLine(enLine: string, locale: Locale): string {
   for (const rule of EN_TO_ZH_RULES) {
     const match = trimmed.match(rule.enPattern);
     if (match) {
-      return rule.toZh(...match);
+      const zh = rule.toZh(...match);
+      return locale === 'zh-TW' ? toTraditionalZh(zh) : zh;
     }
   }
   return trimmed;

@@ -4,12 +4,18 @@ import {
   type CharacterClassDef,
   type GameId,
   type GemDefinition,
+  type Locale,
   type PassiveNode,
   type PassiveTreeData,
 } from '@webpob/core';
 import { getGemsForGame, POE1_GEMS, POE2_GEMS, setRegisteredGems } from './gems.js';
 import { getClassesForGame, registerClassesData } from './classes.js';
 import { getTreeForGame, hasOfficialTreeLoaded, registerTreeData, setLatestTreeVersion } from './trees.js';
+import {
+  applyLocaleOverlayToClasses,
+  applyLocaleOverlayToGems,
+  applyLocaleOverlayToTree,
+} from './localeOverlay.js';
 
 export interface CompactTreeNode {
   id: number;
@@ -112,6 +118,8 @@ export interface DataManifestGame {
   uniques: string;
   clusters?: string;
   ascendancyArt?: string;
+  /** Optional on-demand locale overlay files (e.g. `{ "zh-TW": "poe1-i18n-zh-TW.json" }`). */
+  i18n?: Partial<Record<Locale, string>>;
 }
 
 export interface DataManifest {
@@ -216,7 +224,7 @@ export function hydrateCompactTree(payload: CompactTreePayload): PassiveTreeData
     };
   }
 
-  return {
+  const tree: PassiveTreeData = {
     game: payload.game,
     version: payload.version,
     isOfficialFull: true,
@@ -225,6 +233,8 @@ export function hydrateCompactTree(payload: CompactTreePayload): PassiveTreeData
     nodes,
     classStartNodeIds: payload.classStartNodeIds,
   };
+  applyLocaleOverlayToTree(tree);
+  return tree;
 }
 
 /**
@@ -295,6 +305,7 @@ export async function loadOfficialClasses(
     };
     const classes = payload?.classes;
     if (!Array.isArray(classes) || classes.length === 0) return getClassesFallback(game);
+    applyLocaleOverlayToClasses(game, classes);
     return registerClassesData(game, classes);
   } catch {
     return getClassesFallback(game);
@@ -490,6 +501,7 @@ export function registerGemsData(game: GameId, payload: CompactGemsPayload): Gem
     seenEn.add(key);
     merged.push(synthesizeGemDefinition(game, entry));
   }
+  applyLocaleOverlayToGems(game, merged);
   setRegisteredGems(game, merged);
   loadedGemsFlag[game] = true;
   return merged;

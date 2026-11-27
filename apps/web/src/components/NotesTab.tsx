@@ -9,7 +9,7 @@ import {
   ScrollText,
   Sparkles,
 } from 'lucide-react';
-import { t } from '@webpob/i18n';
+import { isChineseLocale, t } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
 type NotesMode = 'edit' | 'preview' | 'split';
@@ -156,7 +156,7 @@ function NotesPreview({ text }: { text: string }) {
 
 export function NotesTab() {
   const { locale, build, calc, setBuildMeta } = useWebPobStore();
-  const cn = locale === 'zh-CN';
+  const cn = isChineseLocale(locale);
   const [mode, setMode] = useState<NotesMode>('split');
   const [insertedToast, setInsertedToast] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);

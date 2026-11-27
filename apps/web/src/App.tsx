@@ -18,7 +18,7 @@ import {
   importBuildFromCode,
   isWeGamePoe2ShareUrl,
 } from '@webpob/codec';
-import { t, type MessageKey } from '@webpob/i18n';
+import { t, type MessageKey, uiText } from '@webpob/i18n';
 import { useWebPobStore, type ActiveTab } from './store/useWebPobStore';
 import { TopBar } from './components/TopBar';
 import { SidebarStats } from './components/SidebarStats';
@@ -255,7 +255,7 @@ export function App() {
               className="md:hidden flex items-center gap-1 px-2 py-1 mr-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-semibold shrink-0 cursor-pointer whitespace-nowrap"
             >
               <Activity className="w-3.5 h-3.5 shrink-0" />
-              <span>{locale === 'zh-CN' ? '面板' : 'Stats'}</span>
+              <span>{uiText(locale, '面板', 'Stats')}</span>
               <span className="font-mono text-[11px] text-amber-300/90">· {compactMobileDps}</span>
             </button>
             {NAV_TABS.map(({ id, labelKey, icon: Icon }) => {
@@ -282,7 +282,7 @@ export function App() {
           <div className="flex-1 min-h-0 overflow-hidden relative bg-[#0b0d12]">
             {hashToast && (
               <div className="absolute top-12 right-2 md:top-3 md:right-3 z-50 rounded-md bg-emerald-950/90 border border-emerald-500/50 px-3 py-1.5 text-xs text-emerald-200 shadow-lg pointer-events-none">
-                {locale === 'zh-CN' ? `已从分享链接加载：${hashToast}` : `Loaded shared build: ${hashToast}`}
+                {uiText(locale, `已从分享链接加载：${hashToast}`, `Loaded shared build: ${hashToast}`)}
               </div>
             )}
             {activeTab === 'tree' && <PassiveTreeCanvas />}
@@ -291,7 +291,7 @@ export function App() {
                 fallback={
                   <div className="h-full w-full flex items-center justify-center text-xs text-zinc-400 gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>{locale === 'zh-CN' ? '加载面板中...' : 'Loading panel...'}</span>
+                    <span>{uiText(locale, '加载面板中...', 'Loading panel...')}</span>
                   </div>
                 }
               >

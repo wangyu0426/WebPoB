@@ -3,7 +3,7 @@ import { GitCompare, ShieldCheck, TrendingUp, Zap } from 'lucide-react';
 import { DAMAGE_TYPES, type Build, type DamageType } from '@webpob/core';
 import { getSampleBuild } from '@webpob/data';
 import { calculateBuild } from '@webpob/calc';
-import { DAMAGE_TYPE_LABELS, localizeText, t } from '@webpob/i18n';
+import { DAMAGE_TYPE_LABELS, localizeText, t, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { listSavedBuilds, type SavedBuildRecord } from '../storage/buildLibrary';
 
@@ -57,9 +57,7 @@ export function CalcsTab() {
       {
         id: 'sample_current_game',
         label:
-          locale === 'zh-CN'
-            ? `官方默认示例 (${sample.name})`
-            : `Default Sample (${sample.name})`,
+          uiText(locale, `官方默认示例 (${sample.name})`, `Default Sample (${sample.name})`),
         build: sample,
       },
       ...savedBuilds.map((r) => ({
@@ -191,7 +189,7 @@ export function CalcsTab() {
       const ehpPct = baseEhp > 0 ? (ehpDelta / baseEhp) * 100 : 0;
       return {
         id: sc.id,
-        label: locale === 'zh-CN' ? sc.labelZh : sc.labelEn,
+        label: uiText(locale, sc.labelZh, sc.labelEn),
         nextDps,
         dpsPct,
         nextEhp,
@@ -282,14 +280,18 @@ export function CalcsTab() {
   }, [calc.offence.damageByType]);
 
   const damageLabel = (dt: string) =>
-    locale === 'zh-CN' ? DAMAGE_TYPE_LABELS[dt]?.zh ?? dt : DAMAGE_TYPE_LABELS[dt]?.en ?? dt;
+    locale === 'zh-TW'
+      ? DAMAGE_TYPE_LABELS[dt]?.zhTw ?? dt
+      : locale === 'zh-CN'
+        ? DAMAGE_TYPE_LABELS[dt]?.zh ?? dt
+        : DAMAGE_TYPE_LABELS[dt]?.en ?? dt;
 
   const hitPoolSegments = useMemo(() => {
     const pool = Math.max(1, defence.life + defence.energyShield + (defence.ward ?? 0));
     return [
       {
         key: 'life',
-        label: locale === 'zh-CN' ? '生命' : 'Life',
+        label: uiText(locale, '生命', 'Life'),
         value: defence.life,
         pct: (defence.life / pool) * 100,
         bar: 'bg-rose-500',
@@ -297,7 +299,7 @@ export function CalcsTab() {
       },
       {
         key: 'es',
-        label: locale === 'zh-CN' ? '能量护盾' : 'Energy Shield',
+        label: uiText(locale, '能量护盾', 'Energy Shield'),
         value: defence.energyShield,
         pct: (defence.energyShield / pool) * 100,
         bar: 'bg-sky-400',
@@ -307,7 +309,7 @@ export function CalcsTab() {
         ? [
             {
               key: 'ward',
-              label: locale === 'zh-CN' ? '结界' : 'Ward',
+              label: uiText(locale, '结界', 'Ward'),
               value: defence.ward!,
               pct: (defence.ward! / pool) * 100,
               bar: 'bg-violet-400',
@@ -322,28 +324,28 @@ export function CalcsTab() {
     () => [
       {
         key: 'pdr',
-        label: locale === 'zh-CN' ? '物理减伤' : 'Phys Reduction',
+        label: uiText(locale, '物理减伤', 'Phys Reduction'),
         display: `${defence.physDamageReduction.toFixed(1)}%`,
         pct: defence.physDamageReduction,
         bar: 'bg-gradient-to-r from-amber-600 to-amber-300',
       },
       {
         key: 'evade',
-        label: locale === 'zh-CN' ? '闪避几率' : 'Evade Chance',
+        label: uiText(locale, '闪避几率', 'Evade Chance'),
         display: `${defence.evadeChance.toFixed(1)}%`,
         pct: defence.evadeChance,
         bar: 'bg-gradient-to-r from-emerald-600 to-emerald-300',
       },
       {
         key: 'block',
-        label: locale === 'zh-CN' ? '攻击格挡' : 'Attack Block',
+        label: uiText(locale, '攻击格挡', 'Attack Block'),
         display: `${defence.blockChance.toFixed(1)}%`,
         pct: defence.blockChance,
         bar: 'bg-gradient-to-r from-cyan-600 to-cyan-300',
       },
       {
         key: 'spellBlock',
-        label: locale === 'zh-CN' ? '法术格挡' : 'Spell Block',
+        label: uiText(locale, '法术格挡', 'Spell Block'),
         display: `${defence.spellBlockChance.toFixed(1)}%`,
         pct: defence.spellBlockChance,
         bar: 'bg-gradient-to-r from-sky-600 to-sky-300',
@@ -352,7 +354,7 @@ export function CalcsTab() {
         ? [
             {
               key: 'suppress',
-              label: locale === 'zh-CN' ? '法术压制' : 'Spell Suppression',
+              label: uiText(locale, '法术压制', 'Spell Suppression'),
               display: `${defence.spellSuppressionChance.toFixed(1)}%`,
               pct: defence.spellSuppressionChance,
               bar: 'bg-gradient-to-r from-teal-600 to-teal-300',
@@ -367,10 +369,10 @@ export function CalcsTab() {
     () =>
       (
         [
-          ['Fire', locale === 'zh-CN' ? '火焰' : 'Fire', defence.fireResist, defence.fireMaxResist, defence.fireResistOvercap, 'bg-orange-500/15 border-orange-500/40 text-orange-300'],
-          ['Cold', locale === 'zh-CN' ? '冰霜' : 'Cold', defence.coldResist, defence.coldMaxResist, defence.coldResistOvercap, 'bg-sky-400/15 border-sky-400/40 text-sky-300'],
-          ['Lightning', locale === 'zh-CN' ? '闪电' : 'Lightning', defence.lightningResist, defence.lightningMaxResist, defence.lightningResistOvercap, 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300'],
-          ['Chaos', locale === 'zh-CN' ? '混沌' : 'Chaos', defence.chaosResist, defence.chaosMaxResist, defence.chaosResistOvercap, 'bg-purple-500/15 border-purple-500/40 text-purple-300'],
+          ['Fire', uiText(locale, '火焰', 'Fire'), defence.fireResist, defence.fireMaxResist, defence.fireResistOvercap, 'bg-orange-500/15 border-orange-500/40 text-orange-300'],
+          ['Cold', uiText(locale, '冰霜', 'Cold'), defence.coldResist, defence.coldMaxResist, defence.coldResistOvercap, 'bg-sky-400/15 border-sky-400/40 text-sky-300'],
+          ['Lightning', uiText(locale, '闪电', 'Lightning'), defence.lightningResist, defence.lightningMaxResist, defence.lightningResistOvercap, 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300'],
+          ['Chaos', uiText(locale, '混沌', 'Chaos'), defence.chaosResist, defence.chaosMaxResist, defence.chaosResistOvercap, 'bg-purple-500/15 border-purple-500/40 text-purple-300'],
         ] as const
       ).map(([key, label, current, max, overcap, tone]) => ({
         key,
@@ -436,12 +438,12 @@ export function CalcsTab() {
             ))}
             {damageComposition.segments.length === 0 && (
               <span className="text-[10px] text-zinc-500">
-                {locale === 'zh-CN' ? '无伤害数据' : 'No damage data'}
+                {uiText(locale, '无伤害数据', 'No damage data')}
               </span>
             )}
             {damageComposition.segments.length > 0 && (
               <span className="ml-auto text-[10px] font-mono text-zinc-500">
-                {locale === 'zh-CN' ? '平均击中' : 'Avg Hit'}{' '}
+                {uiText(locale, '平均击中', 'Avg Hit')}{' '}
                 {Math.round(damageComposition.total).toLocaleString()}
               </span>
             )}
@@ -460,7 +462,11 @@ export function CalcsTab() {
             {DAMAGE_TYPES.map((dt) => {
               const range = calc.offence.damageByType[dt];
               const label =
-                locale === 'zh-CN' ? DAMAGE_TYPE_LABELS[dt]?.zh ?? dt : DAMAGE_TYPE_LABELS[dt]?.en ?? dt;
+                locale === 'zh-TW'
+      ? DAMAGE_TYPE_LABELS[dt]?.zhTw ?? dt
+      : locale === 'zh-CN'
+        ? DAMAGE_TYPE_LABELS[dt]?.zh ?? dt
+        : DAMAGE_TYPE_LABELS[dt]?.en ?? dt;
               return (
                 <tr key={dt} className="border-b border-[#1c2130]">
                   <td className={`py-1.5 font-sans font-semibold ${DMG_COLOR[dt]}`}>{label}</td>
@@ -497,7 +503,7 @@ export function CalcsTab() {
                   }`}
                 >
                   <td className="py-2 font-sans font-medium text-zinc-200">
-                    {locale === 'zh-CN' ? row.labelZh : row.label}
+                    {uiText(locale, row.labelZh, row.label)}
                   </td>
                   <td className="py-2 text-right text-zinc-300">{Math.round(row.base).toLocaleString()}</td>
                   <td className="py-2 text-right text-sky-300">
@@ -517,7 +523,7 @@ export function CalcsTab() {
         <div className="lg:col-span-5 pob-panel rounded-lg p-4">
           <h3 className="text-xs font-bold text-amber-200 border-b border-[#242a3c] pb-2 mb-2.5">
             {t(locale, 'calcs.sources')} —{' '}
-            {selectedRow ? (locale === 'zh-CN' ? selectedRow.labelZh : selectedRow.label) : ''}
+            {selectedRow ? (uiText(locale, selectedRow.labelZh, selectedRow.label)) : ''}
           </h3>
           <div className="space-y-1 max-h-96 overflow-y-auto text-xs">
             {selectedRow?.sources.map((src, idx) => (
@@ -549,17 +555,17 @@ export function CalcsTab() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242a3c] pb-2">
           <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            {locale === 'zh-CN' ? '防御与减伤全景' : 'Defence & Mitigation Overview'}
+            {uiText(locale, '防御与减伤全景', 'Defence & Mitigation Overview')}
           </h3>
           <span className="text-[10px] font-mono text-emerald-300">
-            {locale === 'zh-CN' ? '有效生命池' : 'EHP'} {defence.effectiveHitPool.toLocaleString()}
+            {uiText(locale, '有效生命池', 'EHP')} {defence.effectiveHitPool.toLocaleString()}
           </span>
         </div>
 
         {/* Hit Pool Composition */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
-            <span>{locale === 'zh-CN' ? '生命池构成' : 'Hit Pool Composition'}</span>
+            <span>{uiText(locale, '生命池构成', 'Hit Pool Composition')}</span>
             <span className="font-mono normal-case tracking-normal text-zinc-300">
               {hitPoolSegments
                 .reduce((sum, segment) => sum + segment.value, 0)
@@ -617,12 +623,12 @@ export function CalcsTab() {
             {(
               [
                 [
-                  locale === 'zh-CN' ? '最大物理承受' : 'Max Phys Hit',
+                  uiText(locale, '最大物理承受', 'Max Phys Hit'),
                   defence.maxPhysHitTaken,
                   'text-amber-200',
                 ],
                 [
-                  locale === 'zh-CN' ? '最大元素承受' : 'Max Ele Hit',
+                  uiText(locale, '最大元素承受', 'Max Ele Hit'),
                   defence.maxEleHitTaken,
                   'text-sky-200',
                 ],
@@ -642,7 +648,7 @@ export function CalcsTab() {
         {/* Resistance Cap & Overcap Pills */}
         <div className="border-t border-[#242a3c] pt-3 space-y-1.5">
           <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
-            {locale === 'zh-CN' ? '抗性上限与溢出' : 'Resistance Cap & Overcap'}
+            {uiText(locale, '抗性上限与溢出', 'Resistance Cap & Overcap')}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {resistancePills.map((pill) => (
@@ -670,9 +676,7 @@ export function CalcsTab() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242a3c] pb-2">
           <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
             <TrendingUp className="w-4 h-4 text-emerald-400" />
-            {locale === 'zh-CN'
-              ? '等级与主技能宝石成长曲线 (ROI 收益预测)'
-              : 'Level & Gem Progression Scaling Curve'}
+            {uiText(locale, '等级与主技能宝石成长曲线 (ROI 收益预测)', 'Level & Gem Progression Scaling Curve')}
           </h3>
           <div className="flex items-center gap-1 rounded bg-[#0a0c12] p-0.5 border border-[#252b3d] text-[11px]">
             <button
@@ -684,7 +688,7 @@ export function CalcsTab() {
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              {locale === 'zh-CN' ? '主技能宝石 Lv.18–30' : 'Main Gem Lv.18–30'}
+              {uiText(locale, '主技能宝石 Lv.18–30', 'Main Gem Lv.18–30')}
             </button>
             <button
               type="button"
@@ -695,7 +699,7 @@ export function CalcsTab() {
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              {locale === 'zh-CN' ? '角色等级 Lv.60–100' : 'Character Lv.60–100'}
+              {uiText(locale, '角色等级 Lv.60–100', 'Character Lv.60–100')}
             </button>
           </div>
         </div>
@@ -793,10 +797,10 @@ export function CalcsTab() {
         <div className="flex items-center justify-between border-b border-[#242a3c] pb-2">
           <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
             <Zap className="w-4 h-4 text-amber-400" />
-            {locale === 'zh-CN' ? '快速情景与假设收益模拟 (What-If)' : 'Quick Combat Scenario & What-If Simulator'}
+            {uiText(locale, '快速情景与假设收益模拟 (What-If)', 'Quick Combat Scenario & What-If Simulator')}
           </h3>
           <span className="text-[10px] text-zinc-400">
-            {locale === 'zh-CN' ? '基于当前构筑实时重算' : 'Simulated live from current build'}
+            {uiText(locale, '基于当前构筑实时重算', 'Simulated live from current build')}
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -846,7 +850,7 @@ export function CalcsTab() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242a3c] pb-2">
             <h3 className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
               <GitCompare className="w-4 h-4 text-sky-400" />
-              {locale === 'zh-CN' ? 'BD 属性对比 (当前构筑 vs 对比目标)' : 'Build Compare (Current vs Target)'}
+              {uiText(locale, 'BD 属性对比 (当前构筑 vs 对比目标)', 'Build Compare (Current vs Target)')}
             </h3>
             <select
               value={comparedTarget.id}
@@ -865,26 +869,26 @@ export function CalcsTab() {
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-[#242a3c] text-zinc-400">
-                  <th className="py-1.5">{locale === 'zh-CN' ? '核心指标' : 'Metric'}</th>
-                  <th className="py-1.5 text-right">{locale === 'zh-CN' ? '对比基准' : 'Baseline'}</th>
-                  <th className="py-1.5 text-right">{locale === 'zh-CN' ? '当前 BD' : 'Current'}</th>
-                  <th className="py-1.5 text-right">{locale === 'zh-CN' ? '差值 (Δ)' : 'Delta (Δ)'}</th>
+                  <th className="py-1.5">{uiText(locale, '核心指标', 'Metric')}</th>
+                  <th className="py-1.5 text-right">{uiText(locale, '对比基准', 'Baseline')}</th>
+                  <th className="py-1.5 text-right">{uiText(locale, '当前 BD', 'Current')}</th>
+                  <th className="py-1.5 text-right">{uiText(locale, '差值 (Δ)', 'Delta (Δ)')}</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
                 {(
                   [
-                    [locale === 'zh-CN' ? '总 DPS' : 'Total DPS', comparedCalc.offence.totalDps, calc.offence.totalDps, false],
-                    [locale === 'zh-CN' ? '击中 DPS' : 'Hit DPS', comparedCalc.offence.hitDps, calc.offence.hitDps, false],
-                    [locale === 'zh-CN' ? '攻击/施法速度' : 'Speed (/s)', comparedCalc.offence.speed, calc.offence.speed, true],
-                    [locale === 'zh-CN' ? '暴击率 (%)' : 'Crit Chance (%)', comparedCalc.offence.critChance, calc.offence.critChance, true],
-                    [locale === 'zh-CN' ? '最大生命' : 'Maximum Life', comparedCalc.defence.life, calc.defence.life, false],
-                    [locale === 'zh-CN' ? '最大能量护盾' : 'Energy Shield', comparedCalc.defence.energyShield, calc.defence.energyShield, false],
-                    [locale === 'zh-CN' ? '有效生命池 (EHP)' : 'Effective Hit Pool', comparedCalc.defence.effectiveHitPool, calc.defence.effectiveHitPool, false],
-                    [locale === 'zh-CN' ? '护甲' : 'Armour', comparedCalc.defence.armour, calc.defence.armour, false],
-                    [locale === 'zh-CN' ? '闪避值' : 'Evasion', comparedCalc.defence.evasion, calc.defence.evasion, false],
-                    [locale === 'zh-CN' ? '物理最大承伤' : 'Max Phys Hit', comparedCalc.defence.maxPhysHitTaken, calc.defence.maxPhysHitTaken, false],
-                    [locale === 'zh-CN' ? '元素最大承伤' : 'Max Ele Hit', comparedCalc.defence.maxEleHitTaken, calc.defence.maxEleHitTaken, false],
+                    [uiText(locale, '总 DPS', 'Total DPS'), comparedCalc.offence.totalDps, calc.offence.totalDps, false],
+                    [uiText(locale, '击中 DPS', 'Hit DPS'), comparedCalc.offence.hitDps, calc.offence.hitDps, false],
+                    [uiText(locale, '攻击/施法速度', 'Speed (/s)'), comparedCalc.offence.speed, calc.offence.speed, true],
+                    [uiText(locale, '暴击率 (%)', 'Crit Chance (%)'), comparedCalc.offence.critChance, calc.offence.critChance, true],
+                    [uiText(locale, '最大生命', 'Maximum Life'), comparedCalc.defence.life, calc.defence.life, false],
+                    [uiText(locale, '最大能量护盾', 'Energy Shield'), comparedCalc.defence.energyShield, calc.defence.energyShield, false],
+                    [uiText(locale, '有效生命池 (EHP)', 'Effective Hit Pool'), comparedCalc.defence.effectiveHitPool, calc.defence.effectiveHitPool, false],
+                    [uiText(locale, '护甲', 'Armour'), comparedCalc.defence.armour, calc.defence.armour, false],
+                    [uiText(locale, '闪避值', 'Evasion'), comparedCalc.defence.evasion, calc.defence.evasion, false],
+                    [uiText(locale, '物理最大承伤', 'Max Phys Hit'), comparedCalc.defence.maxPhysHitTaken, calc.defence.maxPhysHitTaken, false],
+                    [uiText(locale, '元素最大承伤', 'Max Ele Hit'), comparedCalc.defence.maxEleHitTaken, calc.defence.maxEleHitTaken, false],
                   ] as Array<[string, number, number, boolean]>
                 ).map(([label, baseVal, curVal, isFloat]) => {
                   const diff = curVal - baseVal;

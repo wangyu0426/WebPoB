@@ -64,16 +64,34 @@ Energy Shield: 520 (augmented)
 闪电抗性 +36%
 法术伤害提高 24%`;
 
+    const zhTwItemText = `物品種類: 胸甲
+稀有度: 稀有
+星界護殼
+瓦爾法衣
+--------
+品質: +20% (augmented)
+能量護盾: 520 (augmented)
+--------
+最大生命 +88
+火焰抗性 +42%
+閃電抗性 +36%
+增加 24% 法術傷害`;
+
     const enItem = parseItemText(enItemText);
     const zhItem = parseItemText(zhItemText);
+    const zhTwItem = parseItemText(zhTwItemText);
 
     expect(enItem).not.toBeNull();
     expect(zhItem).not.toBeNull();
+    expect(zhTwItem).not.toBeNull();
     expect(enItem!.slotType).toBe('Body Armour');
     expect(zhItem!.slotType).toBe('Body Armour');
+    expect(zhTwItem!.slotType).toBe('Body Armour');
     expect(enItem!.armourStats?.energyShield).toBe(520);
     expect(zhItem!.armourStats?.energyShield).toBe(520);
+    expect(zhTwItem!.armourStats?.energyShield).toBe(520);
     expect(zhItem!.explicits).toEqual(enItem!.explicits);
+    expect(zhTwItem!.explicits).toEqual(enItem!.explicits);
   });
 
   it('resolves pobb.in and pastebin URLs to raw endpoints', () => {

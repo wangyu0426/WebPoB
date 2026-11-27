@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { ClipboardPaste, Copy, ExternalLink, FlaskConical, GitCompareArrows, Hammer, Layers, Power, PowerOff, Search, Shield, Sparkles, Trash2, TrendingUp, X } from 'lucide-react';
 import type { EquipmentSlotId, Item } from '@webpob/core';
 import {
+  getLocalizedBaseName,
+  getLocalizedUniqueName,
   getPresetItemsForGame,
   getRuleset,
   getUniquesForGame,
@@ -11,7 +13,7 @@ import {
 } from '@webpob/data';
 import { parseItemText } from '@webpob/codec';
 import { calculateBuild, rankUniqueUpgradesForSlot, resolveItemEffectiveStats } from '@webpob/calc';
-import { getSlotLabel, localizeStatLine, t } from '@webpob/i18n';
+import { getSlotLabel, localizeStatLine, t, toTraditionalZh, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { ItemCompareModal } from './ItemCompareModal';
 import { GearSummaryDrawer } from './GearSummaryDrawer';
@@ -192,7 +194,7 @@ export function ItemsTab() {
     for (const u of officialUniques) {
       if (uniqueSlotFilter !== 'ALL' && u.s !== uniqueSlotFilter) continue;
       if (q) {
-        const hay = `${u.en} ${u.zh ?? ''} ${u.b} ${u.bz ?? ''} ${u.e.join(' ')}`.toLowerCase();
+        const hay = `${u.en} ${u.zh ?? ''} ${u.zhTw ?? ''} ${u.b} ${u.bz ?? ''} ${u.bzTw ?? ''} ${u.e.join(' ')}`.toLowerCase();
         if (!hay.includes(q)) continue;
       }
       list.push(u);
@@ -230,9 +232,7 @@ export function ItemsTab() {
       setStatusMsg({
         ok: true,
         text:
-          locale === 'zh-CN'
-            ? `已将传奇珠宝「${entry.zh ?? entry.en}」加入物品栏，可在天赋树点击珠宝插槽镶嵌`
-            : `Added unique jewel "${entry.en}" to stash. Click any allocated Jewel Socket on the Tree to socket it.`,
+          uiText(locale, `已将传奇珠宝「${entry.zh ?? entry.en}」加入物品栏，可在天赋树点击珠宝插槽镶嵌`, `Added unique jewel "${entry.en}" to stash. Click any allocated Jewel Socket on the Tree to socket it.`),
       });
       return;
     }
@@ -245,10 +245,36 @@ export function ItemsTab() {
     setSelectedSlot(targetSlot);
   };
 
-  const displayName = (item: Item) =>
-    locale === 'zh-CN' && item.nameZh ? item.nameZh : item.name;
-  const displayBase = (item: Item) =>
-    locale === 'zh-CN' && item.baseNameZh ? item.baseNameZh : item.baseName;
+  const displayUniqueEntryName = (u: CompactUniqueEntry) =>
+    locale === 'zh-TW'
+      ? u.zhTw || (u.zh ? toTraditionalZh(u.zh) : u.en)
+      : locale === 'zh-CN'
+        ? u.zh || u.en
+        : u.en;
+
+  const displayName = (item: Item) => {
+    if (locale === 'en') return item.name;
+    if (locale === 'zh-TW') {
+      if (item.nameZhTw) return item.nameZhTw;
+      const fromOverlay = getLocalizedUniqueName(item.name, 'zh-TW', build.game);
+      if (fromOverlay !== item.name) return fromOverlay;
+      if (item.nameZh) return toTraditionalZh(item.nameZh);
+      return item.name;
+    }
+    return item.nameZh || item.name;
+  };
+
+  const displayBase = (item: Item) => {
+    if (locale === 'en') return item.baseName;
+    if (locale === 'zh-TW') {
+      if (item.baseNameZhTw) return item.baseNameZhTw;
+      const fromOverlay = getLocalizedBaseName(item.baseName, 'zh-TW', build.game);
+      if (fromOverlay !== item.baseName) return fromOverlay;
+      if (item.baseNameZh) return toTraditionalZh(item.baseNameZh);
+      return item.baseName;
+    }
+    return item.baseNameZh || item.baseName;
+  };
 
   const equippedItem = build.equipped[selectedSlot]
     ? build.items[build.equipped[selectedSlot]!]
@@ -339,7 +365,7 @@ export function ItemsTab() {
     () =>
       build.itemSets && build.itemSets.length > 0
         ? build.itemSets
-        : [{ id: '1', title: locale === 'zh-CN' ? '默认配装' : 'Default Set', equipped: build.equipped, activeFlaskSlots: build.activeFlaskSlots }],
+        : [{ id: '1', title: uiText(locale, '默认配装', 'Default Set'), equipped: build.equipped, activeFlaskSlots: build.activeFlaskSlots }],
     [build.itemSets, build.equipped, build.activeFlaskSlots, locale],
   );
   const activeItemSetIdx = Math.max(0, Math.min(itemSets.length - 1, build.activeItemSetIndex ?? 0));
@@ -397,11 +423,11 @@ export function ItemsTab() {
             <button
               type="button"
               onClick={() => setGearSummaryOpen(true)}
-              title={locale === 'zh-CN' ? '查看装备汇总与市集搜索' : 'View gear stat totals & trade search'}
+              title={uiText(locale, '查看装备汇总与市集搜索', 'View gear stat totals & trade search')}
               className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-200 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Layers className="w-3 h-3 shrink-0" />
-              {locale === 'zh-CN' ? '装备汇总' : 'Gear Totals'}
+              {uiText(locale, '装备汇总', 'Gear Totals')}
               <span className="font-mono text-[10px] text-emerald-300">
                 {equippedCount}/{trackedSlots.length}
               </span>
@@ -410,7 +436,7 @@ export function ItemsTab() {
               value={activeItemSetIdx}
               onChange={(e) => switchItemSet(Number(e.target.value))}
               className="pob-input rounded px-2 py-1 text-xs max-w-[140px]"
-              title={locale === 'zh-CN' ? '切换配装方案' : 'Switch Item Set'}
+              title={uiText(locale, '切换配装方案', 'Switch Item Set')}
             >
               {itemSets.map((s, idx) => (
                 <option key={s.id} value={idx}>
@@ -422,21 +448,21 @@ export function ItemsTab() {
               type="button"
               onClick={() =>
                 addItemSet(
-                  locale === 'zh-CN' ? `配装方案 ${itemSets.length + 1}` : `Item Set ${itemSets.length + 1}`,
+                  uiText(locale, `配装方案 ${itemSets.length + 1}`, `Item Set ${itemSets.length + 1}`),
                   true,
                 )
               }
-              title={locale === 'zh-CN' ? '复制当前配装为新方案' : 'Clone current loadout as new Item Set'}
+              title={uiText(locale, '复制当前配装为新方案', 'Clone current loadout as new Item Set')}
               className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-[#161c2b] hover:bg-[#1e263a] border border-[#2a3147] text-amber-200 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Copy className="w-3 h-3 shrink-0" />
-              {locale === 'zh-CN' ? '新方案' : 'Clone'}
+              {uiText(locale, '新方案', 'Clone')}
             </button>
             {itemSets.length > 1 && (
               <button
                 type="button"
                 onClick={() => deleteItemSet(activeItemSetIdx)}
-                title={locale === 'zh-CN' ? '删除当前配装方案' : 'Delete active Item Set'}
+                title={uiText(locale, '删除当前配装方案', 'Delete active Item Set')}
                 className="p-1 rounded text-zinc-400 hover:text-rose-400 border border-[#2a3147] cursor-pointer"
               >
                 <Trash2 className="w-3 h-3" />
@@ -447,7 +473,7 @@ export function ItemsTab() {
         {itemSetBaselineDelta && (
           <div className="rounded bg-[#111624] border border-sky-500/30 px-2.5 py-1.5 text-[11px] flex items-center justify-between gap-2 font-mono">
             <span className="font-sans text-zinc-400">
-              {locale === 'zh-CN' ? `对比「${itemSets[0]!.title}」:` : `vs "${itemSets[0]!.title}":`}
+              {uiText(locale, `对比「${itemSets[0]!.title}」:`, `vs "${itemSets[0]!.title}":`)}
             </span>
             <span className="flex items-center gap-2">
               <span className={itemSetBaselineDelta.dpsPct >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
@@ -463,9 +489,7 @@ export function ItemsTab() {
           <div className="rounded bg-[#111624] border border-[#2a3147] px-2.5 py-1.5 flex items-center justify-between gap-2">
             <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
               <FlaskConical className="w-3.5 h-3.5 text-emerald-300" />
-              {locale === 'zh-CN'
-                ? `药剂 (${equippedFlaskSlots.filter((slot) => build.activeFlaskSlots?.[slot]).length}/${equippedFlaskSlots.length} 已启用)`
-                : `Flasks (${equippedFlaskSlots.filter((slot) => build.activeFlaskSlots?.[slot]).length}/${equippedFlaskSlots.length} active)`}
+              {uiText(locale, `药剂 (${equippedFlaskSlots.filter((slot) => build.activeFlaskSlots?.[slot]).length}/${equippedFlaskSlots.length} 已启用)`, `Flasks (${equippedFlaskSlots.filter((slot) => build.activeFlaskSlots?.[slot]).length}/${equippedFlaskSlots.length} active)`)}
             </span>
             <button
               type="button"
@@ -478,12 +502,8 @@ export function ItemsTab() {
             >
               {allFlasksActive ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
               {allFlasksActive
-                ? locale === 'zh-CN'
-                  ? '全部关闭'
-                  : 'Disable All'
-                : locale === 'zh-CN'
-                  ? '全部开启'
-                  : 'Enable All'}
+                ? uiText(locale, '全部关闭', 'Disable All')
+                : uiText(locale, '全部开启', 'Enable All')}
             </button>
           </div>
         )}
@@ -521,10 +541,10 @@ export function ItemsTab() {
                         setCompareSlot(slot);
                       }}
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 border border-sky-500/40 cursor-pointer"
-                      title={locale === 'zh-CN' ? '对比 / 编辑该装备' : 'Compare / Edit this item'}
+                      title={uiText(locale, '对比 / 编辑该装备', 'Compare / Edit this item')}
                     >
                       <GitCompareArrows className="w-3 h-3" />
-                      {locale === 'zh-CN' ? '对比 / 编辑' : 'Compare / Edit'}
+                      {uiText(locale, '对比 / 编辑', 'Compare / Edit')}
                     </button>
                     {slot.startsWith('Flask ') && (
                       <button
@@ -540,12 +560,8 @@ export function ItemsTab() {
                         }`}
                       >
                         {build.activeFlaskSlots?.[slot]
-                          ? locale === 'zh-CN'
-                            ? '已启用'
-                            : 'Active'
-                          : locale === 'zh-CN'
-                            ? '未启用'
-                            : 'Off'}
+                          ? uiText(locale, '已启用', 'Active')
+                          : uiText(locale, '未启用', 'Off')}
                       </button>
                     )}
                     <button
@@ -581,10 +597,10 @@ export function ItemsTab() {
                 type="button"
                 onClick={() => setCompareSlot(selectedSlot)}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 border border-sky-500/40 cursor-pointer"
-                title={locale === 'zh-CN' ? '对比 / 编辑该槽位装备' : 'Compare / Edit this slot'}
+                title={uiText(locale, '对比 / 编辑该槽位装备', 'Compare / Edit this slot')}
               >
                 <GitCompareArrows className="w-3 h-3" />
-                {locale === 'zh-CN' ? '对比 / 编辑' : 'Compare / Edit'}
+                {uiText(locale, '对比 / 编辑', 'Compare / Edit')}
               </button>
             </div>
             {equippedItem && (
@@ -596,7 +612,7 @@ export function ItemsTab() {
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/35"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  {locale === 'zh-CN' ? '市集搜索' : 'Trade'}
+                  {uiText(locale, '市集搜索', 'Trade')}
                 </a>
                 <span className="text-[11px] font-mono text-zinc-400">
                   Q{equippedItem.quality}%
@@ -650,9 +666,7 @@ export function ItemsTab() {
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-bold text-yellow-300 flex items-center gap-1.5">
               <Hammer className="w-4 h-4" />
-              {locale === 'zh-CN'
-                ? `稀有装备制作台 — ${getSlotLabel(locale, selectedSlot)} (${allBases.length} 官方基底)`
-                : `Rare Item Crafting Bench — ${getSlotLabel(locale, selectedSlot)} (${allBases.length} bases)`}
+              {uiText(locale, `稀有装备制作台 — ${getSlotLabel(locale, selectedSlot)} (${allBases.length} 官方基底)`, `Rare Item Crafting Bench — ${getSlotLabel(locale, selectedSlot)} (${allBases.length} bases)`)}
             </h3>
             <button
               type="button"
@@ -670,12 +684,8 @@ export function ItemsTab() {
               className="px-2.5 py-1 rounded text-xs font-semibold bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 border border-yellow-500/40 cursor-pointer"
             >
               {craftOpen
-                ? locale === 'zh-CN'
-                  ? '收起制作台'
-                  : 'Hide Bench'
-                : locale === 'zh-CN'
-                  ? '打开制作台'
-                  : 'Open Craft Bench'}
+                ? uiText(locale, '收起制作台', 'Hide Bench')
+                : uiText(locale, '打开制作台', 'Open Craft Bench')}
             </button>
           </div>
 
@@ -686,7 +696,7 @@ export function ItemsTab() {
                   type="text"
                   value={craftBaseSearch}
                   onChange={(e) => setCraftBaseSearch(e.target.value)}
-                  placeholder={locale === 'zh-CN' ? '搜索基底 (如 Vaal / Runic)...' : 'Filter base item...'}
+                  placeholder={uiText(locale, '搜索基底 (如 Vaal / Runic)...', 'Filter base item...')}
                   className="pob-input rounded px-2 py-1 text-xs"
                 />
                 <select
@@ -701,7 +711,7 @@ export function ItemsTab() {
                   ))}
                 </select>
                 <label className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-[#0c0e15] border border-[#22283a]">
-                  <span className="text-zinc-400">{locale === 'zh-CN' ? '品质' : 'Quality'}</span>
+                  <span className="text-zinc-400">{uiText(locale, '品质', 'Quality')}</span>
                   <input
                     type="number"
                     min={0}
@@ -715,9 +725,7 @@ export function ItemsTab() {
 
               <div className="space-y-1">
                 <div className="text-[11px] text-zinc-400">
-                  {locale === 'zh-CN'
-                    ? `点选词缀 (${craftAffixes.length}/6):`
-                    : `Toggle T1/T2 Affixes (${craftAffixes.length}/6):`}
+                  {uiText(locale, `点选词缀 (${craftAffixes.length}/6):`, `Toggle T1/T2 Affixes (${craftAffixes.length}/6):`)}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {CRAFT_AFFIX_POOL[craftCategory].map((affix) => {
@@ -741,7 +749,7 @@ export function ItemsTab() {
                             : 'bg-[#0e111a] border-[#252c40] text-zinc-400 hover:text-zinc-200'
                         }`}
                       >
-                        {locale === 'zh-CN' ? affix.zh : affix.en}
+                        {uiText(locale, affix.zh, affix.en)}
                       </button>
                     );
                   })}
@@ -785,14 +793,12 @@ export function ItemsTab() {
                       setStatusMsg({
                         ok: true,
                         text:
-                          locale === 'zh-CN'
-                            ? `已制作并装备 ${finalItem.name} → ${getSlotLabel(locale, selectedSlot)}`
-                            : `Crafted & equipped ${finalItem.name} → ${getSlotLabel(locale, selectedSlot)}`,
+                          uiText(locale, `已制作并装备 ${finalItem.name} → ${getSlotLabel(locale, selectedSlot)}`, `Crafted & equipped ${finalItem.name} → ${getSlotLabel(locale, selectedSlot)}`),
                       });
                     }}
                     className="px-3 py-1 rounded text-xs font-semibold bg-yellow-500/25 hover:bg-yellow-500/35 text-yellow-200 border border-yellow-400/60 cursor-pointer"
                   >
-                    {locale === 'zh-CN' ? '制作并装备' : 'Craft & Equip'}
+                    {uiText(locale, '制作并装备', 'Craft & Equip')}
                   </button>
                 </div>
               )}
@@ -805,9 +811,7 @@ export function ItemsTab() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4" />
-              {locale === 'zh-CN'
-                ? `暗金升级推荐 — ${getSlotLabel(locale, selectedSlot)}`
-                : `Unique Upgrade Advisor — ${getSlotLabel(locale, selectedSlot)}`}
+              {uiText(locale, `暗金升级推荐 — ${getSlotLabel(locale, selectedSlot)}`, `Unique Upgrade Advisor — ${getSlotLabel(locale, selectedSlot)}`)}
             </h3>
             <div className="flex items-center gap-1.5">
               {advisorOpen && (
@@ -821,7 +825,7 @@ export function ItemsTab() {
                         : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
-                    {locale === 'zh-CN' ? '按 DPS' : 'By DPS'}
+                    {uiText(locale, '按 DPS', 'By DPS')}
                   </button>
                   <button
                     type="button"
@@ -832,7 +836,7 @@ export function ItemsTab() {
                         : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
-                    {locale === 'zh-CN' ? '按 EHP' : 'By EHP'}
+                    {uiText(locale, '按 EHP', 'By EHP')}
                   </button>
                 </div>
               )}
@@ -846,12 +850,8 @@ export function ItemsTab() {
                 }`}
               >
                 {advisorOpen
-                  ? locale === 'zh-CN'
-                    ? '收起推荐'
-                    : 'Hide Advisor'
-                  : locale === 'zh-CN'
-                    ? '计算最优暗金'
-                    : 'Rank Best Uniques'}
+                  ? uiText(locale, '收起推荐', 'Hide Advisor')
+                  : uiText(locale, '计算最优暗金', 'Rank Best Uniques')}
               </button>
             </div>
           </div>
@@ -859,9 +859,7 @@ export function ItemsTab() {
           {advisorOpen && (
             rankedUniqueUpgrades.length === 0 ? (
               <div className="text-xs text-zinc-500 py-2">
-                {locale === 'zh-CN'
-                  ? '当前部位暂未发现更高收益的官方传奇暗金（或该部位当前已装备毕业装）。'
-                  : 'No higher-value official Unique found for this slot.'}
+                {uiText(locale, '当前部位暂未发现更高收益的官方传奇暗金（或该部位当前已装备毕业装）。', 'No higher-value official Unique found for this slot.')}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -873,10 +871,14 @@ export function ItemsTab() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-orange-300 truncate">
-                          {locale === 'zh-CN' && rec.unique.zh ? rec.unique.zh : rec.unique.en}
+                          {displayUniqueEntryName(rec.unique)}
                         </div>
                         <div className="text-[10px] text-zinc-400 truncate">
-                          {locale === 'zh-CN' && rec.unique.bz ? rec.unique.bz : rec.unique.b}
+                          {locale === 'zh-TW'
+                            ? rec.unique.bzTw || (rec.unique.bz ? toTraditionalZh(rec.unique.bz) : rec.unique.b)
+                            : locale === 'zh-CN' && rec.unique.bz
+                              ? rec.unique.bz
+                              : rec.unique.b}
                         </div>
                       </div>
                       <button
@@ -891,14 +893,12 @@ export function ItemsTab() {
                           setStatusMsg({
                             ok: true,
                             text:
-                              locale === 'zh-CN'
-                                ? `已穿戴推荐暗金 ${fresh.nameZh ?? fresh.name} → ${getSlotLabel(locale, selectedSlot)}`
-                                : `Equipped ${fresh.name} → ${getSlotLabel(locale, selectedSlot)}`,
+                              uiText(locale, `已穿戴推荐暗金 ${fresh.nameZh ?? fresh.name} → ${getSlotLabel(locale, selectedSlot)}`, `Equipped ${fresh.name} → ${getSlotLabel(locale, selectedSlot)}`),
                           });
                         }}
                         className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/50 shrink-0 cursor-pointer"
                       >
-                        {locale === 'zh-CN' ? '立即穿戴' : 'Equip'}
+                        {uiText(locale, '立即穿戴', 'Equip')}
                       </button>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
@@ -931,9 +931,7 @@ export function ItemsTab() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold text-orange-300 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4" />
-              {locale === 'zh-CN'
-                ? `官方传奇暗金库 (${officialUniques.length} 件)`
-                : `Official Unique Database (${officialUniques.length} items)`}
+              {uiText(locale, `官方传奇暗金库 (${officialUniques.length} 件)`, `Official Unique Database (${officialUniques.length} items)`)}
             </h3>
             <div className="flex items-center gap-1.5 flex-wrap">
               <div className="relative">
@@ -942,7 +940,7 @@ export function ItemsTab() {
                   type="text"
                   value={uniqueSearch}
                   onChange={(e) => setUniqueSearch(e.target.value)}
-                  placeholder={locale === 'zh-CN' ? '搜暗金名/词缀 (如 猎首 / 薛朗)...' : 'Search unique or mod...'}
+                  placeholder={uiText(locale, '搜暗金名/词缀 (如 猎首 / 薛朗)...', 'Search unique or mod...')}
                   className="pob-input rounded pl-7 pr-2 py-1 text-xs w-52"
                 />
               </div>
@@ -954,13 +952,9 @@ export function ItemsTab() {
                 {UNIQUE_SLOT_FILTERS.map((sf) => (
                   <option key={sf} value={sf}>
                     {sf === 'ALL'
-                      ? locale === 'zh-CN'
-                        ? '全部部位'
-                        : 'All Slots'
+                      ? uiText(locale, '全部部位', 'All Slots')
                       : sf === 'Jewel'
-                        ? locale === 'zh-CN'
-                          ? '珠宝'
-                          : 'Jewel'
+                        ? uiText(locale, '珠宝', 'Jewel')
                         : getSlotLabel(locale, sf)}
                   </option>
                 ))}
@@ -977,14 +971,17 @@ export function ItemsTab() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="font-semibold text-orange-300 truncate">
-                      {locale === 'zh-CN' && u.zh ? u.zh : u.en}
+                      {displayUniqueEntryName(u)}
                     </div>
                     <div className="text-[10px] text-zinc-400 truncate">
-                      {locale === 'zh-CN' && u.bz ? `${u.bz} (${u.en})` : u.b} ·{' '}
+                      {locale === 'zh-TW' && (u.bzTw || u.bz)
+                        ? `${u.bzTw || toTraditionalZh(u.bz!)} (${u.en})`
+                        : locale === 'zh-CN' && u.bz
+                          ? `${u.bz} (${u.en})`
+                          : u.b}{' '}
+                      ·{' '}
                       {u.s === 'Jewel'
-                        ? locale === 'zh-CN'
-                          ? '珠宝'
-                          : 'Jewel'
+                        ? uiText(locale, '珠宝', 'Jewel')
                         : getSlotLabel(locale, u.s as EquipmentSlotId)}
                     </div>
                   </div>
@@ -994,9 +991,7 @@ export function ItemsTab() {
                     className="px-2 py-0.5 rounded text-[11px] bg-orange-500/20 hover:bg-orange-500/30 text-orange-200 border border-orange-500/40 shrink-0 cursor-pointer"
                   >
                     {u.s === 'Jewel'
-                      ? locale === 'zh-CN'
-                        ? '添加'
-                        : 'Add'
+                      ? uiText(locale, '添加', 'Add')
                       : t(locale, 'items.equip')}
                   </button>
                 </div>
@@ -1009,7 +1004,7 @@ export function ItemsTab() {
             ))}
             {filteredUniques.length === 0 && (
               <div className="col-span-2 text-center text-xs text-zinc-500 py-4">
-                {locale === 'zh-CN' ? '未找到匹配的传奇装备' : 'No matching unique items found'}
+                {uiText(locale, '未找到匹配的传奇装备', 'No matching unique items found')}
               </div>
             )}
           </div>

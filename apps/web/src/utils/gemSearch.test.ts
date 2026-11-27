@@ -83,4 +83,23 @@ describe('searchGemsCatalog', () => {
     expect(poe2Active.totalActive).toBeGreaterThan(0);
     expect(poe2Active.items.every((g) => g.category === 'active')).toBe(true);
   });
+
+  it('supports International Traditional Chinese (zh-TW) gem names and tag aliases', () => {
+    const list: GemDefinition[] = [
+      {
+        ...makeGem('spark', 'Spark', '电球', 'active', ['spell', 'lightning']),
+        name: { en: 'Spark', zh: '电球', zhTw: '電球' },
+      },
+      {
+        ...makeGem('lightning_warp', 'Lightning Warp', '闪电传送', 'active', ['spell', 'lightning']),
+        name: { en: 'Lightning Warp', zh: '闪电传送', zhTw: '閃電傳送' },
+      },
+    ];
+
+    const byTwName = searchGemsCatalog(list, '電球', { locale: 'zh-TW' });
+    expect(byTwName.items.map((g) => g.id)).toEqual(['spark']);
+
+    const byTwTag = searchGemsCatalog(list, '閃電 法術', { locale: 'zh-TW' });
+    expect(byTwTag.items.map((g) => g.id).sort()).toEqual(['lightning_warp', 'spark']);
+  });
 });

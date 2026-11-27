@@ -25,7 +25,7 @@ import {
   parseCharacterJsonToBuild,
   type PoeRealm,
 } from '@webpob/codec';
-import { t } from '@webpob/i18n';
+import { t, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
 // ---------------------------------------------------------------------------
@@ -1087,18 +1087,14 @@ export function ImportExportTab() {
         ok: true,
         presetId: preset.id,
         text:
-          locale === 'zh-CN'
-            ? `已加载模板「${preset.titleZh}」：${imported.name}（${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备）`
-            : `Loaded "${preset.titleEn}": ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`,
+          uiText(locale, `已加载模板「${preset.titleZh}」：${imported.name}（${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备）`, `Loaded "${preset.titleEn}": ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`),
       });
     } catch (err) {
       setPresetStatus({
         ok: false,
         presetId: preset.id,
         text:
-          locale === 'zh-CN'
-            ? `模板加载失败：${err instanceof Error ? err.message : String(err)}`
-            : `Failed to load preset: ${err instanceof Error ? err.message : String(err)}`,
+          uiText(locale, `模板加载失败：${err instanceof Error ? err.message : String(err)}`, `Failed to load preset: ${err instanceof Error ? err.message : String(err)}`),
       });
     } finally {
       setLoadingPresetId(null);
@@ -1151,9 +1147,7 @@ export function ImportExportTab() {
         setMessage({
           ok: true,
           text:
-            locale === 'zh-CN'
-              ? `已导入 WeGame 国服角色：${imported.name}（${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备 / ${imported.skills.length} 组技能）`
-              : `Imported WeGame PoE 2 build: ${imported.name} (${imported.tree.allocatedNodeIds.length} passives / ${Object.keys(imported.equipped).length} items / ${imported.skills.length} skill groups)`,
+            uiText(locale, `已导入 WeGame 国服角色：${imported.name}（${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备 / ${imported.skills.length} 组技能）`, `Imported WeGame PoE 2 build: ${imported.name} (${imported.tree.allocatedNodeIds.length} passives / ${Object.keys(imported.equipped).length} items / ${imported.skills.length} skill groups)`),
         });
         setImportInput('');
         return;
@@ -1200,9 +1194,7 @@ export function ImportExportTab() {
               {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Link2 className="w-3.5 h-3.5" />}
               {copiedLink
                 ? t(locale, 'import.copied')
-                : locale === 'zh-CN'
-                  ? '复制直达链接'
-                  : 'Copy Share URL'}
+                : uiText(locale, '复制直达链接', 'Copy Share URL')}
             </button>
             <button
               type="button"
@@ -1230,9 +1222,7 @@ export function ImportExportTab() {
             {t(locale, 'import.importBtn')}
           </h3>
           <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-200">
-            {locale === 'zh-CN'
-              ? '支持 PoB 码 · pobb.in · poe.ninja · maxroll.gg · WeGame 降临助手国服分享链接'
-              : 'Supports PoB code · pobb.in · poe.ninja · maxroll.gg · WeGame PoE 2 CN share links'}
+            {uiText(locale, '支持 PoB 码 · pobb.in · poe.ninja · maxroll.gg · WeGame 降临助手国服分享链接', 'Supports PoB code · pobb.in · poe.ninja · maxroll.gg · WeGame PoE 2 CN share links')}
           </span>
         </div>
         <textarea
@@ -1276,9 +1266,7 @@ export function ImportExportTab() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
             <Globe className="w-4 h-4" />
-            {locale === 'zh-CN'
-              ? '官方角色导入 (GGG 国际服 / 腾讯国服 / 免代理 JSON 导入)'
-              : 'Import Character Profile (GGG International / Tencent CN / Direct JSON)'}
+            {uiText(locale, '官方角色导入 (GGG 国际服 / 腾讯国服 / 免代理 JSON 导入)', 'Import Character Profile (GGG International / Tencent CN / Direct JSON)')}
           </h3>
           <div className="flex items-center gap-1 text-[11px]">
             <button
@@ -1290,7 +1278,7 @@ export function ImportExportTab() {
                   : 'bg-[#121623] border-[#252c40] text-zinc-400'
               }`}
             >
-              {locale === 'zh-CN' ? '国际服 (pathofexile.com)' : 'International (GGG)'}
+              {uiText(locale, '国际服 (pathofexile.com)', 'International (GGG)')}
             </button>
             <button
               type="button"
@@ -1301,7 +1289,7 @@ export function ImportExportTab() {
                   : 'bg-[#121623] border-[#252c40] text-zinc-400'
               }`}
             >
-              {locale === 'zh-CN' ? '国服 (poe.game.qq.com)' : 'Tencent CN'}
+              {uiText(locale, '国服 (poe.game.qq.com)', 'Tencent CN')}
             </button>
           </div>
         </div>
@@ -1311,14 +1299,14 @@ export function ImportExportTab() {
             type="text"
             value={accountName}
             onChange={(e) => setAccountName(e.target.value)}
-            placeholder={locale === 'zh-CN' ? '账号名 (如 Player#1234)' : 'Account Name (e.g. Player#1234)'}
+            placeholder={uiText(locale, '账号名 (如 Player#1234)', 'Account Name (e.g. Player#1234)')}
             className="pob-input rounded px-2.5 py-1.5 text-xs"
           />
           <input
             type="text"
             value={characterName}
             onChange={(e) => setCharacterName(e.target.value)}
-            placeholder={locale === 'zh-CN' ? '角色名 (Character Name)' : 'Character Name'}
+            placeholder={uiText(locale, '角色名 (Character Name)', 'Character Name')}
             className="pob-input rounded px-2.5 py-1.5 text-xs"
           />
           <button
@@ -1339,9 +1327,7 @@ export function ImportExportTab() {
                 setCharMsg({
                   ok: true,
                   text:
-                    locale === 'zh-CN'
-                      ? `已导入角色 ${imported.name} (${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备)`
-                      : `Imported ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`,
+                    uiText(locale, `已导入角色 ${imported.name} (${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 件装备)`, `Imported ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`),
                 });
               } catch (err) {
                 setCharMsg({
@@ -1356,17 +1342,13 @@ export function ImportExportTab() {
           >
             {charLoading
               ? '...'
-              : locale === 'zh-CN'
-                ? '在线拉取角色 (需代理)'
-                : 'Fetch Character (via Proxy)'}
+              : uiText(locale, '在线拉取角色 (需代理)', 'Fetch Character (via Proxy)')}
           </button>
         </div>
 
         <details className="rounded bg-[#0b0e15] border border-[#22283a] p-3 space-y-2">
           <summary className="text-[11px] font-semibold text-zinc-300 cursor-pointer">
-            {locale === 'zh-CN'
-              ? '免代理直连：粘贴官网 get-passive-skills / get-items JSON 导入'
-              : 'Zero-Proxy Mode: Paste get-passive-skills / get-items JSON directly'}
+            {uiText(locale, '免代理直连：粘贴官网 get-passive-skills / get-items JSON 导入', 'Zero-Proxy Mode: Paste get-passive-skills / get-items JSON directly')}
           </summary>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
             <textarea
@@ -1403,9 +1385,7 @@ export function ImportExportTab() {
                   setCharMsg({
                     ok: true,
                     text:
-                      locale === 'zh-CN'
-                        ? `JSON 导入成功：${imported.name} (${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 装备)`
-                        : `Imported from JSON: ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`,
+                      uiText(locale, `JSON 导入成功：${imported.name} (${imported.tree.allocatedNodeIds.length} 天赋点 / ${Object.keys(imported.equipped).length} 装备)`, `Imported from JSON: ${imported.name} (${imported.tree.allocatedNodeIds.length} passives, ${Object.keys(imported.equipped).length} items)`),
                   });
                 } catch (err) {
                   setCharMsg({
@@ -1416,7 +1396,7 @@ export function ImportExportTab() {
               }}
               className="px-3 py-1 rounded text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/50 cursor-pointer disabled:opacity-50"
             >
-              {locale === 'zh-CN' ? '解析 JSON 并导入角色' : 'Parse & Import Character JSON'}
+              {uiText(locale, '解析 JSON 并导入角色', 'Parse & Import Character JSON')}
             </button>
           </div>
         </details>
@@ -1433,14 +1413,14 @@ export function ImportExportTab() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
             <LibraryBig className="w-4 h-4" />
-            {locale === 'zh-CN' ? '经典构筑模板库（一键加载）' : 'Curated Build Presets'}
+            {uiText(locale, '经典构筑模板库（一键加载）', 'Curated Build Presets')}
             <span className="text-[10px] font-mono font-normal text-zinc-500">
               ({visiblePresets.length}/{CURATED_PRESETS.length})
             </span>
           </h3>
           <div className="flex items-center gap-1 text-[11px]">
             {([
-              ['all', locale === 'zh-CN' ? '全部' : 'All'],
+              ['all', uiText(locale, '全部', 'All')],
               ['poe1', 'PoE 1'],
               ['poe2', 'PoE 2'],
             ] as const).map(([key, label]) => (
@@ -1490,10 +1470,10 @@ export function ImportExportTab() {
                       </span>
                     </div>
                     <div className="text-sm font-semibold text-zinc-100 mt-1 truncate">
-                      {locale === 'zh-CN' ? preset.titleZh : preset.titleEn}
+                      {uiText(locale, preset.titleZh, preset.titleEn)}
                     </div>
                     <div className="text-[11px] text-zinc-400 truncate">
-                      {locale === 'zh-CN' ? preset.roleZh : preset.roleEn}
+                      {uiText(locale, preset.roleZh, preset.roleEn)}
                     </div>
                   </div>
                   <button
@@ -1512,17 +1492,16 @@ export function ImportExportTab() {
                       <Download className="w-3 h-3" />
                     )}
                     {loadingThis
-                      ? locale === 'zh-CN'
-                        ? '加载中'
-                        : 'Loading'
-                      : locale === 'zh-CN'
-                        ? '加载模板'
-                        : 'Load'}
+                      ? uiText(locale, '加载中', 'Loading')
+                      : uiText(locale, '加载模板', 'Load')}
                   </button>
                 </div>
 
                 <div className="flex flex-wrap gap-1">
-                  {(locale === 'zh-CN' ? preset.tagsZh : preset.tagsEn).map((tag) => (
+                  {(locale === 'en'
+                    ? preset.tagsEn
+                    : preset.tagsZh.map((tag) => uiText(locale, tag, tag))
+                  ).map((tag) => (
                     <span
                       key={tag}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-[#161c2b] border border-[#2a3147] text-zinc-300"
@@ -1552,9 +1531,7 @@ export function ImportExportTab() {
         </div>
 
         <div className="text-[10px] text-zinc-500">
-          {locale === 'zh-CN'
-            ? '每个模板都经过官方 PoE 1 3.30 / PoE 2 0.5 数据校验，加载后可直接在天赋树、技能与装备页继续微调。'
-            : 'Every preset is validated against official PoE 1 3.30 / PoE 2 0.5 data; refine it further on the Tree, Skills and Items tabs after loading.'}
+          {uiText(locale, '每个模板都经过官方 PoE 1 3.30 / PoE 2 0.5 数据校验，加载后可直接在天赋树、技能与装备页继续微调。', 'Every preset is validated against official PoE 1 3.30 / PoE 2 0.5 data; refine it further on the Tree, Skills and Items tabs after loading.')}
         </div>
       </div>
 
@@ -1589,10 +1566,10 @@ export function ImportExportTab() {
           >
             {xmlOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             <FileCode2 className="w-4 h-4 text-sky-300" />
-            {locale === 'zh-CN' ? '查看 / 复制 PoB XML 源码' : 'Inspect Raw PoB XML'}
+            {uiText(locale, '查看 / 复制 PoB XML 源码', 'Inspect Raw PoB XML')}
           </button>
           <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-            <span>{locale === 'zh-CN' ? `${xmlLineCount} 行` : `${xmlLineCount} lines`}</span>
+            <span>{uiText(locale, `${xmlLineCount} 行`, `${xmlLineCount} lines`)}</span>
             <span className="text-zinc-600">·</span>
             <span>
               {(xmlByteSize / 1024).toFixed(2)} KB ({xmlByteSize.toLocaleString()} B)
@@ -1604,12 +1581,8 @@ export function ImportExportTab() {
             >
               {xmlCopied ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
               {xmlCopied
-                ? locale === 'zh-CN'
-                  ? '已复制'
-                  : 'Copied'
-                : locale === 'zh-CN'
-                  ? '复制 XML'
-                  : 'Copy XML'}
+                ? uiText(locale, '已复制', 'Copied')
+                : uiText(locale, '复制 XML', 'Copy XML')}
             </button>
           </div>
         </div>

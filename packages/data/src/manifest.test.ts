@@ -30,6 +30,7 @@ import {
   resolveTreeFileFromManifest,
   type DataManifest,
 } from './treeLoader.js';
+import { registerLocaleOverlay, type LocaleOverlayPack } from './localeOverlay.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DATA_DIR = path.resolve(currentDir, '../../../apps/web/public/data');
@@ -76,8 +77,40 @@ describe('manifest.json data contract', () => {
       if (entry.clusters && !fs.existsSync(path.join(PUBLIC_DATA_DIR, entry.clusters))) {
         missing.push(`${game} clusters: ${entry.clusters}`);
       }
+      for (const [loc, file] of Object.entries(entry.i18n ?? {})) {
+        if (file && !fs.existsSync(path.join(PUBLIC_DATA_DIR, file))) {
+          missing.push(`${game} i18n.${loc}: ${file}`);
+        }
+      }
     }
     expect(missing).toEqual([]);
+  });
+
+  it('ships official GGG Traditional Chinese (zh-TW) overlay packs for both PoE 1 and PoE 2', () => {
+    const manifest = readJson<DataManifest>(manifestPath);
+    const poe1File = manifest.games.poe1.i18n?.['zh-TW'];
+    const poe2File = manifest.games.poe2.i18n?.['zh-TW'];
+    expect(poe1File).toBe('poe1-i18n-zh-TW.json');
+    expect(poe2File).toBe('poe2-i18n-zh-TW.json');
+
+    const poe1Pack = readJson<LocaleOverlayPack>(path.join(PUBLIC_DATA_DIR, poe1File!));
+    const poe2Pack = readJson<LocaleOverlayPack>(path.join(PUBLIC_DATA_DIR, poe2File!));
+    expect(poe1Pack.ascendancies.Warden).toBe('守林人');
+    expect(poe1Pack.ascendancies.Trickster).toBe('詐欺師');
+    expect(Object.keys(poe1Pack.nodes).length).toBeGreaterThan(2500);
+    expect(Object.keys(poe1Pack.gems).length).toBeGreaterThan(800);
+
+    expect(poe2Pack.classes.Sorceress).toBe('女術者');
+    expect(poe2Pack.classes.Monk).toBe('僧侶');
+    expect(poe2Pack.ascendancies.Infernalist).toBe('獄火師');
+    expect(poe2Pack.ascendancies.Chronomancer).toBe('時空幻術師');
+    expect(poe2Pack.ascendancies['Gemling Legionnaire']).toBe('古靈軍團');
+    expect(Object.keys(poe2Pack.nodes).length).toBeGreaterThan(4000);
+    expect(Object.keys(poe2Pack.gems).length).toBeGreaterThan(900);
+
+    registerLocaleOverlay('poe2', 'zh-TW', poe2Pack);
+    const sorceress = getClassDef('poe2', 'Sorceress');
+    expect(sorceress.name.zhTw).toBe('女術者');
   });
 
   it('references tree payloads whose game/version match the manifest keys', () => {

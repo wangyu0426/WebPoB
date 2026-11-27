@@ -1,10 +1,12 @@
 export type GameId = 'poe1' | 'poe2';
 
-export type Locale = 'zh-CN' | 'en';
+export type Locale = 'zh-CN' | 'zh-TW' | 'en';
 
 export interface LocalizedText {
   en: string;
   zh: string;
+  /** Official International Traditional Chinese (繁體中文 · 國際服) label when available. */
+  zhTw?: string;
 }
 
 export type DamageType = 'Physical' | 'Lightning' | 'Cold' | 'Fire' | 'Chaos';
@@ -128,6 +130,7 @@ export interface MasteryEffect {
   id: number;
   stats: string[];
   statsZh?: string[];
+  statsZhTw?: string[];
 }
 
 export interface PassiveNode {
@@ -143,8 +146,10 @@ export interface PassiveNode {
   angle?: number;
   /** Canonical English stat lines (fed to ModParser). */
   stats: string[];
-  /** Optional localized display stat lines for Chinese UI. */
+  /** Optional localized display stat lines for Simplified Chinese UI (CN). */
   statsZh?: string[];
+  /** Optional localized display stat lines for Official Traditional Chinese UI (International). */
+  statsZhTw?: string[];
   /** Adjacent node IDs in the undirected passive graph. */
   adjacent: number[];
   /** If this is a class start node, the class ID it belongs to. */
@@ -217,6 +222,7 @@ export interface GemDefinition {
   /** Canonical stat lines granted by this gem (or support gem) to supported skill / player. */
   stats: string[];
   statsZh?: string[];
+  statsZhTw?: string[];
   /** Official per-quality stat lines (substituted with Math.trunc(quality * perQuality)). */
   qualityStats?: Array<{ template: string; perQuality: number }>;
   /** Exact per-level scaling table (1..30) synced from official PoB Lua data when available. */
@@ -290,8 +296,10 @@ export interface Item {
   id: string;
   name: string;
   nameZh?: string;
+  nameZhTw?: string;
   baseName: string;
   baseNameZh?: string;
+  baseNameZhTw?: string;
   rarity: ItemRarity;
   slotType: EquipmentSlotId | 'Any';
   quality: number;
@@ -470,6 +478,7 @@ export interface GameRuleset {
 export interface StatBreakdownRow {
   label: string;
   labelZh: string;
+  labelZhTw?: string;
   base: number;
   incPct: number;
   moreMultiplier: number;

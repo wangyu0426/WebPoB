@@ -3,7 +3,7 @@ import { ChevronDown, Copy, Gauge, Plus, Search, Sparkles, Star, Trash2, X, Zap 
 import type { EquipmentSlotId, GemDefinition, Locale, WeaponSetId } from '@webpob/core';
 import { getGemsForGame, getRuleset } from '@webpob/data';
 import { calculateBuild, rankSupportGemsForGroup } from '@webpob/calc';
-import { getSlotLabel, localizeStatLine, localizeText, t } from '@webpob/i18n';
+import { getSlotLabel, isChineseLocale, localizeStatLine, localizeText, t, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { searchGemsCatalog, type GemCategoryFilter } from '../utils/gemSearch';
 
@@ -138,9 +138,7 @@ function GemSearchPicker({
             }
           }}
           placeholder={
-            locale === 'zh-CN'
-              ? '+ 搜索主动 / 辅助技能（中/英文/标签）...'
-              : '+ Search active / support gems (name / tag)...'
+            uiText(locale, '+ 搜索主动 / 辅助技能（中/英文/标签）...', '+ Search active / support gems (name / tag)...')
           }
           className="pob-input w-full min-w-0 rounded pl-8 pr-12 py-1.5 text-xs"
         />
@@ -152,7 +150,7 @@ function GemSearchPicker({
                 setLocalQuery('');
                 inputRef.current?.focus();
               }}
-              aria-label={locale === 'zh-CN' ? '清空搜索' : 'Clear search'}
+              aria-label={uiText(locale, '清空搜索', 'Clear search')}
               className="p-0.5 text-zinc-400 hover:text-zinc-200 cursor-pointer"
             >
               <X className="w-3 h-3" />
@@ -164,7 +162,7 @@ function GemSearchPicker({
               setOpen((v) => !v);
               if (!open) inputRef.current?.focus();
             }}
-            aria-label={locale === 'zh-CN' ? '展开技能列表' : 'Toggle gem list'}
+            aria-label={uiText(locale, '展开技能列表', 'Toggle gem list')}
             className="p-0.5 text-zinc-400 hover:text-zinc-200 cursor-pointer"
           >
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -181,17 +179,17 @@ function GemSearchPicker({
                 [
                   {
                     id: 'all' as GemCategoryFilter,
-                    label: locale === 'zh-CN' ? '全部' : 'All',
+                    label: uiText(locale, '全部', 'All'),
                     count: result.totalActive + result.totalSupport,
                   },
                   {
                     id: 'active' as GemCategoryFilter,
-                    label: locale === 'zh-CN' ? '主动' : 'Active',
+                    label: uiText(locale, '主动', 'Active'),
                     count: result.totalActive,
                   },
                   {
                     id: 'support' as GemCategoryFilter,
-                    label: locale === 'zh-CN' ? '辅助' : 'Support',
+                    label: uiText(locale, '辅助', 'Support'),
                     count: result.totalSupport,
                   },
                 ]
@@ -214,7 +212,7 @@ function GemSearchPicker({
             </div>
             {globalQuery.trim() && !localQuery.trim() && (
               <span className="text-[10px] text-amber-300/80 truncate max-w-[10rem]">
-                {locale === 'zh-CN' ? `顶部过滤: ${globalQuery.trim()}` : `Filter: ${globalQuery.trim()}`}
+                {uiText(locale, `顶部过滤: ${globalQuery.trim()}`, `Filter: ${globalQuery.trim()}`)}
               </span>
             )}
           </div>
@@ -224,9 +222,7 @@ function GemSearchPicker({
             {result.items.length === 0 ? (
               <div className="px-3 py-4 text-center text-xs text-zinc-400 space-y-1.5">
                 <div>
-                  {locale === 'zh-CN'
-                    ? '未找到匹配的技能宝石，可尝试中文名、英文名或标签（如 火焰 / 法术 / spell）'
-                    : 'No matching gems found. Try EN/ZH name or tags (e.g. fire, spell).'}
+                  {uiText(locale, '未找到匹配的技能宝石，可尝试中文名、英文名或标签（如 火焰 / 法术 / spell）', 'No matching gems found. Try EN/ZH name or tags (e.g. fire, spell).')}
                 </div>
                 {category !== 'all' && result.totalActive + result.totalSupport > 0 && (
                   <button
@@ -235,9 +231,7 @@ function GemSearchPicker({
                     onClick={() => setCategory('all')}
                     className="text-amber-300 hover:underline text-[11px] cursor-pointer"
                   >
-                    {locale === 'zh-CN'
-                      ? `在「全部」中查看 ${result.totalActive + result.totalSupport} 个结果`
-                      : `Show ${result.totalActive + result.totalSupport} matches in All`}
+                    {uiText(locale, `在「全部」中查看 ${result.totalActive + result.totalSupport} 个结果`, `Show ${result.totalActive + result.totalSupport} matches in All`)}
                   </button>
                 )}
               </div>
@@ -245,7 +239,7 @@ function GemSearchPicker({
               result.items.map((gem, idx) => {
                 const isHighlighted = idx === highlightIdx;
                 const primaryName = localizeText(gem.name, locale);
-                const secondaryName = locale === 'zh-CN' ? gem.name.en : gem.name.zh;
+                const secondaryName = isChineseLocale(locale) ? gem.name.en : gem.name.zh;
                 const tags = displayGemTags(gem.tags);
                 return (
                   <button
@@ -291,9 +285,7 @@ function GemSearchPicker({
 
           {result.totalMatched > result.items.length && (
             <div className="px-2.5 py-1 border-t border-[#1f2638] bg-[#0e121f] text-[10px] text-zinc-400 text-center">
-              {locale === 'zh-CN'
-                ? `已显示前 ${result.items.length} / ${result.totalMatched} 颗，继续输入关键词快速定位`
-                : `Showing top ${result.items.length} of ${result.totalMatched} gems — type to narrow down`}
+              {uiText(locale, `已显示前 ${result.items.length} / ${result.totalMatched} 颗，继续输入关键词快速定位`, `Showing top ${result.items.length} of ${result.totalMatched} gems — type to narrow down`)}
             </div>
           )}
         </div>
@@ -409,14 +401,14 @@ export function SkillsTab() {
         <div className="flex items-center gap-3">
           <h2 className="text-base font-bold text-amber-200">{t(locale, 'skills.title')}</h2>
           <span className="text-[11px] font-mono text-zinc-400">
-            {gemsCatalog.length} {locale === 'zh-CN' ? '颗官方技能宝石' : 'official gems'}
+            {gemsCatalog.length} {uiText(locale, '颗官方技能宝石', 'official gems')}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Multi-SkillSet Switcher */}
           <div className="flex items-center gap-1 rounded bg-[#0c0f18] border border-[#262d42] px-2 py-1 text-xs">
             <span className="text-[10px] text-zinc-400">
-              {locale === 'zh-CN' ? '技能方案:' : 'Skill Set:'}
+              {uiText(locale, '技能方案:', 'Skill Set:')}
             </span>
             <select
               value={activeSkillSetIndex}
@@ -433,23 +425,21 @@ export function SkillsTab() {
               type="button"
               onClick={() =>
                 addSkillSet(
-                  locale === 'zh-CN'
-                    ? `方案 ${skillSets.length + 1}`
-                    : `Set ${skillSets.length + 1}`,
+                  uiText(locale, `方案 ${skillSets.length + 1}`, `Set ${skillSets.length + 1}`),
                   true,
                 )
               }
-              title={locale === 'zh-CN' ? '克隆当前技能组为新方案' : 'Clone current skills into new Skill Set'}
+              title={uiText(locale, '克隆当前技能组为新方案', 'Clone current skills into new Skill Set')}
               className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#181e2f] hover:bg-[#232b42] text-amber-200 border border-[#2b344d] text-[11px] cursor-pointer"
             >
               <Copy className="w-3 h-3" />
-              <span>{locale === 'zh-CN' ? '克隆' : 'Clone'}</span>
+              <span>{uiText(locale, '克隆', 'Clone')}</span>
             </button>
             {skillSets.length > 1 && (
               <button
                 type="button"
                 onClick={() => deleteSkillSet(activeSkillSetIndex)}
-                title={locale === 'zh-CN' ? '删除当前技能方案' : 'Delete active Skill Set'}
+                title={uiText(locale, '删除当前技能方案', 'Delete active Skill Set')}
                 className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
               >
                 <Trash2 className="w-3 h-3" />
@@ -462,14 +452,14 @@ export function SkillsTab() {
               type="text"
               value={gemSearch}
               onChange={(e) => setGemSearch(e.target.value)}
-              placeholder={locale === 'zh-CN' ? '全局预过滤宝石（中/英文/标签）...' : 'Global gem filter (EN/ZH/tag)...'}
+              placeholder={uiText(locale, '全局预过滤宝石（中/英文/标签）...', 'Global gem filter (EN/ZH/tag)...')}
               className="pob-input rounded pl-8 pr-7 py-1 text-xs w-full sm:w-56"
             />
             {gemSearch && (
               <button
                 type="button"
                 onClick={() => setGemSearch('')}
-                aria-label={locale === 'zh-CN' ? '清空全局过滤' : 'Clear global filter'}
+                aria-label={uiText(locale, '清空全局过滤', 'Clear global filter')}
                 className="p-0.5 text-zinc-400 hover:text-zinc-200 absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
               >
                 <X className="w-3 h-3" />
@@ -492,9 +482,9 @@ export function SkillsTab() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-200">
               <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-              {locale === 'zh-CN' ? '全技能总 DPS 贡献 (Full DPS Breakdown)' : 'Full DPS Breakdown'}
+              {uiText(locale, '全技能总 DPS 贡献 (Full DPS Breakdown)', 'Full DPS Breakdown')}
               <span className="text-[10px] font-mono font-normal text-emerald-300/70">
-                {fullDpsBreakdown.rows.length} {locale === 'zh-CN' ? '组' : 'groups'}
+                {fullDpsBreakdown.rows.length} {uiText(locale, '组', 'groups')}
               </span>
             </div>
             <span className="font-mono text-[11px] font-bold text-emerald-300">
@@ -581,9 +571,7 @@ export function SkillsTab() {
                       <div
                         className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-mono shrink-0 ${tone}`}
                         title={
-                          locale === 'zh-CN'
-                            ? '该技能组独立计算的总 DPS'
-                            : 'Standalone total DPS for this skill group'
+                          uiText(locale, '该技能组独立计算的总 DPS', 'Standalone total DPS for this skill group')
                         }
                       >
                         <Zap className="w-3 h-3 opacity-80" />
@@ -612,7 +600,7 @@ export function SkillsTab() {
                         onChange={(e) =>
                           updateSkillGroup(group.id, { mainActiveSkillIndex: Number(e.target.value) || 1 })
                         }
-                        title={locale === 'zh-CN' ? '选择本组主计算主动技能（如 CoC 法术）' : 'Active skill to calculate (e.g. CoC spell)'}
+                        title={uiText(locale, '选择本组主计算主动技能（如 CoC 法术）', 'Active skill to calculate (e.g. CoC spell)')}
                         className="pob-input rounded px-2 py-1 text-xs text-cyan-200 border-cyan-500/40"
                       >
                         {activeInGroup.map((item, idx) => (
@@ -668,9 +656,7 @@ export function SkillsTab() {
                       updateSkillGroup(group.id, { includeInFullDps: !group.includeInFullDps })
                     }
                     title={
-                      locale === 'zh-CN'
-                        ? '计入全技能总 DPS（Full DPS，适合多图腾/召唤物/多技能并联）'
-                        : 'Include this skill group in Full DPS aggregation'
+                      uiText(locale, '计入全技能总 DPS（Full DPS，适合多图腾/召唤物/多技能并联）', 'Include this skill group in Full DPS aggregation')
                     }
                     className={`px-2 py-1 rounded text-xs cursor-pointer border transition ${
                       group.includeInFullDps
@@ -678,7 +664,7 @@ export function SkillsTab() {
                         : 'bg-[#1a1f2e] text-zinc-400 hover:text-emerald-200 border-[#2a3147]'
                     }`}
                   >
-                    {locale === 'zh-CN' ? '计入总DPS' : 'Full DPS'}
+                    {uiText(locale, '计入总DPS', 'Full DPS')}
                   </button>
 
                   <button
@@ -711,7 +697,7 @@ export function SkillsTab() {
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] uppercase tracking-wide text-zinc-500 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
-                  {locale === 'zh-CN' ? '快捷预设' : 'Quick Presets'}
+                  {uiText(locale, '快捷预设', 'Quick Presets')}
                 </span>
                 {(
                   [
@@ -725,7 +711,7 @@ export function SkillsTab() {
                     type="button"
                     disabled={group.gems.length === 0}
                     onClick={() => applyGemPreset(group.id, preset.id)}
-                    title={locale === 'zh-CN' ? preset.tipZh : preset.tipEn}
+                    title={uiText(locale, preset.tipZh, preset.tipEn)}
                     className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       preset.id === '21/20'
                         ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border-amber-500/40'
@@ -734,7 +720,7 @@ export function SkillsTab() {
                           : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
                     }`}
                   >
-                    {locale === 'zh-CN' ? preset.zh : preset.en}
+                    {uiText(locale, preset.zh, preset.en)}
                   </button>
                 ))}
               </div>
@@ -802,7 +788,7 @@ export function SkillsTab() {
                           <>
                             <label
                               className="text-[10px] text-emerald-400/90 font-mono"
-                              title={locale === 'zh-CN' ? '同时生效数量（如 20 狂灵 / 4 图腾）' : 'Active instance count for Full DPS'}
+                              title={uiText(locale, '同时生效数量（如 20 狂灵 / 4 图腾）', 'Active instance count for Full DPS')}
                             >
                               ×
                             </label>
@@ -816,7 +802,7 @@ export function SkillsTab() {
                                   count: Math.max(1, Math.min(99, Number(e.target.value) || 1)),
                                 })
                               }
-                              title={locale === 'zh-CN' ? '同时生效数量（Full DPS 乘数）' : 'Active count multiplier'}
+                              title={uiText(locale, '同时生效数量（Full DPS 乘数）', 'Active count multiplier')}
                               className="pob-input rounded w-11 px-1 py-0.5 text-center font-mono text-xs text-emerald-300"
                             />
                           </>
@@ -885,7 +871,7 @@ export function SkillsTab() {
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    {locale === 'zh-CN' ? '按 DPS 推荐辅助' : 'Rank Supports'}
+                    {uiText(locale, '按 DPS 推荐辅助', 'Rank Supports')}
                   </button>
                 </div>
 
@@ -893,9 +879,7 @@ export function SkillsTab() {
                   <div className="rounded bg-[#0a0d14] border border-emerald-500/35 p-2.5 space-y-1.5">
                     <div className="text-[11px] font-semibold text-emerald-300 flex items-center justify-between">
                       <span>
-                        {locale === 'zh-CN'
-                          ? '实时模拟最高 DPS 辅助宝石推荐 (Lv.20)'
-                          : 'Top Compatible Support Gems by Live DPS Gain (Lv.20)'}
+                        {uiText(locale, '实时模拟最高 DPS 辅助宝石推荐 (Lv.20)', 'Top Compatible Support Gems by Live DPS Gain (Lv.20)')}
                       </span>
                       <span className="text-[10px] text-zinc-400 font-mono">
                         Top {rankedSupports.length}
@@ -903,9 +887,7 @@ export function SkillsTab() {
                     </div>
                     {rankedSupports.length === 0 ? (
                       <div className="text-[11px] text-zinc-500 py-1">
-                        {locale === 'zh-CN'
-                          ? '未找到更高 DPS 增益的兼容辅助宝石（或此组仅含光环）'
-                          : 'No compatible support gem with positive DPS gain found.'}
+                        {uiText(locale, '未找到更高 DPS 增益的兼容辅助宝石（或此组仅含光环）', 'No compatible support gem with positive DPS gain found.')}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">

@@ -20,6 +20,7 @@ import {
   getTreeForGame,
   hasOfficialTreeLoaded,
   loadDataManifest,
+  loadLocaleOverlay,
   loadOfficialBaseItems,
   loadOfficialClasses,
   loadOfficialClusterNotables,
@@ -52,6 +53,7 @@ interface WebPobState {
   redo: () => void;
   ensureOfficialDataLoaded: (game?: GameId, treeVersion?: string) => Promise<void>;
   ensureSecondaryDataLoaded: (game?: GameId) => Promise<void>;
+  ensureLocaleOverlayLoaded: (game?: GameId, locale?: Locale) => Promise<void>;
   setLocale: (locale: Locale) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setTreePaintMode: (mode: TreePaintMode) => void;
@@ -109,7 +111,8 @@ function detectDefaultLocale(): Locale {
   if (typeof navigator !== 'undefined') {
     const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
     const primary = langs.find(Boolean) ?? '';
-    return /^zh(?:$|[-_])/i.test(primary) ? 'zh-CN' : 'en';
+    if (/^zh[-_](?:TW|HK|MO|Hant)\b/i.test(primary)) return 'zh-TW';
+    if (/^zh(?:$|[-_])/i.test(primary)) return 'zh-CN';
   }
   return 'en';
 }
@@ -120,6 +123,7 @@ function getUrlLocaleOverride(): Locale | null {
     const lang = new URLSearchParams(window.location.search).get('lang')?.trim();
     if (!lang) return null;
     if (/^en(?:$|[-_])/i.test(lang)) return 'en';
+    if (/^(?:zh[-_](?:TW|HK|MO|Hant)|tw|hant)$/i.test(lang)) return 'zh-TW';
     if (/^zh(?:$|[-_])/i.test(lang)) return 'zh-CN';
   } catch {
     // ignore URL parse errors
@@ -134,7 +138,9 @@ function loadInitialBuild(): { build: Build; locale: Locale } {
     if (raw) {
       const parsed = JSON.parse(raw) as { build?: Build; locale?: Locale };
       if (parsed.build && (parsed.build.game === 'poe1' || parsed.build.game === 'poe2')) {
-        const locale: Locale = urlLocale ?? (parsed.locale === 'en' ? 'en' : 'zh-CN');
+        const storedLocale: Locale =
+          parsed.locale === 'en' ? 'en' : parsed.locale === 'zh-TW' ? 'zh-TW' : 'zh-CN';
+        const locale: Locale = urlLocale ?? storedLocale;
         syncDocumentLang(locale);
         return { build: parsed.build, locale };
       }
@@ -280,22 +286,40 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       return task;
     },
 
+    ensureLocaleOverlayLoaded: async (gameArg, localeArg) => {
+      const game = gameArg ?? get().build.game;
+      const locale = localeArg ?? get().locale;
+      if (locale !== 'zh-TW') return;
+      const manifest = await loadDataManifest('/data');
+      const manifestFile = manifest?.games?.[game]?.i18n?.[locale];
+      const loaded = await loadLocaleOverlay(game, locale, '/data', manifestFile);
+      if (loaded && get().build.game === game) {
+        const cur = get().build;
+        set({ treeRevision: get().treeRevision + 1, calc: calculateBuild(cur) });
+      }
+    },
+
     ensureOfficialDataLoaded: async (gameArg, treeVersionArg) => {
       const game = gameArg ?? get().build.game;
+      const activeLocale = get().locale;
       // A specific historical tree version only short-circuits when THAT version is loaded.
       if (treeVersionArg ? hasOfficialTreeLoaded(game, treeVersionArg) : hasOfficialTreeLoaded(game)) {
+        if (activeLocale === 'zh-TW') {
+          await get().ensureLocaleOverlayLoaded(game, activeLocale);
+        }
         return;
       }
       set({ dataLoading: true });
       try {
-        // Stage 1 (Critical Path): manifest + classes + passive tree + gems so the tree,
-        // dynamic class list & DPS render immediately. Manifest-driven so new season /
-        // 1.0 datasets load without a client rebuild.
-        const [, , tree] = await Promise.all([
-          loadDataManifest('/data'),
+        // Stage 1 (Critical Path): manifest + classes + passive tree + gems (+ zh-TW overlay when active)
+        const manifest = await loadDataManifest('/data');
+        const [, tree] = await Promise.all([
           loadOfficialClasses(game, '/data'),
           loadOfficialTree(game, '/data', treeVersionArg),
           loadOfficialGems(game),
+          activeLocale === 'zh-TW'
+            ? loadLocaleOverlay(game, 'zh-TW', '/data', manifest?.games?.[game]?.i18n?.['zh-TW'])
+            : Promise.resolve(null),
         ]);
         const cur = get().build;
         if (cur.game === game) {
@@ -355,6 +379,9 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       syncDocumentLang(locale);
       persistState(get().build, locale);
       set({ locale });
+      if (locale === 'zh-TW') {
+        void get().ensureLocaleOverlayLoaded(get().build.game, locale);
+      }
     },
 
     setActiveTab: (activeTab) => set({ activeTab }),

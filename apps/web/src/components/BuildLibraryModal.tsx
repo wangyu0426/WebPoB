@@ -1,3 +1,4 @@
+import { uiText } from '@webpob/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Copy, Download, FolderOpen, Save, Trash2, Upload, X } from 'lucide-react';
 import type { GameId } from '@webpob/core';
@@ -47,7 +48,7 @@ export function BuildLibraryModal({
     const savedBuild = {
       ...build,
       id,
-      name: asNewCopy ? `${build.name} (${locale === 'zh-CN' ? '副本' : 'Copy'})` : build.name,
+      name: asNewCopy ? `${build.name} (${uiText(locale, '副本', 'Copy')})` : build.name,
     };
     await saveBuildRecord({
       id,
@@ -64,9 +65,7 @@ export function BuildLibraryModal({
     });
     await refresh();
     setStatusMsg(
-      locale === 'zh-CN'
-        ? `已保存「${savedBuild.name}」到本地 IndexedDB 库`
-        : `Saved "${savedBuild.name}" to local IndexedDB library`,
+      uiText(locale, `已保存「${savedBuild.name}」到本地 IndexedDB 库`, `Saved "${savedBuild.name}" to local IndexedDB library`),
     );
   };
 
@@ -91,9 +90,7 @@ export function BuildLibraryModal({
     a.click();
     URL.revokeObjectURL(url);
     setStatusMsg(
-      locale === 'zh-CN'
-        ? `已导出 ${records.length} 套 BD 备份 (.json)`
-        : `Exported ${records.length} builds backup (.json)`,
+      uiText(locale, `已导出 ${records.length} 套 BD 备份 (.json)`, `Exported ${records.length} builds backup (.json)`),
     );
   };
 
@@ -103,15 +100,11 @@ export function BuildLibraryModal({
       const count = await importLibraryJson(text);
       await refresh();
       setStatusMsg(
-        locale === 'zh-CN'
-          ? `已从备份文件导入 ${count} 套 BD`
-          : `Imported ${count} builds from backup file`,
+        uiText(locale, `已从备份文件导入 ${count} 套 BD`, `Imported ${count} builds from backup file`),
       );
     } catch {
       setStatusMsg(
-        locale === 'zh-CN'
-          ? '导入失败：备份 JSON 格式无效'
-          : 'Import failed: invalid backup JSON format',
+        uiText(locale, '导入失败：备份 JSON 格式无效', 'Import failed: invalid backup JSON format'),
       );
     }
   };
@@ -125,7 +118,7 @@ export function BuildLibraryModal({
         <div className="px-4 py-3 border-b border-[#252b3d] flex items-center justify-between bg-[#121622]">
           <div className="flex items-center gap-2 text-amber-200 font-bold text-sm">
             <FolderOpen className="w-4 h-4 text-amber-400" />
-            {locale === 'zh-CN' ? '本地 BD 库 (IndexedDB)' : 'Local Build Library (IndexedDB)'}
+            {uiText(locale, '本地 BD 库 (IndexedDB)', 'Local Build Library (IndexedDB)')}
             <span className="text-[11px] font-mono text-zinc-400 font-normal">
               ({records.length})
             </span>
@@ -155,7 +148,7 @@ export function BuildLibraryModal({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '保存当前 BD' : 'Save Current'}
+              {uiText(locale, '保存当前 BD', 'Save Current')}
             </button>
             <button
               type="button"
@@ -163,7 +156,7 @@ export function BuildLibraryModal({
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-zinc-300 bg-[#1a1f2e] hover:bg-[#242b3f] border border-[#2c3348] cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '另存副本' : 'Save Copy'}
+              {uiText(locale, '另存副本', 'Save Copy')}
             </button>
           </div>
         </div>
@@ -188,7 +181,7 @@ export function BuildLibraryModal({
                     : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
                 }`}
               >
-                {tab === 'all' ? (locale === 'zh-CN' ? '全部' : 'All') : tab === 'poe1' ? 'PoE 1' : 'PoE 2'}
+                {tab === 'all' ? (uiText(locale, '全部', 'All')) : tab === 'poe1' ? 'PoE 1' : 'PoE 2'}
               </button>
             ))}
           </div>
@@ -210,7 +203,7 @@ export function BuildLibraryModal({
               className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 cursor-pointer"
             >
               <Download className="w-3 h-3" />
-              {locale === 'zh-CN' ? '导出备份' : 'Export JSON'}
+              {uiText(locale, '导出备份', 'Export JSON')}
             </button>
             <button
               type="button"
@@ -218,7 +211,7 @@ export function BuildLibraryModal({
               className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 cursor-pointer"
             >
               <Upload className="w-3 h-3" />
-              {locale === 'zh-CN' ? '导入备份' : 'Import JSON'}
+              {uiText(locale, '导入备份', 'Import JSON')}
             </button>
           </div>
         </div>
@@ -227,9 +220,7 @@ export function BuildLibraryModal({
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
           {filtered.length === 0 ? (
             <div className="py-10 text-center text-xs text-zinc-500">
-              {locale === 'zh-CN'
-                ? '暂无已保存的 BD，点击上方「保存当前 BD」即可离线保存。'
-                : 'No saved builds yet. Click "Save Current" above to store builds offline.'}
+              {uiText(locale, '暂无已保存的 BD，点击上方「保存当前 BD」即可离线保存。', 'No saved builds yet. Click "Save Current" above to store builds offline.')}
             </div>
           ) : (
             filtered.map((rec) => (
@@ -272,13 +263,13 @@ export function BuildLibraryModal({
                     onClick={() => void handleLoad(rec)}
                     className="px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 cursor-pointer"
                   >
-                    {locale === 'zh-CN' ? '加载' : 'Load'}
+                    {uiText(locale, '加载', 'Load')}
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleDelete(rec.id)}
                     className="p-1.5 rounded text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30 cursor-pointer"
-                    title={locale === 'zh-CN' ? '删除' : 'Delete'}
+                    title={uiText(locale, '删除', 'Delete')}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

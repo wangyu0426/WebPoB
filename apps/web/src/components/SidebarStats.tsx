@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, Sparkles } from 'lucide-react';
 import { analyzeBuildDiagnostics } from '@webpob/calc';
 import { getClassesForGame } from '@webpob/data';
-import { localizeText, t } from '@webpob/i18n';
+import { localizeText, t, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
 function fmtNum(n: number): string {
@@ -82,7 +82,7 @@ export function SidebarStats() {
       {copiedStats && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 rounded-full bg-emerald-950/95 border border-emerald-400/60 px-3 py-1.5 text-xs font-semibold text-emerald-200 shadow-xl pointer-events-none">
           <Check className="w-3.5 h-3.5" />
-          {locale === 'zh-CN' ? '战绩已复制到剪贴板' : 'Build stats copied to clipboard'}
+          {uiText(locale, '战绩已复制到剪贴板', 'Build stats copied to clipboard')}
         </div>
       )}
       {/* Main Skill Picker */}
@@ -94,7 +94,7 @@ export function SidebarStats() {
           <button
             type="button"
             onClick={() => void copyStatsSummary()}
-            title={locale === 'zh-CN' ? '复制一行构筑战绩摘要' : 'Copy one-line build stats summary'}
+            title={uiText(locale, '复制一行构筑战绩摘要', 'Copy one-line build stats summary')}
             className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer transition whitespace-nowrap ${
               copiedStats
                 ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300'
@@ -103,12 +103,8 @@ export function SidebarStats() {
           >
             {copiedStats ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
             {copiedStats
-              ? locale === 'zh-CN'
-                ? '已复制'
-                : 'Copied'
-              : locale === 'zh-CN'
-                ? '复制战绩'
-                : 'Copy Stats'}
+              ? uiText(locale, '已复制', 'Copied')
+              : uiText(locale, '复制战绩', 'Copy Stats')}
           </button>
         </div>
         <select
@@ -146,7 +142,7 @@ export function SidebarStats() {
           <div className="mt-2 pt-2 border-t border-emerald-500/30 space-y-1">
             <div className="flex items-baseline justify-between">
               <span className="text-[11px] font-semibold text-emerald-300">
-                {locale === 'zh-CN' ? '全技能合计 (Full DPS)' : 'Full DPS'}
+                {uiText(locale, '全技能合计 (Full DPS)', 'Full DPS')}
               </span>
               <span className="text-base font-mono font-bold text-emerald-300 tabular-nums">
                 {fmtNum(offence.fullDps)}
@@ -182,7 +178,7 @@ export function SidebarStats() {
         <StatRow label={t(locale, 'sidebar.hitDps')} value={fmtNum(offence.hitDps)} valueClass="text-amber-200" />
         {(offence.impaleDps ?? 0) > 0 && (
           <StatRow
-            label={locale === 'zh-CN' ? '穿刺 DPS' : 'Impale DPS'}
+            label={uiText(locale, '穿刺 DPS', 'Impale DPS')}
             value={fmtNum(offence.impaleDps!)}
             valueClass="text-amber-400"
           />
@@ -194,15 +190,13 @@ export function SidebarStats() {
           <StatRow label={t(locale, 'sidebar.bleedDps')} value={fmtNum(offence.bleedDps)} valueClass="text-rose-400" />
         )}
         {offence.poisonDps > 0 && (
-          <StatRow label={locale === 'zh-CN' ? '中毒 DPS' : 'Poison DPS'} value={fmtNum(offence.poisonDps)} valueClass="text-lime-400" />
+          <StatRow label={uiText(locale, '中毒 DPS', 'Poison DPS')} value={fmtNum(offence.poisonDps)} valueClass="text-lime-400" />
         )}
         <StatRow label={t(locale, 'sidebar.averageHit')} value={fmtNum(offence.averageHit)} />
         <StatRow
           label={
             offence.triggerRate !== undefined
-              ? locale === 'zh-CN'
-                ? '触发频率 (CoC)'
-                : 'Trigger Rate (CoC)'
+              ? uiText(locale, '触发频率 (CoC)', 'Trigger Rate (CoC)')
               : t(locale, 'sidebar.speed')
           }
           value={`${offence.speed.toFixed(2)} /s`}
@@ -222,7 +216,7 @@ export function SidebarStats() {
         <StatRow label={t(locale, 'sidebar.life')} value={fmtNum(defence.life)} valueClass="text-rose-400" sub={defence.lifeRegen > 0 ? `+${defence.lifeRegen}/s` : undefined} />
         {(defence.lifeLeechRate ?? 0) > 0 && (
           <StatRow
-            label={locale === 'zh-CN' ? '生命偷取速率' : 'Life Leech Rate'}
+            label={uiText(locale, '生命偷取速率', 'Life Leech Rate')}
             value={`+${fmtNum(defence.lifeLeechRate!)} /s`}
             valueClass="text-rose-300"
           />
@@ -230,14 +224,14 @@ export function SidebarStats() {
         <StatRow label={t(locale, 'sidebar.energyShield')} value={fmtNum(defence.energyShield)} valueClass="text-sky-400" />
         {(defence.esLeechRate ?? 0) > 0 && (
           <StatRow
-            label={locale === 'zh-CN' ? '护盾偷取速率' : 'ES Leech Rate'}
+            label={uiText(locale, '护盾偷取速率', 'ES Leech Rate')}
             value={`+${fmtNum(defence.esLeechRate!)} /s`}
             valueClass="text-sky-300"
           />
         )}
         {(defence.ward ?? 0) > 0 && (
           <StatRow
-            label={locale === 'zh-CN' ? '结界 (Ward)' : 'Ward'}
+            label={uiText(locale, '结界 (Ward)', 'Ward')}
             value={fmtNum(defence.ward!)}
             valueClass="text-indigo-300"
           />
@@ -253,10 +247,10 @@ export function SidebarStats() {
           </div>
           <div className="flex items-center justify-between text-[9px] font-mono">
             <span className="text-blue-400">
-              {locale === 'zh-CN' ? '可用' : 'Free'} {fmtNum(defence.manaUnreserved)}
+              {uiText(locale, '可用', 'Free')} {fmtNum(defence.manaUnreserved)}
             </span>
             <span className={manaOverReserved ? 'text-rose-400 font-semibold' : 'text-amber-300'}>
-              {locale === 'zh-CN' ? '保留' : 'Reserved'} {manaReservedPct}%
+              {uiText(locale, '保留', 'Reserved')} {manaReservedPct}%
             </span>
           </div>
         </div>
@@ -277,10 +271,10 @@ export function SidebarStats() {
               </div>
               <div className="flex items-center justify-between text-[9px] font-mono">
                 <span className="text-amber-200">
-                  {locale === 'zh-CN' ? '可用' : 'Free'} {defence.spiritUnreserved}
+                  {uiText(locale, '可用', 'Free')} {defence.spiritUnreserved}
                 </span>
                 <span className={defence.spiritUnreserved < 0 ? 'text-rose-400 font-semibold' : 'text-amber-300'}>
-                  {locale === 'zh-CN' ? '保留' : 'Reserved'} {spiritReservedPct}%
+                  {uiText(locale, '保留', 'Reserved')} {spiritReservedPct}%
                 </span>
               </div>
             </div>
@@ -395,9 +389,7 @@ export function SidebarStats() {
             ) : (
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
             )}
-            {locale === 'zh-CN'
-              ? `构筑体检诊断 (${diagnostics.length})`
-              : `Build Diagnostics (${diagnostics.length})`}
+            {uiText(locale, `构筑体检诊断 (${diagnostics.length})`, `Build Diagnostics (${diagnostics.length})`)}
           </span>
           {diagOpen ? (
             <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
@@ -409,9 +401,7 @@ export function SidebarStats() {
         {diagOpen && (
           diagnostics.length === 0 ? (
             <p className="text-[11px] text-emerald-200/80 leading-snug">
-              {locale === 'zh-CN'
-                ? '抗性、命中、保留与生命护盾状态良好！'
-                : 'Resists, hit chance, reservations, and hit pool look healthy!'}
+              {uiText(locale, '抗性、命中、保留与生命护盾状态良好！', 'Resists, hit chance, reservations, and hit pool look healthy!')}
             </p>
           ) : (
             <div className="space-y-1.5 pt-0.5">
@@ -442,7 +432,7 @@ export function SidebarStats() {
                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-[10px] text-emerald-200 cursor-pointer"
                       >
                         <Sparkles className="w-2.5 h-2.5" />
-                        {locale === 'zh-CN' ? '一键开启药剂' : 'Enable Flasks'}
+                        {uiText(locale, '一键开启药剂', 'Enable Flasks')}
                       </button>
                     )}
                     {d.actionTab && (
@@ -451,15 +441,13 @@ export function SidebarStats() {
                         onClick={() => setActiveTab(d.actionTab!)}
                         className="px-1.5 py-0.5 rounded bg-[#1a2033] hover:bg-[#232b42] border border-[#323b56] text-[10px] text-amber-200 cursor-pointer"
                       >
-                        {locale === 'zh-CN'
-                          ? d.actionTab === 'items'
+                        {uiText(locale, d.actionTab === 'items'
                             ? '去装备页修复 →'
                             : d.actionTab === 'skills'
                               ? '去技能页调整 →'
                               : d.actionTab === 'tree'
                                 ? '去天赋树优化 →'
-                                : '去配置页 →'
-                          : `Fix in ${d.actionTab} →`}
+                                : '去配置页 →', `Fix in ${d.actionTab} →`)}
                       </button>
                     )}
                   </div>

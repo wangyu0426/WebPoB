@@ -15,9 +15,9 @@ import {
   X,
 } from 'lucide-react';
 import type { Build, EquipmentSlotId, Item, ItemRarity, Locale } from '@webpob/core';
-import { getRuleset } from '@webpob/data';
+import { getLocalizedUniqueName, getRuleset } from '@webpob/data';
 import { resolveItemEffectiveStats } from '@webpob/calc';
-import { getSlotLabel, normalizeStatLineToEn } from '@webpob/i18n';
+import { getSlotLabel, normalizeStatLineToEn, toTraditionalZh, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 
 const RARITY_TEXT: Record<ItemRarity, string> = {
@@ -460,7 +460,7 @@ function quickStatPill(item: Item, locale: Locale): string | null {
     if (item.armourStats.energyShield) parts.push(`ES ${item.armourStats.energyShield}`);
     if (item.armourStats.armour) parts.push(`AR ${item.armourStats.armour}`);
     if (item.armourStats.evasion) parts.push(`EV ${item.armourStats.evasion}`);
-    if (item.armourStats.ward) parts.push(`${locale === 'zh-CN' ? '结界' : 'Ward'} ${item.armourStats.ward}`);
+    if (item.armourStats.ward) parts.push(`${uiText(locale, '结界', 'Ward')} ${item.armourStats.ward}`);
     if (parts.length > 0) return parts.slice(0, 2).join(' · ');
   }
   const line = [...item.implicits, ...item.explicits]
@@ -481,8 +481,8 @@ export function GearSummaryDrawer({
   onSelectSlot: (slot: EquipmentSlotId) => void;
 }) {
   const { locale, build } = useWebPobStore();
-  const cn = locale === 'zh-CN';
-  const l = (zh: string, en: string) => (cn ? zh : en);
+  const cn = locale !== 'en';
+  const l = (zh: string, en: string) => uiText(locale, zh, en);
 
   const [tradeSlot, setTradeSlot] = useState<EquipmentSlotId>(selectedSlot);
   const [tradeOpen, setTradeOpen] = useState(true);
@@ -690,7 +690,11 @@ export function GearSummaryDrawer({
                     <span className="flex-1 min-w-0 truncate">
                       {item ? (
                         <span className={`font-semibold ${RARITY_TEXT[item.rarity]}`}>
-                          {cn && item.nameZh ? item.nameZh : item.name}
+                          {locale === 'zh-TW'
+                            ? item.nameZhTw || getLocalizedUniqueName(item.name, 'zh-TW', build.game, item.nameZh ? toTraditionalZh(item.nameZh) : undefined)
+                            : cn && item.nameZh
+                              ? item.nameZh
+                              : item.name}
                         </span>
                       ) : (
                         <span className={isMissingCore ? 'text-amber-300/80 italic' : 'text-zinc-600 italic'}>

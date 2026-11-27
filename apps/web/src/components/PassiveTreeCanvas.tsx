@@ -33,7 +33,7 @@ import {
   instantiateUniqueItem,
   normalizeAscendancyTreeKey,
 } from '@webpob/data';
-import { localizeStatLine, localizeText, t } from '@webpob/i18n';
+import { isChineseLocale, localizeStatLine, localizeText, t, toSimplifiedZh, toTraditionalZh, uiText } from '@webpob/i18n';
 import { computeNodePower } from '@webpob/calc';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { computeHeatmapInWorker } from '../workers/calcWorkerClient';
@@ -798,17 +798,20 @@ export function PassiveTreeCanvas() {
   const matchedSearchList = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
+    const qSimp = toSimplifiedZh(q);
     const matches: PassiveNode[] = [];
     for (const node of visibleNodes) {
       const hay = [
         node.name.en,
         node.name.zh,
+        node.name.zhTw ?? '',
         ...node.stats,
         ...(node.statsZh ?? []),
+        ...(node.statsZhTw ?? []),
       ]
         .join(' ')
         .toLowerCase();
-      if (hay.includes(q)) {
+      if (hay.includes(q) || (qSimp !== q && hay.includes(qSimp))) {
         matches.push(node);
       }
     }
@@ -846,13 +849,21 @@ export function PassiveTreeCanvas() {
         (node.kind === 'notable' || node.kind === 'keystone') && allocatedTreeSet.has(node.id)
       );
     });
+    const qSimp = toSimplifiedZh(q);
     const filtered = q
-      ? pool.filter((node) =>
-          [node.name.en, node.name.zh, ...node.stats, ...(node.statsZh ?? [])]
+      ? pool.filter((node) => {
+          const hay = [
+            node.name.en,
+            node.name.zh,
+            node.name.zhTw ?? '',
+            ...node.stats,
+            ...(node.statsZh ?? []),
+            ...(node.statsZhTw ?? []),
+          ]
             .join(' ')
-            .toLowerCase()
-            .includes(q),
-        )
+            .toLowerCase();
+          return hay.includes(q) || (qSimp !== q && hay.includes(qSimp));
+        })
       : pool;
     return filtered
       .slice()
@@ -900,12 +911,16 @@ export function PassiveTreeCanvas() {
       if (node.kind === 'mastery') {
         const chosen = build.tree.masteryEffects[node.id];
         if (chosen) {
-          if (locale === 'zh-CN' && node.masteryEffects) {
+          if (isChineseLocale(locale) && node.masteryEffects) {
             const matched = node.masteryEffects.find(
               (m) => m.stats.join('\n') === chosen || m.stats.includes(chosen),
             );
-            if (matched?.statsZh && matched.statsZh.length > 0) {
-              for (const s of matched.statsZh) addLine(s, true);
+            const localizedList =
+              locale === 'zh-TW'
+                ? matched?.statsZhTw ?? matched?.statsZh?.map((s) => toTraditionalZh(s))
+                : matched?.statsZh;
+            if (localizedList && localizedList.length > 0) {
+              for (const s of localizedList) addLine(s, true);
               continue;
             }
           }
@@ -913,7 +928,11 @@ export function PassiveTreeCanvas() {
         }
         continue;
       }
-      if (locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0) {
+      if (locale === 'zh-TW' && node.statsZhTw && node.statsZhTw.length > 0) {
+        for (const stat of node.statsZhTw) addLine(stat, true);
+      } else if (locale === 'zh-TW' && node.statsZh && node.statsZh.length > 0) {
+        for (const stat of node.statsZh) addLine(toTraditionalZh(stat), true);
+      } else if (locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0) {
         for (const stat of node.statsZh) addLine(stat, true);
       } else {
         for (const stat of node.stats) addLine(stat);
@@ -939,7 +958,7 @@ export function PassiveTreeCanvas() {
     const sections: string[] = [];
     if (allocatedSummary.keystones.length > 0) {
       sections.push(
-        `${locale === 'zh-CN' ? '基石' : 'Keystones'}:\n${allocatedSummary.keystones
+        `${uiText(locale, '基石', 'Keystones')}:\n${allocatedSummary.keystones
           .map((node) => `- ${localizeText(node.name, locale)}`)
           .join('\n')}`,
       );
@@ -947,14 +966,14 @@ export function PassiveTreeCanvas() {
     const notables = [...allocatedSummary.ascendancyNotables, ...allocatedSummary.notables];
     if (notables.length > 0) {
       sections.push(
-        `${locale === 'zh-CN' ? '大点' : 'Notables'}:\n${notables
+        `${uiText(locale, '大点', 'Notables')}:\n${notables
           .map((node) => `- ${localizeText(node.name, locale)}`)
           .join('\n')}`,
       );
     }
     if (allocatedSummary.masteries.length > 0) {
       sections.push(
-        `${locale === 'zh-CN' ? '专精' : 'Masteries'}:\n${allocatedSummary.masteries
+        `${uiText(locale, '专精', 'Masteries')}:\n${allocatedSummary.masteries
           .map((node) => {
             const chosen = build.tree.masteryEffects[node.id];
             return `- ${localizeText(node.name, locale)}${chosen ? `: ${localizeStatLine(chosen, locale)}` : ''}`;
@@ -964,7 +983,7 @@ export function PassiveTreeCanvas() {
     }
     const text =
       sections.join('\n\n') ||
-      (locale === 'zh-CN' ? '尚未分配任何天赋' : 'No passives allocated yet');
+      (uiText(locale, '尚未分配任何天赋', 'No passives allocated yet'));
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
@@ -1660,7 +1679,12 @@ export function PassiveTreeCanvas() {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#fde68a';
-            const label = locale === 'zh-CN' && cn.nameZh ? cn.nameZh : cn.name;
+            const label =
+              locale === 'zh-TW' && cn.nameZh
+                ? toTraditionalZh(cn.nameZh)
+                : locale === 'zh-CN' && cn.nameZh
+                  ? cn.nameZh
+                  : cn.name;
             ctx.fillText(label, cn.x, cn.y + cr + 4 * invZoom);
           }
         }
@@ -1947,6 +1971,18 @@ export function PassiveTreeCanvas() {
   const masteryModalNode = masteryModalNodeId !== null ? tree.nodes[masteryModalNodeId] : null;
 
   const getDisplayStats = (node: PassiveNode): string[] => {
+    if (locale === 'zh-TW') {
+      if (node.statsZhTw && node.statsZhTw.length > 0) {
+        return node.statsZhTw.map((s, i) =>
+          /[\u4e00-\u9fff]/.test(s) ? s : localizeStatLine(node.stats[i] ?? s, locale),
+        );
+      }
+      if (node.statsZh && node.statsZh.length > 0) {
+        return node.statsZh.map((s) =>
+          /[\u4e00-\u9fff]/.test(s) ? toTraditionalZh(s) : localizeStatLine(s, locale),
+        );
+      }
+    }
     if (locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0) {
       return node.statsZh.map((s) => (/[\u4e00-\u9fff]/.test(s) ? s : localizeStatLine(s, locale)));
     }
@@ -2008,11 +2044,11 @@ export function PassiveTreeCanvas() {
           <button
             type="button"
             onClick={fitAllocated}
-            title={locale === 'zh-CN' ? '框选已点天赋' : 'Fit Allocated'}
+            title={uiText(locale, '框选已点天赋', 'Fit Allocated')}
             className="flex items-center gap-1 px-2 py-1.5 rounded bg-cyan-500/15 border border-cyan-500/45 text-xs font-semibold text-cyan-200 cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Scan className="w-3.5 h-3.5" />
-            <span>{locale === 'zh-CN' ? '框选' : 'Fit'}</span>
+            <span>{uiText(locale, '框选', 'Fit')}</span>
           </button>
           <button
             type="button"
@@ -2025,7 +2061,7 @@ export function PassiveTreeCanvas() {
             aria-expanded={mobileToolsOpen}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>{locale === 'zh-CN' ? '工具' : 'Tools'}</span>
+            <span>{uiText(locale, '工具', 'Tools')}</span>
           </button>
         </div>
 
@@ -2083,7 +2119,7 @@ export function PassiveTreeCanvas() {
                   className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-200 cursor-pointer whitespace-nowrap"
                 >
                   <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                  <span>{locale === 'zh-CN' ? `升华 ${calc.ascendancyPoints ?? 0}/8` : `Asc ${calc.ascendancyPoints ?? 0}/8`}</span>
+                  <span>{uiText(locale, `升华 ${calc.ascendancyPoints ?? 0}/8`, `Asc ${calc.ascendancyPoints ?? 0}/8`)}</span>
                 </button>
               )}
               <button
@@ -2095,7 +2131,7 @@ export function PassiveTreeCanvas() {
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
               >
                 <Crosshair className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '定位BD' : 'Focus'}</span>
+                <span>{uiText(locale, '定位BD', 'Focus')}</span>
               </button>
               <button
                 type="button"
@@ -2106,7 +2142,7 @@ export function PassiveTreeCanvas() {
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
               >
                 <Maximize2 className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '全景' : 'Fit All'}</span>
+                <span>{uiText(locale, '全景', 'Fit All')}</span>
               </button>
               <button
                 type="button"
@@ -2129,7 +2165,7 @@ export function PassiveTreeCanvas() {
                 }`}
               >
                 <Flame className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '热力图' : 'Power'}</span>
+                <span>{uiText(locale, '热力图', 'Power')}</span>
               </button>
               <button
                 type="button"
@@ -2151,7 +2187,7 @@ export function PassiveTreeCanvas() {
                 }`}
               >
                 <Gem className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '基石/槽' : 'Keystones'}</span>
+                <span>{uiText(locale, '基石/槽', 'Keystones')}</span>
               </button>
               <button
                 type="button"
@@ -2173,7 +2209,7 @@ export function PassiveTreeCanvas() {
                 }`}
               >
                 <ListTree className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '已点总览' : 'Allocated'}</span>
+                <span>{uiText(locale, '已点总览', 'Allocated')}</span>
               </button>
               <button
                 type="button"
@@ -2183,7 +2219,7 @@ export function PassiveTreeCanvas() {
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
               >
                 <ZoomIn className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '放大' : 'Zoom +'}</span>
+                <span>{uiText(locale, '放大', 'Zoom +')}</span>
               </button>
               <button
                 type="button"
@@ -2193,7 +2229,7 @@ export function PassiveTreeCanvas() {
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-[#2a3147] text-zinc-200 cursor-pointer whitespace-nowrap"
               >
                 <ZoomOut className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '缩小' : 'Zoom -'}</span>
+                <span>{uiText(locale, '缩小', 'Zoom -')}</span>
               </button>
               <button
                 type="button"
@@ -2204,16 +2240,14 @@ export function PassiveTreeCanvas() {
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-[#141824] border border-sky-500/35 text-sky-300 cursor-pointer whitespace-nowrap"
               >
                 <Camera className="w-3.5 h-3.5 shrink-0" />
-                <span>{locale === 'zh-CN' ? '导出PNG' : 'PNG'}</span>
+                <span>{uiText(locale, '导出PNG', 'PNG')}</span>
               </button>
             </div>
 
             <div className="flex items-center justify-between pt-1 border-t border-[#20263a]">
               <span className="text-[10px] font-mono text-zinc-500">
                 {dataLoading
-                  ? locale === 'zh-CN'
-                    ? '加载官方天赋树中...'
-                    : 'Loading official tree...'
+                  ? uiText(locale, '加载官方天赋树中...', 'Loading official tree...')
                   : `v${tree.version} · ${visibleNodes.length.toLocaleString()} nodes`}
               </span>
               <button
@@ -2349,7 +2383,7 @@ export function PassiveTreeCanvas() {
             className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Crosshair className="w-3.5 h-3.5" />
-            {locale === 'zh-CN' ? '定位BD' : 'Focus'}
+            {uiText(locale, '定位BD', 'Focus')}
           </button>
           {ascendancyCenter && (
             <button
@@ -2359,7 +2393,7 @@ export function PassiveTreeCanvas() {
               className="flex items-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 hover:bg-amber-500/25 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? `升华 (${calc.ascendancyPoints ?? 0}/8)` : `Asc (${calc.ascendancyPoints ?? 0}/8)`}
+              {uiText(locale, `升华 (${calc.ascendancyPoints ?? 0}/8)`, `Asc (${calc.ascendancyPoints ?? 0}/8)`)}
             </button>
           )}
           <button
@@ -2381,9 +2415,7 @@ export function PassiveTreeCanvas() {
               });
             }}
             title={
-              locale === 'zh-CN'
-                ? '后台 Web Worker 计算高收益大点热力图（橙=DPS / 蓝=EHP）'
-                : 'Background Web Worker Node Power Heatmap (Orange=DPS / Blue=EHP)'
+              uiText(locale, '后台 Web Worker 计算高收益大点热力图（橙=DPS / 蓝=EHP）', 'Background Web Worker Node Power Heatmap (Orange=DPS / Blue=EHP)')
             }
             className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition whitespace-nowrap shrink-0 ${
               heatmapEnabled
@@ -2396,7 +2428,7 @@ export function PassiveTreeCanvas() {
             ) : (
               <Flame className="w-3.5 h-3.5" />
             )}
-            {locale === 'zh-CN' ? '热力图' : 'Power'}
+            {uiText(locale, '热力图', 'Power')}
           </button>
           <button
             type="button"
@@ -2411,9 +2443,7 @@ export function PassiveTreeCanvas() {
               });
             }}
             title={
-              locale === 'zh-CN'
-                ? '快速跳转基石、珠宝插槽与已点大点'
-                : 'Quick-jump to Keystones, Jewel Sockets & allocated Notables'
+              uiText(locale, '快速跳转基石、珠宝插槽与已点大点', 'Quick-jump to Keystones, Jewel Sockets & allocated Notables')
             }
             className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition whitespace-nowrap shrink-0 ${
               jumpDrawerOpen
@@ -2422,7 +2452,7 @@ export function PassiveTreeCanvas() {
             }`}
           >
             <Gem className="w-3.5 h-3.5" />
-            {locale === 'zh-CN' ? '基石/插槽' : 'Keystones'}
+            {uiText(locale, '基石/插槽', 'Keystones')}
           </button>
           <button
             type="button"
@@ -2437,9 +2467,7 @@ export function PassiveTreeCanvas() {
               });
             }}
             title={
-              locale === 'zh-CN'
-                ? '查看已点天赋与聚合词缀总览'
-                : 'Allocated passives and aggregated modifiers overview'
+              uiText(locale, '查看已点天赋与聚合词缀总览', 'Allocated passives and aggregated modifiers overview')
             }
             className={`flex items-center gap-1 px-2 py-1.5 rounded border text-xs cursor-pointer transition whitespace-nowrap shrink-0 ${
               allocatedDrawerOpen
@@ -2448,20 +2476,18 @@ export function PassiveTreeCanvas() {
             }`}
           >
             <ListTree className="w-3.5 h-3.5" />
-            {locale === 'zh-CN' ? '已点总览' : 'Allocated'}
+            {uiText(locale, '已点总览', 'Allocated')}
           </button>
           <button
             type="button"
             onClick={fitAllocated}
             title={
-              locale === 'zh-CN'
-                ? '自动缩放并框选当前已点天赋（含 PoE 2 武器组）'
-                : 'Auto-center and zoom to frame all allocated passives (incl. PoE 2 weapon sets)'
+              uiText(locale, '自动缩放并框选当前已点天赋（含 PoE 2 武器组）', 'Auto-center and zoom to frame all allocated passives (incl. PoE 2 weapon sets)')
             }
             className="flex items-center gap-1 px-2 py-1.5 rounded bg-cyan-500/15 border border-cyan-500/45 text-xs text-cyan-200 hover:bg-cyan-500/25 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Scan className="w-3.5 h-3.5" />
-            {locale === 'zh-CN' ? '框选已点' : 'Fit Allocated'}
+            {uiText(locale, '框选已点', 'Fit Allocated')}
           </button>
           <button
             type="button"
@@ -2470,16 +2496,16 @@ export function PassiveTreeCanvas() {
             className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-[#2a3147] text-xs text-zinc-300 hover:text-amber-200 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Maximize2 className="w-3.5 h-3.5" />
-            {locale === 'zh-CN' ? '全景' : 'Fit All'}
+            {uiText(locale, '全景', 'Fit All')}
           </button>
           <button
             type="button"
             onClick={exportTreePng}
-            title={locale === 'zh-CN' ? '将当前天赋树画布导出为高清 PNG 图片' : 'Export current Passive Tree canvas as PNG'}
+            title={uiText(locale, '将当前天赋树画布导出为高清 PNG 图片', 'Export current Passive Tree canvas as PNG')}
             className="flex items-center gap-1 px-2 py-1.5 rounded bg-[#141824]/90 border border-sky-500/35 text-xs text-sky-300 hover:bg-sky-950/40 cursor-pointer whitespace-nowrap shrink-0"
           >
             <Camera className="w-3.5 h-3.5" />
-            {locale === 'zh-CN' ? '导出树图' : 'PNG'}
+            {uiText(locale, '导出树图', 'PNG')}
           </button>
           <button
             type="button"
@@ -2500,13 +2526,13 @@ export function PassiveTreeCanvas() {
       {/* Bottom-Right Multi-Spec Tree Switcher & Visual Diff Bar */}
       <div className="absolute bottom-2 left-2 right-2 md:left-auto md:bottom-3 md:right-3 z-10 pointer-events-auto flex items-center gap-1.5 rounded-md bg-[#0e121c]/92 border border-[#2a3147] px-2 md:px-2.5 py-1.5 shadow-xl text-xs">
         <span className="hidden sm:inline text-[10px] uppercase tracking-wider text-zinc-400 font-semibold shrink-0">
-          {locale === 'zh-CN' ? '天赋方案' : 'Spec'}
+          {uiText(locale, '天赋方案', 'Spec')}
         </span>
         <select
           value={activeTreeSpecIdx}
           onChange={(e) => switchTreeSpec(Number(e.target.value))}
           className="pob-input rounded px-1.5 md:px-2 py-0.5 text-xs min-w-0 flex-1 md:flex-none md:max-w-[140px]"
-          aria-label={locale === 'zh-CN' ? '天赋方案' : 'Tree Spec'}
+          aria-label={uiText(locale, '天赋方案', 'Tree Spec')}
         >
           {treeSpecs.map((spec, idx) => (
             <option key={`${spec.title}_${idx}`} value={idx}>
@@ -2518,15 +2544,15 @@ export function PassiveTreeCanvas() {
           type="button"
           onClick={() =>
             addTreeSpec(
-              locale === 'zh-CN' ? `方案 ${treeSpecs.length + 1}` : `Spec ${treeSpecs.length + 1}`,
+              uiText(locale, `方案 ${treeSpecs.length + 1}`, `Spec ${treeSpecs.length + 1}`),
               true,
             )
           }
-          title={locale === 'zh-CN' ? '复制当前天赋树为新方案' : 'Clone active tree into a new Spec'}
+          title={uiText(locale, '复制当前天赋树为新方案', 'Clone active tree into a new Spec')}
           className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#161c2b] hover:bg-[#1e263a] border border-[#2e364f] text-[11px] text-amber-200 cursor-pointer shrink-0"
         >
           <Copy className="w-3 h-3" />
-          {locale === 'zh-CN' ? '新方案' : 'Clone'}
+          {uiText(locale, '新方案', 'Clone')}
         </button>
         {treeSpecs.length > 1 && (
           <>
@@ -2536,7 +2562,7 @@ export function PassiveTreeCanvas() {
                 deleteTreeSpec(activeTreeSpecIdx);
                 setCompareSpecIdx(null);
               }}
-              title={locale === 'zh-CN' ? '删除当前天赋方案' : 'Delete active Tree Spec'}
+              title={uiText(locale, '删除当前天赋方案', 'Delete active Tree Spec')}
               className="hidden sm:inline-block p-1 rounded text-zinc-400 hover:text-rose-400 border border-[#2e364f] cursor-pointer shrink-0"
             >
               <Trash2 className="w-3 h-3" />
@@ -2549,9 +2575,9 @@ export function PassiveTreeCanvas() {
                 setCompareSpecIdx(e.target.value === '' ? null : Number(e.target.value))
               }
               className="pob-input rounded px-1.5 md:px-2 py-0.5 text-xs min-w-0 flex-1 md:flex-none max-w-[130px]"
-              title={locale === 'zh-CN' ? '叠加高亮对比另一套天赋方案的增减节点' : 'Highlight node diff against another Spec'}
+              title={uiText(locale, '叠加高亮对比另一套天赋方案的增减节点', 'Highlight node diff against another Spec')}
             >
-              <option value="">{locale === 'zh-CN' ? '对比差异: 关闭' : 'Diff: Off'}</option>
+              <option value="">{uiText(locale, '对比差异: 关闭', 'Diff: Off')}</option>
               {treeSpecs.map((spec, idx) =>
                 idx === activeTreeSpecIdx ? null : (
                   <option key={`cmp_${idx}`} value={idx}>
@@ -2576,7 +2602,7 @@ export function PassiveTreeCanvas() {
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-orange-300">
               <Flame className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '高收益天赋大点排行' : 'Top Power Notables'}
+              {uiText(locale, '高收益天赋大点排行', 'Top Power Notables')}
               {heatmapLoading && <Loader2 className="w-3 h-3 animate-spin text-amber-300" />}
             </div>
             <button
@@ -2594,12 +2620,8 @@ export function PassiveTreeCanvas() {
               className="text-[10px] text-zinc-400 hover:text-zinc-200 cursor-pointer px-1"
             >
               {powerDrawerOpen
-                ? locale === 'zh-CN'
-                  ? '收起'
-                  : 'Hide'
-                : locale === 'zh-CN'
-                  ? '展开'
-                  : 'Show'}
+                ? uiText(locale, '收起', 'Hide')
+                : uiText(locale, '展开', 'Show')}
             </button>
           </div>
           {powerDrawerOpen && (
@@ -2607,10 +2629,10 @@ export function PassiveTreeCanvas() {
               <div className="grid grid-cols-4 gap-1 p-1.5 bg-[#0a0d14] border-b border-[#1e2436] text-[10px]">
                 {(
                   [
-                    ['dpsPerPoint', locale === 'zh-CN' ? 'DPS/点' : 'DPS/Pt'],
-                    ['dps', locale === 'zh-CN' ? '总 DPS' : 'Total DPS'],
-                    ['ehpPerPoint', locale === 'zh-CN' ? 'EHP/点' : 'EHP/Pt'],
-                    ['ehp', locale === 'zh-CN' ? '总 EHP' : 'Total EHP'],
+                    ['dpsPerPoint', uiText(locale, 'DPS/点', 'DPS/Pt')],
+                    ['dps', uiText(locale, '总 DPS', 'Total DPS')],
+                    ['ehpPerPoint', uiText(locale, 'EHP/点', 'EHP/Pt')],
+                    ['ehp', uiText(locale, '总 EHP', 'Total EHP')],
                   ] as const
                 ).map(([mode, label]) => (
                   <button
@@ -2632,13 +2654,11 @@ export function PassiveTreeCanvas() {
               <div className="overflow-y-auto divide-y divide-[#1b2030]">
                 {heatmapLoading && topPowerNodes.length === 0 ? (
                   <div className="p-4 text-center text-[11px] text-zinc-400">
-                    {locale === 'zh-CN'
-                      ? '后台 Web Worker 正在模拟 300 个周边大点...'
-                      : 'Web Worker simulating 300 nearby notables...'}
+                    {uiText(locale, '后台 Web Worker 正在模拟 300 个周边大点...', 'Web Worker simulating 300 nearby notables...')}
                   </div>
                 ) : topPowerNodes.length === 0 ? (
                   <div className="p-4 text-center text-[11px] text-zinc-500">
-                    {locale === 'zh-CN' ? '未发现正收益大点' : 'No positive power notables found.'}
+                    {uiText(locale, '未发现正收益大点', 'No positive power notables found.')}
                   </div>
                 ) : (
                   topPowerNodes.map(({ item, node }, idx) => {
@@ -2668,7 +2688,7 @@ export function PassiveTreeCanvas() {
                               +{primaryPct.toFixed(1)}% {isDpsMode ? 'DPS' : 'EHP'}
                             </span>
                             <span className="text-zinc-400">
-                              {item.pathCost} {locale === 'zh-CN' ? '点' : 'pts'}
+                              {item.pathCost} {uiText(locale, '点', 'pts')}
                             </span>
                             <span className="text-emerald-300">
                               (+{perPt.toFixed(1)}%/pt)
@@ -2679,9 +2699,7 @@ export function PassiveTreeCanvas() {
                           type="button"
                           onClick={() => togglePassiveNode(node.id)}
                           title={
-                            locale === 'zh-CN'
-                              ? `一键沿最短路径分配 (${item.pathCost} 点)`
-                              : `Allocate shortest path (${item.pathCost} pts)`
+                            uiText(locale, `一键沿最短路径分配 (${item.pathCost} 点)`, `Allocate shortest path (${item.pathCost} pts)`)
                           }
                           className="p-1 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 shrink-0 cursor-pointer"
                         >
@@ -2703,7 +2721,7 @@ export function PassiveTreeCanvas() {
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Gem className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '基石 / 珠宝槽 快速跳转' : 'Keystone & Socket Jump'}
+              {uiText(locale, '基石 / 珠宝槽 快速跳转', 'Keystone & Socket Jump')}
               <span className="rounded bg-cyan-500/15 border border-cyan-500/30 px-1 text-[10px] font-mono text-cyan-200">
                 {jumpDrawerNodes.length}
               </span>
@@ -2712,7 +2730,7 @@ export function PassiveTreeCanvas() {
               type="button"
               onClick={() => setJumpDrawerOpen(false)}
               className="text-zinc-400 hover:text-zinc-200 cursor-pointer p-0.5"
-              title={locale === 'zh-CN' ? '关闭' : 'Close'}
+              title={uiText(locale, '关闭', 'Close')}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -2721,9 +2739,9 @@ export function PassiveTreeCanvas() {
             <div className="grid grid-cols-3 gap-1 text-[10px]">
               {(
                 [
-                  ['keystone', locale === 'zh-CN' ? '基石' : 'Keystones'],
-                  ['jewel', locale === 'zh-CN' ? '珠宝槽' : 'Jewel Sockets'],
-                  ['allocated', locale === 'zh-CN' ? '已点大点' : 'Allocated Notables'],
+                  ['keystone', uiText(locale, '基石', 'Keystones')],
+                  ['jewel', uiText(locale, '珠宝槽', 'Jewel Sockets')],
+                  ['allocated', uiText(locale, '已点大点', 'Allocated Notables')],
                 ] as const
               ).map(([mode, label]) => (
                 <button
@@ -2747,7 +2765,7 @@ export function PassiveTreeCanvas() {
                 value={jumpQuery}
                 onChange={(e) => setJumpQuery(e.target.value)}
                 placeholder={
-                  locale === 'zh-CN' ? '搜索名称或词缀…' : 'Search name or stats…'
+                  uiText(locale, '搜索名称或词缀…', 'Search name or stats…')
                 }
                 className="pob-input rounded pl-7 pr-7 py-1 text-[11px] w-full"
               />
@@ -2765,23 +2783,25 @@ export function PassiveTreeCanvas() {
           <div className="overflow-y-auto divide-y divide-[#1b2030]">
             {jumpDrawerNodes.length === 0 ? (
               <div className="p-4 text-center text-[11px] text-zinc-500">
-                {locale === 'zh-CN' ? '没有匹配的节点' : 'No matching nodes.'}
+                {uiText(locale, '没有匹配的节点', 'No matching nodes.')}
               </div>
             ) : (
               jumpDrawerNodes.map((node) => {
                 const allocated = allocatedTreeSet.has(node.id);
                 const isHighlighted = highlightedNodeId === node.id;
                 const rawFirstStat =
-                  locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0
-                    ? node.statsZh[0]!
-                    : node.stats[0];
+                  locale === 'zh-TW' && node.statsZhTw && node.statsZhTw.length > 0
+                    ? node.statsZhTw[0]!
+                    : locale === 'zh-TW' && node.statsZh && node.statsZh.length > 0
+                      ? toTraditionalZh(node.statsZh[0]!)
+                      : locale === 'zh-CN' && node.statsZh && node.statsZh.length > 0
+                        ? node.statsZh[0]!
+                        : node.stats[0];
                 const firstStat = rawFirstStat
-                  ? /[\u4e00-\u9fff]/.test(rawFirstStat) && locale === 'zh-CN'
+                  ? /[\u4e00-\u9fff]/.test(rawFirstStat) && isChineseLocale(locale)
                     ? rawFirstStat
                     : localizeStatLine(rawFirstStat, locale)
-                  : locale === 'zh-CN'
-                    ? '未提供词缀'
-                    : 'No stat text';
+                  : uiText(locale, '未提供词缀', 'No stat text');
                 return (
                   <button
                     key={node.id}
@@ -2800,12 +2820,8 @@ export function PassiveTreeCanvas() {
                         }`}
                         title={
                           allocated
-                            ? locale === 'zh-CN'
-                              ? '已点'
-                              : 'Allocated'
-                            : locale === 'zh-CN'
-                              ? '未点'
-                              : 'Unallocated'
+                            ? uiText(locale, '已点', 'Allocated')
+                            : uiText(locale, '未点', 'Unallocated')
                         }
                       />
                       <span className="text-xs font-semibold text-zinc-100 truncate">
@@ -2813,7 +2829,7 @@ export function PassiveTreeCanvas() {
                       </span>
                       {node.kind === 'jewel' && build.tree.socketedJewels?.[node.id] && (
                         <span className="text-[9px] px-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 shrink-0">
-                          {locale === 'zh-CN' ? '已插' : 'Socketed'}
+                          {uiText(locale, '已插', 'Socketed')}
                         </span>
                       )}
                     </div>
@@ -2834,7 +2850,7 @@ export function PassiveTreeCanvas() {
           <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b3d] bg-[#131826]/90">
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
               <ListTree className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '已点天赋总览' : 'Allocated Passives'}
+              {uiText(locale, '已点天赋总览', 'Allocated Passives')}
               <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-1 text-[10px] font-mono text-emerald-200">
                 {allocatedSummary.allocatedNodes.length}
               </span>
@@ -2843,7 +2859,7 @@ export function PassiveTreeCanvas() {
               type="button"
               onClick={() => setAllocatedDrawerOpen(false)}
               className="text-zinc-400 hover:text-zinc-200 cursor-pointer p-0.5"
-              title={locale === 'zh-CN' ? '关闭' : 'Close'}
+              title={uiText(locale, '关闭', 'Close')}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -2853,12 +2869,12 @@ export function PassiveTreeCanvas() {
           <div className="grid grid-cols-3 gap-1 p-1.5 bg-[#0a0d14] border-b border-[#1e2436] text-center">
             {(
               [
-                [locale === 'zh-CN' ? '基石' : 'Keystones', allocatedSummary.keystones.length, 'text-orange-300'],
-                [locale === 'zh-CN' ? '升华大点' : 'Asc Notables', allocatedSummary.ascendancyNotables.length, 'text-amber-300'],
-                [locale === 'zh-CN' ? '大点' : 'Notables', allocatedSummary.notables.length, 'text-sky-300'],
-                [locale === 'zh-CN' ? '珠宝槽' : 'Jewel Sockets', allocatedSummary.jewelSockets.length, 'text-emerald-300'],
-                [locale === 'zh-CN' ? '专精' : 'Masteries', allocatedSummary.masteries.length, 'text-violet-300'],
-                [locale === 'zh-CN' ? '小点' : 'Small Passives', allocatedSummary.smallPassives.length, 'text-zinc-300'],
+                [uiText(locale, '基石', 'Keystones'), allocatedSummary.keystones.length, 'text-orange-300'],
+                [uiText(locale, '升华大点', 'Asc Notables'), allocatedSummary.ascendancyNotables.length, 'text-amber-300'],
+                [uiText(locale, '大点', 'Notables'), allocatedSummary.notables.length, 'text-sky-300'],
+                [uiText(locale, '珠宝槽', 'Jewel Sockets'), allocatedSummary.jewelSockets.length, 'text-emerald-300'],
+                [uiText(locale, '专精', 'Masteries'), allocatedSummary.masteries.length, 'text-violet-300'],
+                [uiText(locale, '小点', 'Small Passives'), allocatedSummary.smallPassives.length, 'text-zinc-300'],
               ] as const
             ).map(([label, count, tone]) => (
               <div key={label} className="rounded bg-[#10141f] border border-[#1f2638] px-1 py-1">
@@ -2871,10 +2887,10 @@ export function PassiveTreeCanvas() {
           <div className="overflow-y-auto divide-y divide-[#1b2030]">
             {(
               [
-                [locale === 'zh-CN' ? '基石' : 'Keystones', allocatedSummary.keystones, 'text-orange-300'],
-                [locale === 'zh-CN' ? '升华大点' : 'Ascendancy Notables', allocatedSummary.ascendancyNotables, 'text-amber-300'],
-                [locale === 'zh-CN' ? '大点' : 'Notables', allocatedSummary.notables, 'text-sky-300'],
-                [locale === 'zh-CN' ? '已点专精' : 'Allocated Masteries', allocatedSummary.masteries, 'text-violet-300'],
+                [uiText(locale, '基石', 'Keystones'), allocatedSummary.keystones, 'text-orange-300'],
+                [uiText(locale, '升华大点', 'Ascendancy Notables'), allocatedSummary.ascendancyNotables, 'text-amber-300'],
+                [uiText(locale, '大点', 'Notables'), allocatedSummary.notables, 'text-sky-300'],
+                [uiText(locale, '已点专精', 'Allocated Masteries'), allocatedSummary.masteries, 'text-violet-300'],
               ] as const
             ).map(([label, nodes, tone]) => (
               <div key={label} className="px-2 py-1.5 space-y-1">
@@ -2883,7 +2899,7 @@ export function PassiveTreeCanvas() {
                 </div>
                 {nodes.length === 0 ? (
                   <div className="text-[10px] text-zinc-600 pl-1">
-                    {locale === 'zh-CN' ? '无' : 'None'}
+                    {uiText(locale, '无', 'None')}
                   </div>
                 ) : (
                   nodes.map((node) => {
@@ -2920,12 +2936,12 @@ export function PassiveTreeCanvas() {
             {/* Aggregated Tree Modifiers */}
             <div className="px-2 py-1.5 space-y-1">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
-                {locale === 'zh-CN' ? '天赋词缀汇总' : 'Aggregated Tree Modifiers'}{' '}
+                {uiText(locale, '天赋词缀汇总', 'Aggregated Tree Modifiers')}{' '}
                 <span className="text-zinc-500 font-mono">({allocatedSummary.modifiers.length})</span>
               </div>
               {allocatedSummary.modifiers.length === 0 ? (
                 <div className="text-[10px] text-zinc-600 pl-1">
-                  {locale === 'zh-CN' ? '无' : 'None'}
+                  {uiText(locale, '无', 'None')}
                 </div>
               ) : (
                 <div className="space-y-0.5 max-h-56 overflow-y-auto pr-0.5">
@@ -2959,12 +2975,8 @@ export function PassiveTreeCanvas() {
             >
               {allocatedCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
               {allocatedCopied
-                ? locale === 'zh-CN'
-                  ? '已复制天赋清单'
-                  : 'Tree summary copied'
-                : locale === 'zh-CN'
-                  ? '复制天赋清单'
-                  : 'Copy Tree Summary'}
+                ? uiText(locale, '已复制天赋清单', 'Tree summary copied')
+                : uiText(locale, '复制天赋清单', 'Copy Tree Summary')}
             </button>
           </div>
         </div>
@@ -2977,9 +2989,7 @@ export function PassiveTreeCanvas() {
             <div className="flex items-center justify-between border-b border-[#252b3d] pb-2">
               <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
                 <Sparkles className="w-4 h-4" />
-                {locale === 'zh-CN'
-                  ? `珠宝插槽 #${jewelModalNodeId}`
-                  : `Jewel Socket #${jewelModalNodeId}`}
+                {uiText(locale, `珠宝插槽 #${jewelModalNodeId}`, `Jewel Socket #${jewelModalNodeId}`)}
               </div>
               <button
                 type="button"
@@ -3001,7 +3011,7 @@ export function PassiveTreeCanvas() {
                       : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
-                  {locale === 'zh-CN' ? '普通与传奇珠宝' : 'Standard & Unique'}
+                  {uiText(locale, '普通与传奇珠宝', 'Standard & Unique')}
                 </button>
                 <button
                   type="button"
@@ -3012,7 +3022,7 @@ export function PassiveTreeCanvas() {
                       : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
-                  {locale === 'zh-CN' ? '星团珠宝工坊 (308)' : 'Cluster Jewel (308)'}
+                  {uiText(locale, '星团珠宝工坊 (308)', 'Cluster Jewel (308)')}
                 </button>
                 <button
                   type="button"
@@ -3023,7 +3033,7 @@ export function PassiveTreeCanvas() {
                       : 'bg-[#121623] border-[#262d40] text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
-                  {locale === 'zh-CN' ? '永恒珠宝 (军团基石)' : 'Timeless Jewels'}
+                  {uiText(locale, '永恒珠宝 (军团基石)', 'Timeless Jewels')}
                 </button>
               </div>
             )}
@@ -3040,7 +3050,7 @@ export function PassiveTreeCanvas() {
                       onClick={() => socketJewel(jewelModalNodeId, null)}
                       className="text-[11px] text-rose-300 hover:text-rose-200 cursor-pointer"
                     >
-                      {locale === 'zh-CN' ? '取下珠宝' : 'Unsocket'}
+                      {uiText(locale, '取下珠宝', 'Unsocket')}
                     </button>
                   </div>
                   {[
@@ -3057,9 +3067,7 @@ export function PassiveTreeCanvas() {
             {jewelModalTab === 'timeless' && build.game === 'poe1' ? (
               <div className="space-y-2 text-xs">
                 <div className="text-[11px] text-zinc-400">
-                  {locale === 'zh-CN'
-                    ? '选择经典军团永恒珠宝与征服者核心基石（直接生效于当前计算）:'
-                    : 'Choose an iconic Timeless Jewel & Conqueror Keystone (applies live to calculations):'}
+                  {uiText(locale, '选择经典军团永恒珠宝与征服者核心基石（直接生效于当前计算）:', 'Choose an iconic Timeless Jewel & Conqueror Keystone (applies live to calculations):')}
                 </div>
                 <div className="space-y-1.5 max-h-72 overflow-y-auto">
                   {[
@@ -3127,10 +3135,10 @@ export function PassiveTreeCanvas() {
                       className="w-full text-left rounded p-2.5 bg-[#110e1c] hover:bg-[#1a152c] border border-purple-500/35 cursor-pointer"
                     >
                       <div className="font-semibold text-purple-200">
-                        {locale === 'zh-CN' ? tj.nameZh : tj.name}
+                        {uiText(locale, tj.nameZh, tj.name)}
                       </div>
                       <div className="text-[11px] text-indigo-200/80 mt-0.5">
-                        {locale === 'zh-CN' ? tj.descZh : tj.desc}
+                        {uiText(locale, tj.descZh, tj.desc)}
                       </div>
                     </button>
                   ))}
@@ -3141,7 +3149,7 @@ export function PassiveTreeCanvas() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <label className="space-y-1">
                     <span className="text-[11px] text-zinc-400">
-                      {locale === 'zh-CN' ? '星团尺寸' : 'Cluster Size'}
+                      {uiText(locale, '星团尺寸', 'Cluster Size')}
                     </span>
                     <select
                       value={clusterSize}
@@ -3149,19 +3157,19 @@ export function PassiveTreeCanvas() {
                       className="pob-input w-full rounded px-2 py-1 text-xs"
                     >
                       <option value="Large">
-                        {locale === 'zh-CN' ? '大型星团 (8天赋 / 2插槽)' : 'Large (8 Passives, 2 Sockets)'}
+                        {uiText(locale, '大型星团 (8天赋 / 2插槽)', 'Large (8 Passives, 2 Sockets)')}
                       </option>
                       <option value="Medium">
-                        {locale === 'zh-CN' ? '中型星团 (4天赋 / 1插槽)' : 'Medium (4 Passives, 1 Socket)'}
+                        {uiText(locale, '中型星团 (4天赋 / 1插槽)', 'Medium (4 Passives, 1 Socket)')}
                       </option>
                       <option value="Small">
-                        {locale === 'zh-CN' ? '小型星团 (2天赋)' : 'Small (2 Passives)'}
+                        {uiText(locale, '小型星团 (2天赋)', 'Small (2 Passives)')}
                       </option>
                     </select>
                   </label>
                   <label className="space-y-1 sm:col-span-2">
                     <span className="text-[11px] text-zinc-400">
-                      {locale === 'zh-CN' ? '小天赋基础附魔' : 'Small Passive Enchant'}
+                      {uiText(locale, '小天赋基础附魔', 'Small Passive Enchant')}
                     </span>
                     <select
                       value={clusterSmallGrant}
@@ -3186,7 +3194,7 @@ export function PassiveTreeCanvas() {
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-zinc-400">
-                    {locale === 'zh-CN' ? '小天赋效果提高' : 'Increased Small Passive Effect'}:
+                    {uiText(locale, '小天赋效果提高', 'Increased Small Passive Effect')}:
                   </span>
                   <div className="flex items-center gap-1">
                     {[0, 25, 35].map((pct) => (
@@ -3209,9 +3217,7 @@ export function PassiveTreeCanvas() {
                 {/* Selected Notables Chips */}
                 <div className="space-y-1">
                   <div className="text-[11px] text-zinc-400">
-                    {locale === 'zh-CN'
-                      ? `已选核心天赋 (${clusterSelectedNotables.length}/3):`
-                      : `Selected Cluster Notables (${clusterSelectedNotables.length}/3):`}
+                    {uiText(locale, `已选核心天赋 (${clusterSelectedNotables.length}/3):`, `Selected Cluster Notables (${clusterSelectedNotables.length}/3):`)}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {clusterSelectedNotables.map((name) => (
@@ -3241,9 +3247,7 @@ export function PassiveTreeCanvas() {
                     value={clusterNotableSearch}
                     onChange={(e) => setClusterNotableSearch(e.target.value)}
                     placeholder={
-                      locale === 'zh-CN'
-                        ? '搜索 308 个官方星团核心天赋 (如 风暴痛饮 / 棱光之心 / Prismatic)...'
-                        : 'Search 308 official Cluster Notables (e.g. Storm Drinker, Prismatic Heart)...'
+                      uiText(locale, '搜索 308 个官方星团核心天赋 (如 风暴痛饮 / 棱光之心 / Prismatic)...', 'Search 308 official Cluster Notables (e.g. Storm Drinker, Prismatic Heart)...')
                     }
                     className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
                   />
@@ -3252,7 +3256,7 @@ export function PassiveTreeCanvas() {
                       .filter((n) => {
                         const q = clusterNotableSearch.trim().toLowerCase();
                         if (!q) return true;
-                        return `${n.en} ${n.zh ?? ''} ${n.st.join(' ')} ${(n.sz ?? []).join(' ')}`
+                        return `${n.en} ${n.zh ?? ''} ${n.zhTw ?? ''} ${n.st.join(' ')} ${(n.sz ?? []).join(' ')} ${(n.szTw ?? []).join(' ')}`
                           .toLowerCase()
                           .includes(q);
                       })
@@ -3279,10 +3283,21 @@ export function PassiveTreeCanvas() {
                             }`}
                           >
                             <div className="font-semibold text-amber-200">
-                              {locale === 'zh-CN' && n.zh ? `${n.zh} (${n.en})` : n.en}
+                              {locale === 'zh-TW' && (n.zhTw || n.zh)
+                                ? `${n.zhTw || toTraditionalZh(n.zh!)} (${n.en})`
+                                : locale === 'zh-CN' && n.zh
+                                  ? `${n.zh} (${n.en})`
+                                  : n.en}
                             </div>
                             <div className="text-[10px] text-indigo-200/80 truncate">
-                              {(locale === 'zh-CN' && n.sz ? n.sz : n.st).join(' · ')}
+                              {(locale === 'zh-TW' && n.szTw
+                                ? n.szTw
+                                : locale === 'zh-TW' && n.sz
+                                  ? n.sz.map((s) => toTraditionalZh(s))
+                                  : locale === 'zh-CN' && n.sz
+                                    ? n.sz
+                                    : n.st
+                              ).join(' · ')}
                             </div>
                           </button>
                         );
@@ -3323,7 +3338,7 @@ export function PassiveTreeCanvas() {
                   }}
                   className="w-full py-2 rounded font-semibold bg-amber-500/25 hover:bg-amber-500/35 text-amber-200 border border-amber-400/60 cursor-pointer"
                 >
-                  {locale === 'zh-CN' ? '制作并镶嵌此星团珠宝' : 'Craft & Socket Cluster Jewel'}
+                  {uiText(locale, '制作并镶嵌此星团珠宝', 'Craft & Socket Cluster Jewel')}
                 </button>
               </div>
             ) : (
@@ -3331,7 +3346,7 @@ export function PassiveTreeCanvas() {
                 {/* Quick Rare Jewel Presets */}
                 <div className="space-y-1">
                   <div className="text-[11px] text-zinc-400 font-semibold">
-                    {locale === 'zh-CN' ? '快捷镶嵌稀有珠宝' : 'Quick Rare Jewels'}
+                    {uiText(locale, '快捷镶嵌稀有珠宝', 'Quick Rare Jewels')}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
                     {[
@@ -3374,7 +3389,7 @@ export function PassiveTreeCanvas() {
                         className="rounded p-2 text-left bg-[#121623] hover:bg-[#1a2033] border border-yellow-500/30 text-yellow-200 cursor-pointer"
                       >
                         <div className="font-semibold text-[11px]">
-                          {locale === 'zh-CN' ? preset.nameZh : preset.name}
+                          {uiText(locale, preset.nameZh, preset.name)}
                         </div>
                       </button>
                     ))}
@@ -3387,7 +3402,7 @@ export function PassiveTreeCanvas() {
                     type="text"
                     value={jewelSearch}
                     onChange={(e) => setJewelSearch(e.target.value)}
-                    placeholder={locale === 'zh-CN' ? '搜索官方传奇珠宝 (如 守望之眼 / Watcher)...' : 'Search official Unique Jewels...'}
+                    placeholder={uiText(locale, '搜索官方传奇珠宝 (如 守望之眼 / Watcher)...', 'Search official Unique Jewels...')}
                     className="pob-input w-full rounded px-2.5 py-1.5 text-xs"
                   />
                   <div className="max-h-44 overflow-y-auto space-y-1">
@@ -3396,7 +3411,7 @@ export function PassiveTreeCanvas() {
                         if (u.s !== 'Jewel') return false;
                         const q = jewelSearch.trim().toLowerCase();
                         if (!q) return true;
-                        return `${u.en} ${u.zh ?? ''} ${u.e.join(' ')}`.toLowerCase().includes(q);
+                        return `${u.en} ${u.zh ?? ''} ${u.zhTw ?? ''} ${u.e.join(' ')}`.toLowerCase().includes(q);
                       })
                       .slice(0, 25)
                       .map((u) => (
@@ -3410,7 +3425,11 @@ export function PassiveTreeCanvas() {
                           className="w-full text-left rounded px-2.5 py-1.5 bg-[#0e111b] hover:bg-[#171c2b] border border-orange-500/25 text-xs cursor-pointer"
                         >
                           <div className="font-semibold text-orange-300">
-                            {locale === 'zh-CN' && u.zh ? `${u.zh} (${u.en})` : u.en}
+                            {locale === 'zh-TW' && (u.zhTw || u.zh)
+                              ? `${u.zhTw || toTraditionalZh(u.zh!)} (${u.en})`
+                              : locale === 'zh-CN' && u.zh
+                                ? `${u.zh} (${u.en})`
+                                : u.en}
                           </div>
                           {u.e.length > 0 && (
                             <div className="text-[10px] text-indigo-200/80 truncate">
@@ -3434,7 +3453,7 @@ export function PassiveTreeCanvas() {
                 }}
                 className="px-2.5 py-1 rounded text-xs text-rose-300 hover:bg-rose-950/40 border border-rose-500/35 cursor-pointer"
               >
-                {locale === 'zh-CN' ? '取消点亮此插槽' : 'Unallocate Socket Node'}
+                {uiText(locale, '取消点亮此插槽', 'Unallocate Socket Node')}
               </button>
             </div>
           </div>
@@ -3463,7 +3482,12 @@ export function PassiveTreeCanvas() {
                 const rawEn = effect.stats.join('\n');
                 const isSelected = build.tree.masteryEffects[masteryModalNode.id] === rawEn;
                 const display =
-                  locale === 'zh-CN' && effect.statsZh ? effect.statsZh : effect.stats;
+                  locale === 'zh-TW'
+                    ? effect.statsZhTw ??
+                      (effect.statsZh ? effect.statsZh.map((s) => toTraditionalZh(s)) : effect.stats.map((s) => localizeStatLine(s, locale)))
+                    : locale === 'zh-CN' && effect.statsZh
+                      ? effect.statsZh
+                      : effect.stats;
                 return (
                   <button
                     key={effect.id}
@@ -3501,13 +3525,15 @@ export function PassiveTreeCanvas() {
           <div className="flex items-center justify-between gap-2 border-b border-[#262d40] pb-1.5 mb-2">
             <div>
               <div className="font-bold text-amber-200 text-sm">
-                {locale === 'zh-CN' && hoveredClusterNode.nameZh
-                  ? hoveredClusterNode.nameZh
-                  : hoveredClusterNode.name}
+                {locale === 'zh-TW' && hoveredClusterNode.nameZh
+                  ? toTraditionalZh(hoveredClusterNode.nameZh)
+                  : locale === 'zh-CN' && hoveredClusterNode.nameZh
+                    ? hoveredClusterNode.nameZh
+                    : hoveredClusterNode.name}
               </div>
               {hoveredClusterNode.nameZh && (
                 <div className="text-[10px] text-zinc-400">
-                  {locale === 'zh-CN' ? hoveredClusterNode.name : hoveredClusterNode.nameZh}
+                  {uiText(locale, hoveredClusterNode.name, hoveredClusterNode.nameZh)}
                 </div>
               )}
             </div>
@@ -3516,9 +3542,11 @@ export function PassiveTreeCanvas() {
             </span>
           </div>
           <div className="space-y-1 text-sky-200/95">
-            {(locale === 'zh-CN' && hoveredClusterNode.statsZh
-              ? hoveredClusterNode.statsZh
-              : hoveredClusterNode.stats.map((s) => localizeStatLine(s, locale))
+            {(locale === 'zh-TW' && hoveredClusterNode.statsZh
+              ? hoveredClusterNode.statsZh.map((s) => toTraditionalZh(s))
+              : locale === 'zh-CN' && hoveredClusterNode.statsZh
+                ? hoveredClusterNode.statsZh
+                : hoveredClusterNode.stats.map((s) => localizeStatLine(s, locale))
             ).map((s, idx) => (
               <div key={idx}>• {s}</div>
             ))}
@@ -3542,7 +3570,7 @@ export function PassiveTreeCanvas() {
               </div>
               {hoveredNode.name.zh !== hoveredNode.name.en && (
                 <div className="text-[10px] text-zinc-400 truncate">
-                  {locale === 'zh-CN' ? hoveredNode.name.en : hoveredNode.name.zh}
+                  {uiText(locale, hoveredNode.name.en, hoveredNode.name.zh)}
                 </div>
               )}
             </div>
@@ -3556,9 +3584,7 @@ export function PassiveTreeCanvas() {
               <div className="text-sky-300">
                 {build.tree.masteryEffects[hoveredNode.id]
                   ? localizeStatLine(build.tree.masteryEffects[hoveredNode.id]!, locale)
-                  : locale === 'zh-CN'
-                    ? '点击选择专精词缀效果'
-                    : 'Click to choose a Mastery effect'}
+                  : uiText(locale, '点击选择专精词缀效果', 'Click to choose a Mastery effect')}
               </div>
             ) : hoveredNode.kind === 'jewel' && build.tree.socketedJewels?.[hoveredNode.id] ? (
               (() => {
@@ -3567,7 +3593,11 @@ export function PassiveTreeCanvas() {
                 return (
                   <div className="space-y-0.5">
                     <div className="text-emerald-300 font-semibold">
-                      {locale === 'zh-CN' && j.nameZh ? j.nameZh : j.name}
+                      {locale === 'zh-TW' && (j.nameZhTw || j.nameZh)
+                        ? j.nameZhTw || toTraditionalZh(j.nameZh!)
+                        : locale === 'zh-CN' && j.nameZh
+                          ? j.nameZh
+                          : j.name}
                     </div>
                     {j.explicits.map((line, idx) => (
                       <div key={idx} className="text-indigo-200">
@@ -3596,7 +3626,7 @@ export function PassiveTreeCanvas() {
                 {isHighEfficiencyHover && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-mono font-semibold text-emerald-300">
                     <Sparkles className="w-2.5 h-2.5" />
-                    {locale === 'zh-CN' ? '高效' : 'High Eff.'}
+                    {uiText(locale, '高效', 'High Eff.')}
                   </span>
                 )}
               </div>
@@ -3623,7 +3653,7 @@ export function PassiveTreeCanvas() {
               {(hoverDpsPerPoint !== null || hoverEhpPerPoint !== null) && (
                 <div className="space-y-0.5 rounded bg-[#0a0d14]/70 border border-[#252b3d] px-2 py-1 font-mono text-[10px]">
                   <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-sans font-semibold">
-                    {locale === 'zh-CN' ? '每点收益效率' : 'Per-Point Efficiency'}
+                    {uiText(locale, '每点收益效率', 'Per-Point Efficiency')}
                   </div>
                   {hoverDpsPerPoint !== null && (
                     <div
@@ -3634,9 +3664,7 @@ export function PassiveTreeCanvas() {
                       DPS {hoveredPower.dpsDeltaPct >= 0 ? '+' : ''}
                       {hoveredPower.dpsDeltaPct}%{' '}
                       <span className="text-zinc-400">
-                        {locale === 'zh-CN'
-                          ? `(每点 ${hoverDpsPerPoint >= 0 ? '+' : ''}${hoverDpsPerPoint.toFixed(1)}%)`
-                          : `(${hoverDpsPerPoint >= 0 ? '+' : ''}${hoverDpsPerPoint.toFixed(1)}%/pt)`}
+                        {uiText(locale, `(每点 ${hoverDpsPerPoint >= 0 ? '+' : ''}${hoverDpsPerPoint.toFixed(1)}%)`, `(${hoverDpsPerPoint >= 0 ? '+' : ''}${hoverDpsPerPoint.toFixed(1)}%/pt)`)}
                       </span>
                     </div>
                   )}
@@ -3645,9 +3673,7 @@ export function PassiveTreeCanvas() {
                       EHP {hoverEhpDeltaPct >= 0 ? '+' : ''}
                       {hoverEhpDeltaPct.toFixed(1)}%{' '}
                       <span className="text-zinc-400">
-                        {locale === 'zh-CN'
-                          ? `(每点 ${hoverEhpPerPoint >= 0 ? '+' : ''}${hoverEhpPerPoint.toFixed(1)}%)`
-                          : `(${hoverEhpPerPoint >= 0 ? '+' : ''}${hoverEhpPerPoint.toFixed(1)}%/pt)`}
+                        {uiText(locale, `(每点 ${hoverEhpPerPoint >= 0 ? '+' : ''}${hoverEhpPerPoint.toFixed(1)}%)`, `(${hoverEhpPerPoint >= 0 ? '+' : ''}${hoverEhpPerPoint.toFixed(1)}%/pt)`)}
                       </span>
                     </div>
                   )}

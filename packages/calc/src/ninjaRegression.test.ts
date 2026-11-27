@@ -229,16 +229,21 @@ describe('poe.ninja Imported Build Regression Suite (PoE 1 & PoE 2 Functional + 
       });
     }
 
-    it('has clean bilingual UI_MESSAGES without raw key or placeholder leaks', () => {
+    it('has clean trilingual UI_MESSAGES without raw key or placeholder leaks', () => {
       const enEntries = Object.entries(UI_MESSAGES.en);
       const zhEntries = Object.entries(UI_MESSAGES['zh-CN']);
+      const zhTwEntries = Object.entries(UI_MESSAGES['zh-TW']);
       expect(zhEntries.length).toBe(enEntries.length);
+      expect(zhTwEntries.length).toBe(enEntries.length);
 
       for (const [key, value] of enEntries) {
         assertCleanLocalizedLabel(value, `UI_MESSAGES.en["${key}"]`);
       }
       for (const [key, value] of zhEntries) {
         assertCleanLocalizedLabel(value, `UI_MESSAGES["zh-CN"]["${key}"]`);
+      }
+      for (const [key, value] of zhTwEntries) {
+        assertCleanLocalizedLabel(value, `UI_MESSAGES["zh-TW"]["${key}"]`);
       }
     });
   });

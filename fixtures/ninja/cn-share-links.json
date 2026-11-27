@@ -38,6 +38,26 @@
       "className": "Witch",
       "ascendancyName": "Infernalist",
       "level": 97
+    },
+    {
+      "id": "tw-poe1-maxroll-elementalist",
+      "game": "poe1",
+      "locale": "zh-TW",
+      "title": "Intl TW PoE 1 Elementalist (maxroll.gg · zh-TW)",
+      "importUrl": "https://maxroll.gg/poe/pob/6qq2m0gg",
+      "className": "Witch",
+      "ascendancyName": "Elementalist",
+      "level": 93
+    },
+    {
+      "id": "tw-poe2-wegame-infernalist",
+      "game": "poe2",
+      "locale": "zh-TW",
+      "title": "Intl TW PoE 2 Witch Infernalist (WeGame · zh-TW)",
+      "importUrl": "https://www.wegame.com.cn/helper/poe2/#/share/tTQBxug4aBR-pnf4ZaHqRb-yNE85rlIaiXeJfALO6oWFlinNUtUa011PN9ARHNfX",
+      "className": "Witch",
+      "ascendancyName": "Infernalist",
+      "level": 97
     }
   ]
 }

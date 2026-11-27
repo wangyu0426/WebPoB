@@ -1,6 +1,6 @@
 import type { ArmourBaseStats, EquipmentSlotId, GameId, Item, ItemRarity, WeaponBaseStats } from '@webpob/core';
 import { getBaseItemStats } from '@webpob/data';
-import { normalizeStatLineToEn } from '@webpob/i18n';
+import { normalizeStatLineToEn, toSimplifiedZh } from '@webpob/i18n';
 
 const RARITY_MAP: Record<string, ItemRarity> = {
   normal: 'NORMAL',
@@ -45,8 +45,9 @@ function inferSlotAndWeapon(hintText: string): {
   weaponType?: WeaponBaseStats['weaponType'];
   twoHanded?: boolean;
 } {
+  const normalizedHint = toSimplifiedZh(hintText);
   for (const entry of SLOT_KEYWORDS) {
-    if (entry.pattern.test(hintText)) {
+    if (entry.pattern.test(normalizedHint)) {
       return {
         slotType: entry.slot,
         weaponType: entry.weaponType,
@@ -58,7 +59,7 @@ function inferSlotAndWeapon(hintText: string): {
 }
 
 function stripAugmented(val: string): string {
-  return val.replace(/\(augmented\)|\(unmet\)|（已增强）|（未满足）/gi, '').trim();
+  return val.replace(/\(augmented\)|\(unmet\)|（已增强）|（已增強）|（未满足）|（未滿足）/gi, '').trim();
 }
 
 function parseDamageRange(val: string): [number, number] | null {
@@ -122,12 +123,13 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
 
   if (hasSeparators) {
     for (const line of headerLines) {
-      const classMatch = line.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
+      const sLine = toSimplifiedZh(line);
+      const classMatch = sLine.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
       if (classMatch) {
         itemClassHint = classMatch[1]!.trim();
         continue;
       }
-      const rarityMatch = line.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
+      const rarityMatch = sLine.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
       if (rarityMatch) {
         const key = rarityMatch[1]!.trim().toLowerCase();
         rarity = RARITY_MAP[key] ?? RARITY_MAP[rarityMatch[1]!.trim()] ?? 'RARE';
@@ -141,13 +143,14 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
     let idx = 0;
     while (idx < lines.length) {
       const line = lines[idx]!;
-      const classMatch = line.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
+      const sLine = toSimplifiedZh(line);
+      const classMatch = sLine.match(/^(?:Item Class|物品类别)\s*[:：]\s*(.+)$/i);
       if (classMatch) {
         itemClassHint = classMatch[1]!.trim();
         idx++;
         continue;
       }
-      const rarityMatch = line.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
+      const rarityMatch = sLine.match(/^(?:Rarity|稀\s*有\s*度)\s*[:：]\s*(.+)$/i);
       if (rarityMatch) {
         const key = rarityMatch[1]!.trim().toLowerCase();
         rarity = RARITY_MAP[key] ?? RARITY_MAP[rarityMatch[1]!.trim()] ?? 'RARE';
@@ -186,13 +189,15 @@ export function parseItemText(rawText: string, idOverride?: string, game: GameId
   let afterImplicitsMarker = false;
   const collectedSections: string[][] = [[]];
 
-  for (const line of bodyLines) {
-    if (line === '__SEC__') {
+  for (const rawLine of bodyLines) {
+    if (rawLine === '__SEC__') {
       if (collectedSections[collectedSections.length - 1]!.length > 0) {
         collectedSections.push([]);
       }
       continue;
     }
+
+    const line = toSimplifiedZh(rawLine);
 
     // Metadata properties
     const qualMatch = line.match(/^(?:Quality|品质)\s*[:：]\s*\+?(\d+)%?/i);

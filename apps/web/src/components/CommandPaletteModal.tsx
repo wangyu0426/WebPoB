@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { encodeBuildToPobCode } from '@webpob/codec';
 import { getClassesForGame } from '@webpob/data';
-import { localizeText } from '@webpob/i18n';
+import { localizeText, uiText } from '@webpob/i18n';
 import { useWebPobStore, type ActiveTab } from '../store/useWebPobStore';
 import { buildSummaryToMarkdown, downloadBuildSummaryPng } from '../utils/exportBuildCard';
 
@@ -343,11 +343,11 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
       {
         id: 'help.language',
         group: 'Language & Help',
-        labelEn: 'Toggle Language (EN ↔ 简体中文)',
-        labelZh: '切换语言（EN ↔ 简体中文）',
-        keywords: ['language', 'locale', 'english', 'chinese', '语言', '中文', '英文'],
-        shortcut: 'EN/ZH',
-        run: () => setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN'),
+        labelEn: 'Cycle Language (简体中文 → 繁體中文 → EN)',
+        labelZh: '切换语言（国服简中 → 國際服繁中 → EN）',
+        keywords: ['language', 'locale', 'english', 'chinese', 'traditional', '语言', '中文', '英文', '繁體', '国际服'],
+        shortcut: 'LANG',
+        run: () => setLocale(locale === 'zh-CN' ? 'zh-TW' : locale === 'zh-TW' ? 'en' : 'zh-CN'),
       },
       {
         id: 'help.shortcuts',
@@ -416,12 +416,18 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
         await command.run();
         if (command.keepOpen) return;
         if (command.feedbackEn || command.feedbackZh) {
-          showFeedback(locale === 'zh-CN' ? command.feedbackZh ?? command.feedbackEn ?? '' : command.feedbackEn ?? command.feedbackZh ?? '');
+          showFeedback(
+            uiText(
+              locale,
+              command.feedbackZh ?? command.feedbackEn ?? '',
+              command.feedbackEn ?? command.feedbackZh ?? '',
+            ),
+          );
           return;
         }
         onClose();
       } catch {
-        setFeedback(locale === 'zh-CN' ? '操作失败，请重试' : 'Action failed, please retry');
+        setFeedback(uiText(locale, '操作失败，请重试', 'Action failed, please retry'));
         if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
         feedbackTimerRef.current = window.setTimeout(() => setFeedback(null), 1600);
       }
@@ -497,7 +503,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
               }`}
             >
               <CommandIcon className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '命令面板' : 'Command Palette'}
+              {uiText(locale, '命令面板', 'Command Palette')}
             </button>
             <button
               type="button"
@@ -509,14 +515,14 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
               }`}
             >
               <Keyboard className="w-3.5 h-3.5" />
-              {locale === 'zh-CN' ? '快捷键' : 'Shortcuts'}
+              {uiText(locale, '快捷键', 'Shortcuts')}
             </button>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-[#1a2030] cursor-pointer"
-            title={locale === 'zh-CN' ? '关闭 (Esc)' : 'Close (Esc)'}
+            title={uiText(locale, '关闭 (Esc)', 'Close (Esc)')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -533,9 +539,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={
-                    locale === 'zh-CN'
-                      ? '输入命令、页面或操作…（支持英文与中文）'
-                      : 'Type a command, tab, or action… (EN & 中文)'
+                    uiText(locale, '输入命令、页面或操作…（支持英文与中文）', 'Type a command, tab, or action… (EN & 中文)')
                   }
                   className="w-full rounded-lg bg-[#080b12] border border-[#2a3248] focus:border-amber-500/55 focus:ring-1 focus:ring-amber-500/25 outline-none pl-9 pr-16 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600"
                 />
@@ -548,13 +552,13 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
             <div className="max-h-[54vh] overflow-y-auto px-1.5 py-1.5">
               {groupedCommands.length === 0 ? (
                 <div className="py-10 text-center text-xs text-zinc-500">
-                  {locale === 'zh-CN' ? '没有匹配的命令' : 'No matching commands'}
+                  {uiText(locale, '没有匹配的命令', 'No matching commands')}
                 </div>
               ) : (
                 groupedCommands.map(({ group, items }) => (
                   <div key={group} className="mb-1">
                     <div className="px-2 pt-1.5 pb-1 text-[9px] uppercase tracking-wider font-semibold text-zinc-500">
-                      {locale === 'zh-CN' ? GROUP_LABELS[group].zh : GROUP_LABELS[group].en}
+                      {uiText(locale, GROUP_LABELS[group].zh, GROUP_LABELS[group].en)}
                     </div>
                     <div className="space-y-0.5">
                       {items.map((command) => {
@@ -586,7 +590,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
                                 }`}
                               />
                               <span className="truncate text-xs text-zinc-100">
-                                {locale === 'zh-CN' ? command.labelZh : command.labelEn}
+                                {uiText(locale, command.labelZh, command.labelEn)}
                               </span>
                             </span>
                             <span className="flex items-center gap-2 shrink-0">
@@ -610,9 +614,9 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
 
             <div className="flex items-center justify-between gap-3 border-t border-[#242b3e] px-3 py-1.5 text-[10px] text-zinc-500 font-mono">
               <span className="flex items-center gap-2">
-                <span><kbd className="text-zinc-400">↑↓</kbd> {locale === 'zh-CN' ? '选择' : 'Navigate'}</span>
-                <span><kbd className="text-zinc-400">Enter</kbd> {locale === 'zh-CN' ? '执行' : 'Run'}</span>
-                <span><kbd className="text-zinc-400">Esc</kbd> {locale === 'zh-CN' ? '关闭' : 'Close'}</span>
+                <span><kbd className="text-zinc-400">↑↓</kbd> {uiText(locale, '选择', 'Navigate')}</span>
+                <span><kbd className="text-zinc-400">Enter</kbd> {uiText(locale, '执行', 'Run')}</span>
+                <span><kbd className="text-zinc-400">Esc</kbd> {uiText(locale, '关闭', 'Close')}</span>
               </span>
               {feedback ? (
                 <span className="inline-flex items-center gap-1 text-emerald-300 font-sans font-semibold">
@@ -620,7 +624,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
                   {feedback}
                 </span>
               ) : (
-                <span>{commands.length} {locale === 'zh-CN' ? '条命令' : 'commands'}</span>
+                <span>{commands.length} {uiText(locale, '条命令', 'commands')}</span>
               )}
             </div>
           </>
@@ -630,12 +634,10 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
               <BookOpen className="w-4 h-4 text-sky-300" />
               <div>
                 <div className="text-sm font-bold text-zinc-100">
-                  {locale === 'zh-CN' ? '键盘快捷键速查表' : 'Keyboard Shortcuts'}
+                  {uiText(locale, '键盘快捷键速查表', 'Keyboard Shortcuts')}
                 </div>
                 <div className="text-[10px] text-zinc-500">
-                  {locale === 'zh-CN'
-                    ? '全局导航、构筑操作与天赋树画布手势'
-                    : 'Global navigation, build actions & passive tree canvas gestures'}
+                  {uiText(locale, '全局导航、构筑操作与天赋树画布手势', 'Global navigation, build actions & passive tree canvas gestures')}
                 </div>
               </div>
             </div>
@@ -648,7 +650,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
                     ) : (
                       <Sparkles className="w-3.5 h-3.5" />
                     )}
-                    {locale === 'zh-CN' ? section.groupZh : section.groupEn}
+                    {uiText(locale, section.groupZh, section.groupEn)}
                   </div>
                   <div className="space-y-1">
                     {section.rows.map((row) => (
@@ -657,7 +659,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
                         className="flex items-center justify-between gap-2 rounded-md bg-[#0a0e17] border border-[#1f2638] px-2.5 py-1.5"
                       >
                         <span className="text-[11px] text-zinc-300 leading-snug">
-                          {locale === 'zh-CN' ? row.zh : row.en}
+                          {uiText(locale, row.zh, row.en)}
                         </span>
                         <kbd className="shrink-0 rounded border border-[#333c55] bg-[#121724] px-1.5 py-0.5 text-[9px] font-mono text-amber-200 whitespace-nowrap">
                           {row.keys}
@@ -669,14 +671,14 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
               ))}
             </div>
             <div className="flex items-center justify-between border-t border-[#242b3e] pt-2 mt-3 text-[10px] text-zinc-500">
-              <span>{locale === 'zh-CN' ? '按 Esc 关闭' : 'Press Esc to close'}</span>
+              <span>{uiText(locale, '按 Esc 关闭', 'Press Esc to close')}</span>
               <button
                 type="button"
                 onClick={() => setMode('command')}
                 className="inline-flex items-center gap-1 rounded border border-[#2e364f] bg-[#121724] px-2 py-0.5 text-[10px] text-zinc-300 hover:text-amber-200 cursor-pointer"
               >
                 <CommandIcon className="w-3 h-3" />
-                {locale === 'zh-CN' ? '返回命令面板' : 'Back to Palette'}
+                {uiText(locale, '返回命令面板', 'Back to Palette')}
               </button>
             </div>
           </div>
@@ -687,7 +689,7 @@ export function CommandPaletteModal({ open, initialMode = 'command', onClose }: 
 }
 
 function useTelemetryOneLiner(
-  locale: 'en' | 'zh-CN',
+  locale: 'en' | 'zh-CN' | 'zh-TW',
   build: ReturnType<typeof useWebPobStore.getState>['build'],
   calc: ReturnType<typeof useWebPobStore.getState>['calc'],
 ): string {

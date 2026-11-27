@@ -1,11 +1,14 @@
 import type { EquipmentSlotId, GameId, Item } from '@webpob/core';
 import { getBaseItemStats } from './baseItems.js';
+import { applyLocaleOverlayToUniques } from './localeOverlay.js';
 
 export interface CompactUniqueEntry {
   en: string;
   zh?: string;
+  zhTw?: string;
   b: string;
   bz?: string;
+  bzTw?: string;
   s: string;
   i?: string[];
   e: string[];
@@ -29,6 +32,7 @@ export const OFFICIAL_UNIQUES_FILES: Record<GameId, string> = {
 };
 
 export function registerUniques(payload: CompactUniquesPayload): number {
+  applyLocaleOverlayToUniques(payload.game, payload.uniques);
   registeredUniques[payload.game] = payload.uniques;
   loadedUniquesFlag[payload.game] = true;
   return payload.uniques.length;
@@ -65,8 +69,10 @@ export function instantiateUniqueItem(
     id: `uniq_${game}_${entry.en.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${Date.now()}`,
     name: entry.en,
     nameZh: entry.zh,
+    nameZhTw: entry.zhTw,
     baseName: entry.b,
     baseNameZh: entry.bz,
+    baseNameZhTw: entry.bzTw,
     rarity: 'UNIQUE',
     slotType,
     quality: slotType === 'Amulet' || slotType === 'Ring 1' || slotType === 'Belt' || slotType === 'Flask 1' || entry.s === 'Jewel' ? 0 : quality,

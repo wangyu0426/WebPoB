@@ -1,11 +1,18 @@
 import { useState } from 'react';
-import { Check, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, Menu, PlusCircle, Redo2, RotateCcw, Search, Swords, Undo2, X } from 'lucide-react';
+import { Check, ChevronDown, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Link2, Menu, PlusCircle, Redo2, RotateCcw, Search, Swords, Undo2, X } from 'lucide-react';
+import type { Locale } from '@webpob/core';
 import { getClassesForGame } from '@webpob/data';
 import { encodeBuildToPobCode } from '@webpob/codec';
-import { localizeText, t } from '@webpob/i18n';
+import { localizeText, t, uiText } from '@webpob/i18n';
 import { useWebPobStore } from '../store/useWebPobStore';
 import { buildSummaryToMarkdown, downloadBuildSummaryPng } from '../utils/exportBuildCard';
 import { BuildLibraryModal } from './BuildLibraryModal';
+
+const LOCALE_OPTIONS: ReadonlyArray<{ id: Locale; shortLabel: string; label: string; sub: string }> = [
+  { id: 'zh-CN', shortLabel: '简中', label: '简体中文', sub: '国服' },
+  { id: 'zh-TW', shortLabel: '繁中', label: '繁體中文', sub: '國際服' },
+  { id: 'en', shortLabel: 'EN', label: 'English', sub: 'Global' },
+];
 
 interface TopBarProps {
   onOpenCommandPalette?: () => void;
@@ -36,9 +43,11 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
   } = useWebPobStore();
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [cardMenuOpen, setCardMenuOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedMd, setCopiedMd] = useState(false);
+  const currentLocaleOption = LOCALE_OPTIONS.find((o) => o.id === locale) ?? LOCALE_OPTIONS[0]!;
 
   const classes = getClassesForGame(build.game);
   const currentClass = classes.find((c) => c.id === build.classId) ?? classes[0]!;
@@ -84,7 +93,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
             type="button"
             onClick={() => setMobileMenuOpen((v) => !v)}
             className="min-w-0 flex-1 flex items-center gap-1.5 rounded-md bg-[#0a0c12] hover:bg-[#141824] border border-[#252b3d] px-2 py-1 text-left cursor-pointer"
-            title={locale === 'zh-CN' ? '点击编辑 BD 信息或展开菜单' : 'Tap to edit build info or open menu'}
+            title={uiText(locale, '点击编辑 BD 信息或展开菜单', 'Tap to edit build info or open menu')}
           >
             <span
               className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 leading-none ${
@@ -108,21 +117,50 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
           <button
             type="button"
             onClick={() => void handleCopyShareUrl()}
-            title={locale === 'zh-CN' ? '复制直达分享链接' : 'Copy Shareable URL'}
+            title={uiText(locale, '复制直达分享链接', 'Copy Shareable URL')}
             className="p-1.5 rounded text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 transition cursor-pointer"
-            aria-label={locale === 'zh-CN' ? '分享链接' : 'Share build URL'}
+            aria-label={uiText(locale, '分享链接', 'Share build URL')}
           >
             {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Link2 className="w-3.5 h-3.5" />}
           </button>
-          <button
-            type="button"
-            onClick={() => setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN')}
-            className="flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/40 transition cursor-pointer whitespace-nowrap"
-            aria-label="Toggle language"
-          >
-            <Globe className="w-3 h-3" />
-            <span>{locale === 'zh-CN' ? 'EN' : '中文'}</span>
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setLangMenuOpen((v) => !v)}
+              className="flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/40 transition cursor-pointer whitespace-nowrap"
+              aria-label="Toggle language"
+              aria-expanded={langMenuOpen}
+            >
+              <Globe className="w-3 h-3" />
+              <span>{currentLocaleOption.shortLabel}</span>
+              <ChevronDown className="w-2.5 h-2.5 opacity-75" />
+            </button>
+            {langMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
+                <div className="absolute right-0 top-8 z-50 w-40 rounded-md bg-[#121623] border border-[#2d3650] shadow-2xl p-1 space-y-0.5 text-xs">
+                  {LOCALE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        setLocale(opt.id);
+                        setLangMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-left cursor-pointer ${
+                        locale === opt.id
+                          ? 'bg-amber-500/20 text-amber-200 font-semibold'
+                          : 'text-zinc-200 hover:bg-[#1d2438]'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      <span className="text-[10px] text-zinc-400">{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setMobileMenuOpen((v) => !v)}
@@ -131,7 +169,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 ? 'bg-amber-500/25 border-amber-400/50 text-amber-200'
                 : 'bg-[#1a1f2e] border-[#2c3348] text-zinc-200 hover:bg-[#242b3f]'
             }`}
-            aria-label={locale === 'zh-CN' ? '打开菜单' : 'Open menu'}
+            aria-label={uiText(locale, '打开菜单', 'Open menu')}
             aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -284,7 +322,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 className="flex items-center gap-2 rounded px-2.5 py-2 bg-[#161b29] hover:bg-[#1f263a] border border-[#2a3147] text-zinc-200 cursor-pointer"
               >
                 <FolderOpen className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span className="truncate">{locale === 'zh-CN' ? '本地 BD 库' : 'Saved Builds'}</span>
+                <span className="truncate">{uiText(locale, '本地 BD 库', 'Saved Builds')}</span>
               </button>
               {onOpenCommandPalette && (
                 <button
@@ -296,7 +334,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                   className="flex items-center gap-2 rounded px-2.5 py-2 bg-[#161b29] hover:bg-[#1f263a] border border-[#2a3147] text-zinc-200 cursor-pointer"
                 >
                   <Search className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                  <span className="truncate">{locale === 'zh-CN' ? '快速搜索' : 'Command Search'}</span>
+                  <span className="truncate">{uiText(locale, '快速搜索', 'Command Search')}</span>
                 </button>
               )}
               <button
@@ -308,7 +346,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 className="flex items-center gap-2 rounded px-2.5 py-2 bg-[#161b29] hover:bg-[#1f263a] border border-[#2a3147] text-amber-200 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{locale === 'zh-CN' ? '导出 PNG 卡片' : 'Export PNG Card'}</span>
+                <span className="truncate">{uiText(locale, '导出 PNG 卡片', 'Export PNG Card')}</span>
               </button>
               <button
                 type="button"
@@ -316,7 +354,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 className="flex items-center gap-2 rounded px-2.5 py-2 bg-[#161b29] hover:bg-[#1f263a] border border-[#2a3147] text-sky-200 cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{locale === 'zh-CN' ? '复制 MD 摘要' : 'Copy Markdown'}</span>
+                <span className="truncate">{uiText(locale, '复制 MD 摘要', 'Copy Markdown')}</span>
               </button>
               <button
                 type="button"
@@ -351,7 +389,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 {t(locale, 'app.title')} v{APP_VERSION} · {GIT_SHA}
               </span>
               <span className="shrink-0">
-                {locale === 'zh-CN' ? '构建' : 'Build'} {BUILD_DATE}
+                {uiText(locale, '构建', 'Build')} {BUILD_DATE}
               </span>
             </div>
           </div>
@@ -399,7 +437,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
             }`}
           >
-            {locale === 'zh-CN' ? 'PoE 1' : 'PoE 1'}
+            {uiText(locale, 'PoE 1', 'PoE 1')}
           </button>
           <button
             type="button"
@@ -410,7 +448,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
             }`}
           >
-            {locale === 'zh-CN' ? 'PoE 2' : 'PoE 2'}
+            {uiText(locale, 'PoE 2', 'PoE 2')}
           </button>
         </div>
       </div>
@@ -505,11 +543,11 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            title={locale === 'zh-CN' ? '打开命令面板 (Ctrl/Cmd+K)' : 'Open Command Palette (Ctrl/Cmd+K)'}
+            title={uiText(locale, '打开命令面板 (Ctrl/Cmd+K)', 'Open Command Palette (Ctrl/Cmd+K)')}
             className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-zinc-300 bg-[#0a0c12] hover:bg-[#171d2b] border border-[#2c3348] hover:border-amber-500/40 transition cursor-pointer shrink-0"
           >
             <Search className="w-3.5 h-3.5 text-amber-300" />
-            <span className="hidden 2xl:inline">{locale === 'zh-CN' ? '搜索' : 'Search'}</span>
+            <span className="hidden 2xl:inline">{uiText(locale, '搜索', 'Search')}</span>
             <kbd className="rounded border border-[#333c55] bg-[#121724] px-1 py-0.5 text-[9px] font-mono text-zinc-400 leading-none">
               {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}
             </kbd>
@@ -520,7 +558,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
             type="button"
             disabled={!canUndo}
             onClick={undo}
-            title={locale === 'zh-CN' ? '撤销 (Ctrl/Cmd+Z)' : 'Undo (Ctrl/Cmd+Z)'}
+            title={uiText(locale, '撤销 (Ctrl/Cmd+Z)', 'Undo (Ctrl/Cmd+Z)')}
             className="p-1 rounded text-zinc-300 hover:bg-[#1a1f2e] disabled:opacity-35 disabled:cursor-not-allowed transition cursor-pointer"
           >
             <Undo2 className="w-3.5 h-3.5" />
@@ -529,7 +567,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
             type="button"
             disabled={!canRedo}
             onClick={redo}
-            title={locale === 'zh-CN' ? '重做 (Ctrl/Cmd+Y)' : 'Redo (Ctrl/Cmd+Y)'}
+            title={uiText(locale, '重做 (Ctrl/Cmd+Y)', 'Redo (Ctrl/Cmd+Y)')}
             className="p-1 rounded text-zinc-300 hover:bg-[#1a1f2e] disabled:opacity-35 disabled:cursor-not-allowed transition cursor-pointer"
           >
             <Redo2 className="w-3.5 h-3.5" />
@@ -538,45 +576,37 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
         <button
           type="button"
           onClick={() => setLibraryOpen(true)}
-          title={locale === 'zh-CN' ? '本地 BD 库' : 'Saved Builds'}
+          title={uiText(locale, '本地 BD 库', 'Saved Builds')}
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-200 bg-[#1a1f2e] hover:bg-[#242b3f] border border-[#2c3348] transition cursor-pointer"
         >
           <FolderOpen className="w-3.5 h-3.5 text-amber-300" />
-          <span className="hidden lg:inline">{locale === 'zh-CN' ? 'BD库' : 'Builds'}</span>
+          <span className="hidden lg:inline">{uiText(locale, 'BD库', 'Builds')}</span>
         </button>
         <button
           type="button"
           onClick={() => void handleCopyShareUrl()}
-          title={locale === 'zh-CN' ? '复制直达分享链接 (#pob=...)' : 'Copy Shareable URL (#pob=...)'}
+          title={uiText(locale, '复制直达分享链接 (#pob=...)', 'Copy Shareable URL (#pob=...)')}
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 transition cursor-pointer"
         >
           {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Link2 className="w-3.5 h-3.5" />}
           <span className="hidden xl:inline">
             {copiedUrl
-              ? locale === 'zh-CN'
-                ? '已复制'
-                : 'Copied'
-              : locale === 'zh-CN'
-                ? '分享'
-                : 'Share'}
+              ? uiText(locale, '已复制', 'Copied')
+              : uiText(locale, '分享', 'Share')}
           </span>
         </button>
         <div className="relative">
           <button
             type="button"
             onClick={() => setCardMenuOpen((v) => !v)}
-            title={locale === 'zh-CN' ? '导出 PNG 构筑卡片 / Markdown 摘要' : 'Export Build Card (PNG / Markdown)'}
+            title={uiText(locale, '导出 PNG 构筑卡片 / Markdown 摘要', 'Export Build Card (PNG / Markdown)')}
             className="flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 transition cursor-pointer"
           >
             {copiedMd ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <ImageIcon className="w-3.5 h-3.5" />}
             <span className="hidden xl:inline">
               {copiedMd
-                ? locale === 'zh-CN'
-                  ? '已复制MD'
-                  : 'Copied MD'
-                : locale === 'zh-CN'
-                  ? '卡片'
-                  : 'Card'}
+                ? uiText(locale, '已复制MD', 'Copied MD')
+                : uiText(locale, '卡片', 'Card')}
             </span>
           </button>
           {cardMenuOpen && (
@@ -590,7 +620,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[#1d2438] text-amber-200 cursor-pointer text-left"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
-                {locale === 'zh-CN' ? '下载 PNG 构筑卡片' : 'Download PNG Card'}
+                {uiText(locale, '下载 PNG 构筑卡片', 'Download PNG Card')}
               </button>
               <button
                 type="button"
@@ -598,7 +628,7 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[#1d2438] text-sky-200 cursor-pointer text-left"
               >
                 <FileText className="w-3.5 h-3.5 shrink-0" />
-                {locale === 'zh-CN' ? '复制 Markdown 摘要' : 'Copy Markdown Summary'}
+                {uiText(locale, '复制 Markdown 摘要', 'Copy Markdown Summary')}
               </button>
             </div>
           )}
@@ -622,14 +652,47 @@ export function TopBar({ onOpenCommandPalette }: TopBarProps = {}) {
           <span className="hidden 2xl:inline">{t(locale, 'topbar.newBuild')}</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN')}
-          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/40 transition cursor-pointer"
-        >
-          <Globe className="w-3.5 h-3.5" />
-          {locale === 'zh-CN' ? '中文 / EN' : 'EN / 中文'}
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setLangMenuOpen((v) => !v)}
+            className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/40 transition cursor-pointer whitespace-nowrap"
+            aria-label="Language switcher"
+            aria-expanded={langMenuOpen}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>{currentLocaleOption.shortLabel}</span>
+            <ChevronDown className="w-3 h-3 opacity-75" />
+          </button>
+          {langMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
+              <div className="absolute right-0 top-9 z-50 w-44 rounded-md bg-[#121623] border border-[#2d3650] shadow-2xl p-1 space-y-0.5 text-xs">
+                {LOCALE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setLocale(opt.id);
+                      setLangMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded text-left cursor-pointer ${
+                      locale === opt.id
+                        ? 'bg-amber-500/20 text-amber-200 font-semibold'
+                        : 'text-zinc-200 hover:bg-[#1d2438]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {locale === opt.id ? <Check className="w-3 h-3 text-amber-300" /> : <span className="w-3" />}
+                      {opt.label}
+                    </span>
+                    <span className="text-[10px] text-zinc-400">{opt.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       </div>
       <BuildLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />

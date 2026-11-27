@@ -1,8 +1,10 @@
 export interface ClusterNotableDef {
   en: string;
   zh?: string;
+  zhTw?: string;
   st: string[];
   sz?: string[];
+  szTw?: string[];
 }
 
 export interface CompactClusterNotablesPayload {
