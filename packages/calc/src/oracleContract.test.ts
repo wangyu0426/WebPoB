@@ -105,20 +105,37 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     expect(v2ZeroAvgMetric?.oracle).toBe(0);
     expect(v2ZeroAvgMetric?.status).toBe('mismatch');
 
-    // 4. PoE 2 includeInFullDps group excluded by weaponSets -> FullDPS is not_applicable when oracle=0 and fullDps=undefined
-    const inactiveWeaponSetBuild = {
+    // 4. PoE 2 includeInFullDps group excluded by weaponSets -> FullDPS is not_applicable when oracle=0 and fullDps=undefined;
+    //    in PoE 1, weaponSets is ignored so FullDPS remains applicable and fails closed as missing
+    const poe2InactiveWeaponSetBuild = {
       ...build,
+      game: 'poe2' as const,
       activeWeaponSet: 1 as const,
       skills: build.skills.map((g, idx) =>
         idx === 0 ? { ...g, includeInFullDps: true, weaponSets: [2 as const] } : g,
       ),
     };
-    const evalInactiveWeaponSet = evaluateSnapshot(
-      { ...firstRealSnapshot, oracle: { ...firstRealSnapshot.oracle, FullDPS: 0 } },
-      inactiveWeaponSetBuild,
-      { ...out, offence: { ...out.offence, fullDps: undefined } },
+    const evalPoe2InactiveWeaponSet = evaluateSnapshot(
+      { ...firstRealSnapshot, game: 'poe2', oracle: { ...firstRealSnapshot.oracle, FullDPS: 0 } },
+      poe2InactiveWeaponSetBuild,
+      { ...out, game: 'poe2', offence: { ...out.offence, fullDps: undefined } },
     );
-    expect(evalInactiveWeaponSet.metrics.find((m) => m.metric === 'FullDPS')?.status).toBe('not_applicable');
+    expect(evalPoe2InactiveWeaponSet.metrics.find((m) => m.metric === 'FullDPS')?.status).toBe('not_applicable');
+
+    const poe1WeaponSetBuild = {
+      ...build,
+      game: 'poe1' as const,
+      activeWeaponSet: 1 as const,
+      skills: build.skills.map((g, idx) =>
+        idx === 0 ? { ...g, includeInFullDps: true, weaponSets: [2 as const] } : g,
+      ),
+    };
+    const evalPoe1WeaponSet = evaluateSnapshot(
+      { ...firstRealSnapshot, game: 'poe1', oracle: { ...firstRealSnapshot.oracle, FullDPS: 0 } },
+      poe1WeaponSetBuild,
+      { ...out, game: 'poe1', offence: { ...out.offence, fullDps: undefined } },
+    );
+    expect(evalPoe1WeaponSet.metrics.find((m) => m.metric === 'FullDPS')?.status).toBe('missing');
 
     // 5. Negative oracle FullDPS must NEVER be treated as not_applicable
     const evalNegativeFullDps = evaluateSnapshot(

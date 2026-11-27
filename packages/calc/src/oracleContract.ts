@@ -199,7 +199,12 @@ export interface OracleMetricSpec {
 function hasAnyFullDpsSkill(build: Build): boolean {
   return build.skills.some((group) => {
     if (!group.enabled || !group.includeInFullDps) return false;
-    if (group.weaponSets && group.weaponSets.length > 0 && !group.weaponSets.includes(build.activeWeaponSet)) {
+    if (
+      build.game === 'poe2' &&
+      group.weaponSets &&
+      group.weaponSets.length > 0 &&
+      !group.weaponSets.includes(build.activeWeaponSet)
+    ) {
       return false;
     }
     return true;
