@@ -450,15 +450,15 @@ async function verifyBuildInViewport(port, entry, viewport) {
         const levelVal = levelInput ? Number(levelInput.value) : null;
         return {
           readyState: document.readyState,
-          lang: document.documentElement.lang,
+          lang: document.documentElement?.lang || '',
           hasTabs,
           hasToast,
           bodyText,
           selectedOptionTexts,
           mobileHeaderText,
           levelVal,
-          scrollWidth: document.documentElement.scrollWidth,
-          clientWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement?.scrollWidth ?? 0,
+          clientWidth: document.documentElement?.clientWidth ?? 0,
           bodyScrollWidth: document.body ? document.body.scrollWidth : 0,
           innerWidth: window.innerWidth,
         };
@@ -487,12 +487,12 @@ async function verifyBuildInViewport(port, entry, viewport) {
             const mobileHeaderBtn = header ? header.querySelector('.md\\\\:hidden button') : null;
             const mobileHeaderText = mobileHeaderBtn ? (mobileHeaderBtn.textContent || '').trim() : '';
             return {
-              lang: document.documentElement.lang,
+              lang: document.documentElement?.lang || '',
               bodyText,
               selectedOptionTexts,
               mobileHeaderText,
-              scrollWidth: document.documentElement.scrollWidth,
-              clientWidth: document.documentElement.clientWidth,
+              scrollWidth: document.documentElement?.scrollWidth ?? 0,
+              clientWidth: document.documentElement?.clientWidth ?? 0,
               bodyScrollWidth: document.body ? document.body.scrollWidth : 0,
               innerWidth: window.innerWidth,
             };
@@ -596,8 +596,8 @@ async function verifyBuildInViewport(port, entry, viewport) {
       }
       if (viewport.mobile) {
         const overflow = await cdp.evaluate(`(() => ({
-          scrollWidth: document.documentElement.scrollWidth,
-          clientWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement?.scrollWidth ?? 0,
+          clientWidth: document.documentElement?.clientWidth ?? 0,
           bodyScrollWidth: document.body ? document.body.scrollWidth : 0,
           innerWidth: window.innerWidth,
         }))()`);
@@ -736,9 +736,16 @@ async function main() {
   });
 
   try {
+    const jsonOutArgIdx = process.argv.indexOf('--json-out');
+    const jsonOutPath =
+      jsonOutArgIdx >= 0 && process.argv[jsonOutArgIdx + 1]
+        ? process.argv[jsonOutArgIdx + 1]
+        : process.env.JSON_OUT || '';
+    const startedAt = Date.now();
     const results = [];
     for (let i = 0; i < builds.length; i++) {
       const entry = builds[i];
+      const buildStart = Date.now();
       console.log(
         `[${i + 1}/${builds.length}] Testing [${entry.game}] ${entry.id} (${entry.className}/${entry.ascendancyName || 'None'})...`,
       );
@@ -750,13 +757,47 @@ async function main() {
         title: entry.title,
         className: entry.className,
         ascendancyName: entry.ascendancyName,
+        durationMs: Date.now() - buildStart,
         desktop,
         mobile,
       });
     }
 
     printSummaryTable(results);
-    const anyFailed = results.some((r) => !r.desktop.passed || !r.mobile.passed);
+    const passedCount = results.filter((r) => r.desktop.passed && r.mobile.passed).length;
+    const anyFailed = passedCount !== results.length;
+    if (jsonOutPath) {
+      fs.mkdirSync(path.dirname(path.resolve(jsonOutPath)), { recursive: true });
+      fs.writeFileSync(
+        path.resolve(jsonOutPath),
+        JSON.stringify(
+          {
+            targetUrl: BASE_URL,
+            ranAt: new Date().toISOString(),
+            durationMs: Date.now() - startedAt,
+            passedCount,
+            totalCount: results.length,
+            ok: !anyFailed,
+            builds: results.map((r) => ({
+              game: r.game,
+              id: r.id,
+              title: r.title,
+              className: r.className,
+              ascendancyName: r.ascendancyName,
+              durationMs: r.durationMs,
+              desktopPassed: r.desktop.passed,
+              mobilePassed: r.mobile.passed,
+              status: r.desktop.passed && r.mobile.passed ? 'PASS' : 'FAIL',
+              desktopIssues: r.desktop.issues,
+              mobileIssues: r.mobile.issues,
+            })),
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+    }
     process.exitCode = anyFailed ? 1 : 0;
   } finally {
     cleanup();
