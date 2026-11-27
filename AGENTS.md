@@ -72,18 +72,18 @@ If personal metadata or a secret is ever committed to a public branch or tag:
 
 | Change Scope | Required Checks |
 | :--- | :--- |
-| **Any code, test, or data change** | `pnpm typecheck && pnpm test && pnpm build` (100% pass across `calc`, `oracle`, `ninjaRegression`, `codec`, `manifest`, and `release` suites) |
-| **UI, passive tree, i18n, RWD, or codec import/export** | Above **+** `BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja` (12 PoE 1 & PoE 2 `poe.ninja` builds across Desktop `1440×860` & Mobile `390×844`, 0 console/page errors, 0 overflow) |
-| **Static data / `manifest.json` / tree updates** | Above **+** staging QA release gate (`READY TO RELEASE`) via maintainer runbook |
+| **Any code, test, or data change (before commit)** | `pnpm typecheck && pnpm test && pnpm build` (100% pass across `calc`, `oracle`, `ninjaRegression`, `codec`, `manifest`, and `release` suites) |
+| **UI, passive tree, i18n, RWD, or codec import/export (before commit)** | Above **+** `BASE_URL=http://127.0.0.1:4173 pnpm test:e2e:ninja` (12 PoE 1 & PoE 2 `poe.ninja` builds across Desktop `1440×860` & Mobile `390×844`, 0 console/page errors, 0 overflow) |
+| **ANY release to Production (code, UI, or data)** | Above **+** **mandatory Staging deploy & QA release gate (`READY TO RELEASE`)** via maintainer runbook **before** proposing or running `pnpm release:deploy` (no exceptions unless user explicitly approves emergency bypass) |
 | **Docs-only (`*.md`)** | Verify relative Markdown links + Privacy Gate (§2) |
 
 ---
 
 ## 4. Production Release & Rollback SOP
 
-### 4.1 Production Release
-1. **Staging Gate First**: For data updates or substantial changes, verify the staging QA gate reports `READY TO RELEASE` via the maintainer runbook.
-2. **Pre-Flight**: Confirm clean working tree (`git status`), updated `CHANGELOG.md`, verified public Git identity (§2.1), and 100% passing checks (§3).
+### 4.1 Production Release (Strict Staging-First Gate)
+1. **Mandatory Staging Gate First (Hard Blocker)**: Before proposing or running `pnpm release:deploy` for **any** code, UI, or data release, you MUST first deploy to Staging via the maintainer runbook, verify the QA gate reports `READY TO RELEASE` (`overallReady: true`), record the staging deploy, and let the user verify Staging. **Never skip Staging and jump straight to production deployment.**
+2. **Pre-Flight**: Confirm clean working tree (`git status`), verified public Git identity (§2.1), staged-diff privacy scan (§2.3), and 100% passing checks (§3).
 3. **Deploy Exclusively via Release CLI with Auto-Rollback**:
    ```bash
    # Use --bump patch | minor | major
