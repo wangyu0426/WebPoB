@@ -312,18 +312,101 @@ export const POE2_TREE: PassiveTreeData = buildRadialTree(
   },
 );
 
-const registeredOfficialTrees: Partial<Record<GameId, PassiveTreeData>> = {};
+/**
+ * Multi-version official tree storage. Each game keeps a map keyed by the
+ * normalized tree version (e.g. `3_30`, `0_5`, `1_0`) so historical build share
+ * links keep resolving their exact passive tree even after a season rolls over.
+ */
+const registeredOfficialTrees: Record<GameId, Map<string, PassiveTreeData>> = {
+  poe1: new Map<string, PassiveTreeData>(),
+  poe2: new Map<string, PassiveTreeData>(),
+};
 
+/** Version the active/latest official tree of each game currently uses. */
+const latestTreeVersion: Partial<Record<GameId, string>> = {};
+
+/**
+ * Normalizes a raw tree version to its canonical key form: `3.30`, `3-30`,
+ * `v3_30`, `3_30` all become `3_30`.
+ */
+export function normalizeTreeVersion(version?: string): string {
+  const raw = String(version ?? '').trim().toLowerCase().replace(/^v/, '');
+  if (!raw) return '';
+  return raw.replace(/[.-]/g, '_');
+}
+
+/**
+ * Registers a hydrated passive tree. Trees are stored by normalized version while
+ * also marking it as the game's latest active official tree.
+ */
 export function registerTreeData(tree: PassiveTreeData): void {
-  registeredOfficialTrees[tree.game] = tree;
+  const key = normalizeTreeVersion(tree.version) || tree.version;
+  const bucket = registeredOfficialTrees[tree.game];
+  if (bucket instanceof Map) {
+    bucket.set(key, tree);
+  }
+  if (tree.isOfficialFull) {
+    // Only the first official tree becomes "latest" by default. Callers loading a
+    // historical version (or the manifest's latest) can override explicitly via
+    // `setLatestTreeVersion` so old share links never dethrone the active tree.
+    if (!latestTreeVersion[tree.game]) latestTreeVersion[tree.game] = tree.version;
+  }
 }
 
-export function hasOfficialTreeLoaded(game: GameId): boolean {
-  return Boolean(registeredOfficialTrees[game]?.isOfficialFull);
+/** Explicitly sets the active/latest official tree version for `game`. */
+export function setLatestTreeVersion(game: GameId, version: string): void {
+  latestTreeVersion[game] = version;
 }
 
-export function getTreeForGame(game: GameId): PassiveTreeData {
-  return registeredOfficialTrees[game] ?? (game === 'poe2' ? POE2_TREE : POE1_TREE);
+const getTreeBucket = (game: GameId): Map<string, PassiveTreeData> => {
+  const bucket = registeredOfficialTrees[game];
+  return bucket instanceof Map ? bucket : new Map<string, PassiveTreeData>();
+};
+
+/**
+ * Returns true when an official full tree is loaded for `game`. When `treeVersion`
+ * is supplied, only that specific historical version counts.
+ */
+export function hasOfficialTreeLoaded(game: GameId, treeVersion?: string): boolean {
+  const bucket = getTreeBucket(game);
+  if (treeVersion) {
+    return Boolean(bucket.get(normalizeTreeVersion(treeVersion))?.isOfficialFull);
+  }
+  return [...bucket.values()].some((t) => t.isOfficialFull);
+}
+
+/** Lists the normalized versions of every official tree loaded for `game`. */
+export function getLoadedTreeVersions(game: GameId): string[] {
+  return [...getTreeBucket(game).entries()]
+    .filter(([, tree]) => tree.isOfficialFull)
+    .map(([key]) => key);
+}
+
+/** Latest active official tree version for `game`, if any has been loaded. */
+export function getLatestTreeVersion(game: GameId): string | undefined {
+  return latestTreeVersion[game];
+}
+
+/**
+ * Returns the tree for `game`. If `treeVersion` is provided and that exact
+ * historical tree is loaded, it wins; otherwise this falls back to the latest
+ * loaded official tree, or the built-in sample tree.
+ */
+export function getTreeForGame(game: GameId, treeVersion?: string): PassiveTreeData {
+  const bucket = getTreeBucket(game);
+  if (treeVersion) {
+    const exact = bucket.get(normalizeTreeVersion(treeVersion));
+    if (exact) return exact;
+  }
+  const official = [...bucket.values()].filter((t) => t.isOfficialFull);
+  if (official.length > 0) {
+    const latest = getLatestTreeVersion(game);
+    const preferred = latest
+      ? official.find((t) => normalizeTreeVersion(t.version) === normalizeTreeVersion(latest))
+      : undefined;
+    return preferred ?? official[official.length - 1]!;
+  }
+  return game === 'poe2' ? POE2_TREE : POE1_TREE;
 }
 
 /**

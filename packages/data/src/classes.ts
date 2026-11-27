@@ -185,8 +185,46 @@ export const POE2_CLASSES: CharacterClassDef[] = [
   },
 ];
 
+/**
+ * Dynamically registered class/ascendancy data loaded from `/data/poe*-classes.json`.
+ * When present these datasets override the offline
+ * `POE1_CLASSES` / `POE2_CLASSES` fallback defaults so new leagues or the 1.0
+ * launch ship without a client rebuild.
+ */
+const registeredClasses: Partial<Record<GameId, CharacterClassDef[]>> = {};
+
+const FALLBACK_CLASSES: Record<GameId, CharacterClassDef[]> = {
+  poe1: POE1_CLASSES,
+  poe2: POE2_CLASSES,
+};
+
+/** Registers pipeline-provided classes for a game, overriding the offline defaults. */
+export function registerClassesData(game: GameId, classes: CharacterClassDef[]): CharacterClassDef[] {
+  if (!Array.isArray(classes) || classes.length === 0) {
+    delete registeredClasses[game];
+    return getClassesForGame(game);
+  }
+  registeredClasses[game] = classes;
+  return classes;
+}
+
+/** Clears any dynamically registered classes (mainly for tests). */
+export function clearRegisteredClasses(game?: GameId): void {
+  if (game) {
+    delete registeredClasses[game];
+    return;
+  }
+  delete registeredClasses.poe1;
+  delete registeredClasses.poe2;
+}
+
+/** True when pipeline classes (not the offline fallback) are active for `game`. */
+export function hasRegisteredClasses(game: GameId): boolean {
+  return Boolean(registeredClasses[game]?.length);
+}
+
 export function getClassesForGame(game: GameId): CharacterClassDef[] {
-  return game === 'poe2' ? POE2_CLASSES : POE1_CLASSES;
+  return registeredClasses[game] ?? FALLBACK_CLASSES[game] ?? POE1_CLASSES;
 }
 
 export function getClassDef(game: GameId, classId: string): CharacterClassDef {

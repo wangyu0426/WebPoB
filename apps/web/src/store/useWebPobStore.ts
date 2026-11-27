@@ -19,7 +19,9 @@ import {
   getSampleBuild,
   getTreeForGame,
   hasOfficialTreeLoaded,
+  loadDataManifest,
   loadOfficialBaseItems,
+  loadOfficialClasses,
   loadOfficialClusterNotables,
   loadOfficialGems,
   loadOfficialTree,
@@ -48,7 +50,7 @@ interface WebPobState {
   // Actions
   undo: () => void;
   redo: () => void;
-  ensureOfficialDataLoaded: (game?: GameId) => Promise<void>;
+  ensureOfficialDataLoaded: (game?: GameId, treeVersion?: string) => Promise<void>;
   ensureSecondaryDataLoaded: (game?: GameId) => Promise<void>;
   setLocale: (locale: Locale) => void;
   setActiveTab: (tab: ActiveTab) => void;
@@ -278,14 +280,21 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
       return task;
     },
 
-    ensureOfficialDataLoaded: async (gameArg) => {
+    ensureOfficialDataLoaded: async (gameArg, treeVersionArg) => {
       const game = gameArg ?? get().build.game;
-      if (hasOfficialTreeLoaded(game)) return;
+      // A specific historical tree version only short-circuits when THAT version is loaded.
+      if (treeVersionArg ? hasOfficialTreeLoaded(game, treeVersionArg) : hasOfficialTreeLoaded(game)) {
+        return;
+      }
       set({ dataLoading: true });
       try {
-        // Stage 1 (Critical Path): only fetch Passive Tree + Gems so the tree & DPS render immediately!
-        const [tree] = await Promise.all([
-          loadOfficialTree(game),
+        // Stage 1 (Critical Path): manifest + classes + passive tree + gems so the tree,
+        // dynamic class list & DPS render immediately. Manifest-driven so new season /
+        // 1.0 datasets load without a client rebuild.
+        const [, , tree] = await Promise.all([
+          loadDataManifest('/data'),
+          loadOfficialClasses(game, '/data'),
+          loadOfficialTree(game, '/data', treeVersionArg),
           loadOfficialGems(game),
         ]);
         const cur = get().build;
@@ -375,6 +384,12 @@ export const useWebPobStore = create<WebPobState>((set, get) => {
     replaceBuild: (nextBuild) => {
       set({ treePaintMode: 'shared' });
       commitBuild(nextBuild, { clearHistory: true });
+      // Imported builds may target a historical tree version (old share links). Load
+      // that exact passive tree so allocated nodes keep rendering correctly.
+      const targetVersion = nextBuild.tree?.treeVersion;
+      if (targetVersion && !hasOfficialTreeLoaded(nextBuild.game, targetVersion)) {
+        void get().ensureOfficialDataLoaded(nextBuild.game, targetVersion);
+      }
     },
 
     setBuildMeta: (patch) => {

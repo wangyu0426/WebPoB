@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-27T01:45:00.000Z",
+  "source": "ggg-official",
+  "games": {
+    "poe1": {
+      "latestTreeVersion": "3_30",
+      "trees": {
+        "3_30": "poe1-tree-3_30.json"
+      },
+      "classes": "poe1-classes.json",
+      "gems": "poe1-gems.json",
+      "bases": "poe1-bases.json",
+      "uniques": "poe1-uniques.json",
+      "clusters": "poe1-clusters.json",
+      "ascendancyArt": "ascendancy-art.json"
+    },
+    "poe2": {
+      "latestTreeVersion": "0_5",
+      "trees": {
+        "0_5": "poe2-tree-0_5.json"
+      },
+      "classes": "poe2-classes.json",
+      "gems": "poe2-gems.json",
+      "bases": "poe2-bases.json",
+      "uniques": "poe2-uniques.json",
+      "ascendancyArt": "ascendancy-art.json"
+    }
+  }
+}

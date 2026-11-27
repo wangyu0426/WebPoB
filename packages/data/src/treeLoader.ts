@@ -1,6 +1,15 @@
-import { KeywordFlag, ModFlag, type GameId, type GemDefinition, type PassiveNode, type PassiveTreeData } from '@webpob/core';
+import {
+  KeywordFlag,
+  ModFlag,
+  type CharacterClassDef,
+  type GameId,
+  type GemDefinition,
+  type PassiveNode,
+  type PassiveTreeData,
+} from '@webpob/core';
 import { getGemsForGame, POE1_GEMS, POE2_GEMS, setRegisteredGems } from './gems.js';
-import { getTreeForGame, hasOfficialTreeLoaded, registerTreeData } from './trees.js';
+import { getClassesForGame, registerClassesData } from './classes.js';
+import { getTreeForGame, hasOfficialTreeLoaded, registerTreeData, setLatestTreeVersion } from './trees.js';
 
 export interface CompactTreeNode {
   id: number;
@@ -77,10 +86,104 @@ const KIND_MAP: Record<CompactTreeNode['k'], PassiveNode['kind']> = {
 
 const loadedGemsFlag: Partial<Record<GameId, boolean>> = {};
 
+const getClassesFallback = (game: GameId): CharacterClassDef[] => getClassesForGame(game);
+
 export const OFFICIAL_TREE_FILES: Record<GameId, string> = {
   poe1: 'poe1-tree-3_30.json',
   poe2: 'poe2-tree-0_5.json',
 };
+
+export const OFFICIAL_CLASSES_FILES: Record<GameId, string> = {
+  poe1: 'poe1-classes.json',
+  poe2: 'poe2-classes.json',
+};
+
+/**
+ * Display-layer data contract published by the data pipeline in
+ * `apps/web/public/data/manifest.json`. Lets the frontend discover tree versions,
+ * classes and other datasets without any hardcoded `3_30` / `0_5` constants.
+ */
+export interface DataManifestGame {
+  latestTreeVersion: string;
+  trees: Record<string, string>;
+  classes: string;
+  gems: string;
+  bases: string;
+  uniques: string;
+  clusters?: string;
+  ascendancyArt?: string;
+}
+
+export interface DataManifest {
+  schemaVersion: number;
+  generatedAt: string;
+  source: string;
+  games: Record<GameId, DataManifestGame>;
+}
+
+let cachedManifest: DataManifest | null = null;
+let manifestLoadPromise: Promise<DataManifest | null> | null = null;
+
+const normalizeVersionKey = (version?: string): string =>
+  String(version ?? '').trim().toLowerCase().replace(/^v/, '').replace(/[.-]/g, '_');
+
+/** Registers a manifest in memory (e.g. from `fetch` or a Vite JSON import). */
+export function registerDataManifest(manifest: DataManifest | null): void {
+  cachedManifest = manifest;
+  manifestLoadPromise = null;
+}
+
+/** Returns the currently cached manifest, if one has been loaded. */
+export function getDataManifest(): DataManifest | null {
+  return cachedManifest;
+}
+
+/**
+ * Fetches and caches `manifest.json`. Returns `null` (without throwing) when the
+ * manifest is unavailable so unit tests / offline builds fall back to the
+ * hardcoded `OFFICIAL_TREE_FILES` constants.
+ */
+export async function loadDataManifest(basePath = '/data'): Promise<DataManifest | null> {
+  if (cachedManifest) return cachedManifest;
+  if (manifestLoadPromise) return manifestLoadPromise;
+  const url = `${basePath.replace(/\/+$/, '')}/manifest.json`;
+  manifestLoadPromise = (async () => {
+    try {
+      if (typeof fetch !== 'function') return null;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const manifest = (await res.json()) as DataManifest;
+      if (!manifest || !manifest.games) return null;
+      cachedManifest = manifest;
+      return manifest;
+    } catch {
+      return null;
+    }
+  })();
+  return manifestLoadPromise;
+}
+
+/** Resolves the tree filename for `game`/`treeVersion` from the manifest, if available. */
+export function resolveTreeFileFromManifest(
+  manifest: DataManifest | null,
+  game: GameId,
+  treeVersion?: string,
+): string | undefined {
+  const entry = manifest?.games?.[game];
+  if (!entry?.trees) return undefined;
+  const key = normalizeVersionKey(treeVersion);
+  if (key && entry.trees[key]) return entry.trees[key];
+  if (key) {
+    const match = Object.keys(entry.trees).find((k) => normalizeVersionKey(k) === key);
+    if (match) return entry.trees[match];
+  }
+  const latest = entry.latestTreeVersion;
+  if (latest && entry.trees[latest]) return entry.trees[latest];
+  const latestKey = Object.keys(entry.trees).find((k) => normalizeVersionKey(k) === normalizeVersionKey(latest));
+  if (latestKey) return entry.trees[latestKey];
+  const first = Object.values(entry.trees)[0];
+  return first;
+}
 
 export const OFFICIAL_GEMS_FILES: Record<GameId, string> = {
   poe1: 'poe1-gems.json',
@@ -125,22 +228,77 @@ export function hydrateCompactTree(payload: CompactTreePayload): PassiveTreeData
 }
 
 /**
- * Lazily fetches and hydrates the full official PoE 1 (3.30) or PoE 2 (0.5) passive tree
- * from static `/data/*.json` assets in the browser.
+ * Lazily fetches and hydrates the full official passive tree from static
+ * `/data/*.json` assets. The filename is resolved from `manifest.json` when
+ * available (so future `1_0` / season trees ship without client changes), with a
+ * graceful fallback to `OFFICIAL_TREE_FILES` in unit tests / offline builds.
+ *
+ * Pass `treeVersion` to load a specific historical tree (keeps old share links
+ * rendering their original passives).
  */
-export async function loadOfficialTree(game: GameId, basePath = '/data'): Promise<PassiveTreeData> {
-  if (hasOfficialTreeLoaded(game)) {
+export async function loadOfficialTree(
+  game: GameId,
+  basePath = '/data',
+  treeVersion?: string,
+): Promise<PassiveTreeData> {
+  const requested = normalizeVersionKey(treeVersion);
+
+  if (requested && hasOfficialTreeLoaded(game, requested)) {
+    return getTreeForGame(game, requested);
+  }
+  if (!requested && hasOfficialTreeLoaded(game)) {
     return getTreeForGame(game);
   }
-  const url = `${basePath.replace(/\/+$/, '')}/${OFFICIAL_TREE_FILES[game]}`;
+
+  const manifest = await loadDataManifest(basePath);
+  const file = resolveTreeFileFromManifest(manifest, game, treeVersion) ?? OFFICIAL_TREE_FILES[game];
+  const url = `${basePath.replace(/\/+$/, '')}/${file}`;
   const res = await fetch(url);
   if (!res.ok) {
+    if (hasOfficialTreeLoaded(game)) return getTreeForGame(game, treeVersion);
     throw new Error(`Failed to load official ${game} tree (${res.status})`);
   }
   const payload = (await res.json()) as CompactTreePayload;
   const hydrated = hydrateCompactTree(payload);
-  registerTreeData(hydrated);
-  return hydrated;
+  // Honour the exact version the caller asked for even if the payload's own version
+  // string differs (manifest keys are the source of truth for lookups).
+  const tree =
+    requested && normalizeVersionKey(hydrated.version) !== requested
+      ? { ...hydrated, version: requested }
+      : hydrated;
+  registerTreeData(tree);
+  // Pin the manifest's latest version as the active tree even when we just loaded a
+  // historical version for an old share link.
+  const manifestLatest = manifest?.games?.[game]?.latestTreeVersion;
+  if (manifestLatest) setLatestTreeVersion(game, manifestLatest);
+  return tree;
+}
+
+/**
+ * Loads the pipeline-provided class/ascendancy table for `game` and registers it
+ * so `getClassesForGame` returns dynamic (not hardcoded) classes.
+ */
+export async function loadOfficialClasses(
+  game: GameId,
+  basePath = '/data',
+): Promise<CharacterClassDef[]> {
+  const manifest = await loadDataManifest(basePath);
+  const file = manifest?.games?.[game]?.classes ?? OFFICIAL_CLASSES_FILES[game];
+  const url = `${basePath.replace(/\/+$/, '')}/${file}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return getClassesFallback(game);
+    const payload = (await res.json()) as {
+      game?: GameId;
+      version?: string;
+      classes?: CharacterClassDef[];
+    };
+    const classes = payload?.classes;
+    if (!Array.isArray(classes) || classes.length === 0) return getClassesFallback(game);
+    return registerClassesData(game, classes);
+  } catch {
+    return getClassesFallback(game);
+  }
 }
 
 function hydrateLevelScaling(
