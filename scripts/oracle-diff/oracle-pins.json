@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "poe1": {
+      "repo": "https://github.com/PathOfBuildingCommunity/PathOfBuilding.git",
+      "commit": "5606cc64fa9f15694e69001a52b90aa968d01a86",
+      "releaseLabel": "Release 2.69.0"
+    },
+    "poe2": {
+      "repo": "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git",
+      "commit": "601768bd105869618c3d6581b883e5d7aeec91b2",
+      "releaseLabel": "SimpleGraphic-v2.5.6"
+    }
+  },
+  "runtime": {
+    "luajit": {
+      "repository": "https://github.com/LuaJIT/LuaJIT.git",
+      "revision": "2460b3ff93a1c955de3d62cfc825de7d68dc272e",
+      "version": "2.1.1784580905",
+      "utf8Module": {
+        "name": "lua-utf8",
+        "version": "0.2.1",
+        "rock": "luautf8",
+        "rockVersion": "0.2.1-1"
+      }
+    }
+  },
+  "dataFiles": {
+    "apps/web/public/data/manifest.json": "96b3230d94dbc6f8a74b0b33fefdf0fe64a4831d482f41c436c5093f8bc2e5b2",
+    "apps/web/public/data/poe1-tree-3_30.json": "e51c176e67143fefdabc6192a3e038fba04980e5cd65c9d5488714cf72181f9a",
+    "apps/web/public/data/poe2-tree-0_5.json": "bd87c749358169acecd898fad1bf1d6592a6628a32e822e01db8510ff1319907",
+    "apps/web/public/data/poe1-gems.json": "29eb03f3ead714ea039e63e668653185fd0e503943c2d1dc90073d5e3b179ec5",
+    "apps/web/public/data/poe2-gems.json": "2ba146691e5746698b6acb762d602f219269db75eda60f3ac84094a05826971d",
+    "apps/web/public/data/poe1-bases.json": "827a4ee6b0681eaa17f735d6962cd1ad90776c100f5a95cdc4d59ec8ca06e85a",
+    "apps/web/public/data/poe2-bases.json": "0b6cc0a97fe65afdc61dc849e89e789d39aa35282a62eb7a7347a3f42aaa4c66",
+    "apps/web/public/data/poe1-clusters.json": "37932015665e50908cb2c231c62ee3cbfa33ce38f9307f4421094acf66a1aca3"
+  }
+}

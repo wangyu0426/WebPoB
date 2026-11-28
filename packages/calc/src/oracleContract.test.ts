@@ -334,17 +334,84 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
 
     const v2Perfect: OracleSnapshotRecord = {
       ...firstRealSnapshot,
+      pobCommit: '5606cc64fa9f15694e69001a52b90aa968d01a86',
+      inputDigest: 'a'.repeat(64),
       schemaVersion: 2,
-      context: { activeSkillName: out.offence.mainSkillName.en, mainSocketGroup: 1, outputSource: 'player' },
+      context: {
+        activeSkillName: out.offence.mainSkillName.en,
+        mainSocketGroup: 1,
+        outputSource: 'player',
+        luaVersion: 'LuaJIT 2.1.1784580905',
+        luaUtf8Version: '0.2.1',
+      },
+      provenance: {
+        pobRepo: 'https://github.com/PathOfBuildingCommunity/PathOfBuilding.git',
+        pobCommit: '5606cc64fa9f15694e69001a52b90aa968d01a86',
+        luaJitRepository: 'https://github.com/LuaJIT/LuaJIT.git',
+        luaJitRevision: '2460b3ff93a1c955de3d62cfc825de7d68dc272e',
+        luaJitVersion: 'LuaJIT 2.1.1784580905',
+        luaUtf8Rock: 'luautf8',
+        luaUtf8RockVersion: '0.2.1-1',
+        luaUtf8Module: 'lua-utf8',
+        luaUtf8Version: '0.2.1',
+        inputDigest: 'a'.repeat(64),
+        runnerScriptDigest: 'b'.repeat(64),
+      },
+      presence: { presentCount: 1, missingCount: 0, presentFields: ['Life'], missingFields: [] },
+      nativeErrors: [],
       oracle: perfectOracle,
     };
+    const expectedPobCommits = { poe1: '5606cc64fa9f15694e69001a52b90aa968d01a86' };
     const v2Suite = evaluateOracleSuite(
       { schemaVersion: 2, snapshots: [v2Perfect] },
       () => ({ build, out }),
       { minCount: 1 },
+      ORACLE_METRIC_SPECS,
+      expectedPobCommits,
     );
     expect(v2Suite.strictPassed).toBe(true);
     expect(v2Suite.certified).toBe(true);
+
+    // Abbreviated, floating, or unknown revisions and native errors must never be certified
+    const v2ShortCommit = evaluateSnapshot({ ...v2Perfect, pobCommit: '5606cc6' }, build, out);
+    expect(v2ShortCommit.strictPassed).toBe(true);
+    expect(v2ShortCommit.certified).toBe(false);
+
+    const v2UnknownCommit = evaluateSnapshot(
+      { ...v2Perfect, pobCommit: 'unknown' },
+      build,
+      out,
+      ORACLE_METRIC_SPECS,
+      expectedPobCommits.poe1,
+    );
+    expect(v2UnknownCommit.certified).toBe(false);
+
+    const v2WrongPinnedCommit = evaluateSnapshot(
+      v2Perfect,
+      build,
+      out,
+      ORACLE_METRIC_SPECS,
+      '601768bd105869618c3d6581b883e5d7aeec91b2',
+    );
+    expect(v2WrongPinnedCommit.certified).toBe(false);
+
+    const v2NativeError = evaluateSnapshot(
+      { ...v2Perfect, nativeErrors: ['OnFrame failed'] },
+      build,
+      out,
+      ORACLE_METRIC_SPECS,
+      expectedPobCommits.poe1,
+    );
+    expect(v2NativeError.certified).toBe(false);
+
+    const v2MissingNativeErrors = evaluateSnapshot(
+      { ...v2Perfect, nativeErrors: undefined },
+      build,
+      out,
+      ORACLE_METRIC_SPECS,
+      expectedPobCommits.poe1,
+    );
+    expect(v2MissingNativeErrors.certified).toBe(false);
 
     // Partial, empty, or custom specs (even reusing canonical names) must never certify a snapshot
     const partialEval = evaluateSnapshot(v2Perfect, build, out, []);

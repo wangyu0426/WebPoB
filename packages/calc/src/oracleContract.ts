@@ -18,10 +18,40 @@ export type OracleToleranceRule =
 
 export type OracleRawValue = number | string | null | undefined;
 
+export const FULL_GIT_SHA_RE = /^[0-9a-f]{40}$/;
+
+export function isFullGitSha(rev: unknown): rev is string {
+  return typeof rev === 'string' && FULL_GIT_SHA_RE.test(rev);
+}
+
 export interface OracleContextMetadata {
   activeSkillName?: string | null;
   mainSocketGroup?: number | null;
   outputSource?: 'player' | 'minion' | null;
+  luaVersion?: string | null;
+  luaUtf8Version?: string | null;
+  pobVersion?: string | null;
+}
+
+export interface OraclePresenceMetadata {
+  presentCount: number;
+  missingCount: number;
+  presentFields: string[];
+  missingFields: string[];
+}
+
+export interface OracleProvenanceMetadata {
+  pobRepo?: string;
+  pobCommit: string;
+  luaJitRepository?: string;
+  luaJitRevision?: string;
+  luaJitVersion?: string;
+  luaUtf8Rock?: string;
+  luaUtf8RockVersion?: string;
+  luaUtf8Module?: string;
+  luaUtf8Version?: string;
+  inputDigest?: string;
+  runnerScriptDigest?: string;
 }
 
 export interface OracleSnapshotRecord {
@@ -30,9 +60,13 @@ export interface OracleSnapshotRecord {
   game: GameId;
   xml: string;
   pobCommit: string;
+  inputDigest?: string;
   generatedAt?: string;
   schemaVersion?: number;
   context?: OracleContextMetadata;
+  provenance?: OracleProvenanceMetadata;
+  presence?: OraclePresenceMetadata;
+  nativeErrors?: string[];
   oracle: Record<string, OracleRawValue>;
 }
 
@@ -793,6 +827,7 @@ export function evaluateSnapshot(
   build: Build,
   out: CalcOutput,
   specs: readonly OracleMetricSpec[] = ORACLE_METRIC_SPECS,
+  expectedPobCommit?: string,
 ): OracleSnapshotEvaluation {
   const context = validateSkillContext(snapshot, build, out);
   const metrics = specs.map((spec) => evaluateMetric(spec, snapshot, build, out));
@@ -804,8 +839,57 @@ export function evaluateSnapshot(
   const corePassed = context.valid && coreMetrics.length > 0 && coreMetrics.every((m) => !isFailing(m));
   const strictPassed = context.valid && metrics.length > 0 && metrics.every((m) => !isFailing(m));
   const usesCanonicalSpecs = specs === ORACLE_METRIC_SPECS;
+  const hasPinnedCommit =
+    isFullGitSha(snapshot.pobCommit) &&
+    typeof expectedPobCommit === 'string' &&
+    snapshot.pobCommit === expectedPobCommit;
+  const hasNoNativeErrors = Array.isArray(snapshot.nativeErrors) && snapshot.nativeErrors.length === 0;
+  const provenance = snapshot.provenance;
+  const isSha256 = (value: unknown): value is string =>
+    typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+  const hasRuntimeProvenance =
+    Boolean(provenance) &&
+    provenance?.pobCommit === snapshot.pobCommit &&
+    typeof provenance?.pobRepo === 'string' &&
+    provenance.pobRepo.startsWith('https://') &&
+    typeof provenance.luaJitRepository === 'string' &&
+    provenance.luaJitRepository.startsWith('https://') &&
+    isFullGitSha(provenance?.luaJitRevision) &&
+    typeof provenance?.luaJitVersion === 'string' &&
+    provenance.luaJitVersion.length > 0 &&
+    typeof provenance?.luaUtf8Rock === 'string' &&
+    provenance.luaUtf8Rock.length > 0 &&
+    typeof provenance?.luaUtf8RockVersion === 'string' &&
+    provenance.luaUtf8RockVersion.length > 0 &&
+    typeof provenance?.luaUtf8Module === 'string' &&
+    provenance.luaUtf8Module.length > 0 &&
+    typeof provenance?.luaUtf8Version === 'string' &&
+    provenance.luaUtf8Version.length > 0 &&
+    isSha256(snapshot.inputDigest) &&
+    provenance?.inputDigest === snapshot.inputDigest &&
+    isSha256(provenance?.runnerScriptDigest) &&
+    typeof snapshot.context?.luaVersion === 'string' &&
+    snapshot.context.luaVersion.length > 0 &&
+    snapshot.context.luaVersion.includes(provenance.luaJitVersion) &&
+    snapshot.context.luaUtf8Version === provenance.luaUtf8Version;
+  const presence = snapshot.presence;
+  const hasMetricPresence =
+    Boolean(presence) &&
+    Array.isArray(presence?.presentFields) &&
+    Array.isArray(presence?.missingFields) &&
+    presence?.presentCount === presence.presentFields.length &&
+    presence?.missingCount === presence.missingFields.length &&
+    presence.presentCount + presence.missingCount > 0;
   const certified =
-    strictPassed && usesCanonicalSpecs && context.provenance === 'v2_hardened' && context.outputSourceVerified;
+    strictPassed &&
+    usesCanonicalSpecs &&
+    snapshot.schemaVersion === 2 &&
+    context.provenance === 'v2_hardened' &&
+    context.outputSourceVerified &&
+    hasPinnedCommit &&
+    hasNoNativeErrors &&
+    hasRuntimeProvenance &&
+    hasMetricPresence;
 
   return {
     id: snapshot.id,
@@ -825,6 +909,7 @@ export function evaluateOracleSuite(
   evaluateBuildFn: (xml: string) => { build: Build; out: CalcOutput },
   options: CorpusValidationOptions = {},
   specs: readonly OracleMetricSpec[] = ORACLE_METRIC_SPECS,
+  expectedPobCommits?: Partial<Record<GameId, string>>,
 ): OracleSuiteEvaluation {
   const corpus = validateSnapshotCorpus(payload, options);
   const statusCounts: Record<OracleMetricStatus, number> = {
@@ -861,7 +946,7 @@ export function evaluateOracleSuite(
       continue;
     }
     const { build, out } = evaluateBuildFn(snap.xml);
-    const evaluation = evaluateSnapshot(snap, build, out, specs);
+    const evaluation = evaluateSnapshot(snap, build, out, specs, expectedPobCommits?.[snap.game]);
     snapshots.push(evaluation);
 
     for (const m of evaluation.metrics) {
