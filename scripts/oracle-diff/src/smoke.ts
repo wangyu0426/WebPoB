@@ -77,9 +77,12 @@ async function loadLocalDatasets() {
 }
 
 function pickDefaultSmokeBenchmarks() {
-  const poe1 = ORACLE_BENCHMARKS.find((b) => b.game === 'poe1');
-  const poe2 = ORACLE_BENCHMARKS.find((b) => b.game === 'poe2');
-  return [poe1, poe2].filter((b): b is NonNullable<typeof b> => Boolean(b));
+  const smokeIds = ['poe1_impale_cyclone_marauder', 'poe2_naked_sorc_spark'];
+  return smokeIds.map((id) => {
+    const benchmark = ORACLE_BENCHMARKS.find((candidate) => candidate.id === id);
+    if (!benchmark) throw new Error(`Required native smoke benchmark is missing: ${id}`);
+    return benchmark;
+  });
 }
 
 function parseArgs(argv: string[]) {
