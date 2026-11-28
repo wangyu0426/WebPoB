@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { isFullGitSha } from '@webpob/calc';
 import {
@@ -10,10 +12,13 @@ import {
   sha256Buffer,
   validateOraclePinsSchema,
   validateSnapshotProvenance,
+  verifyPinnedCheckout,
   verifyPinnedDataFiles,
 } from './pins.js';
-import { compareRepeatability } from './smoke.js';
+import { compareRepeatability, writeNativeSnapshots } from './smoke.js';
 import type { OracleGoldenSnapshot } from './generate.js';
+
+const execFileAsync = promisify(execFile);
 
 describe('Oracle Pin Lockfile & Provenance Verification (Offline)', () => {
   it('loads the exact independent PoE and runtime pins', async () => {
@@ -37,6 +42,41 @@ describe('Oracle Pin Lockfile & Provenance Verification (Offline)', () => {
     const result = await verifyPinnedDataFiles(pins, ROOT_DIR);
     expect(result.errors).toEqual([]);
     expect(result.valid).toBe(true);
+  });
+
+  it('rejects a dirty tracked Lua file anywhere in the pinned checkout', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'webpob-pinned-checkout-test-'));
+    const git = (args: string[]) => execFileAsync('git', args, { cwd: tmpDir });
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.mkdir(path.join(tmpDir, 'runtime/lua'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src/main.lua'), 'return true\n');
+      await fs.writeFile(path.join(tmpDir, 'runtime/lua/HeadlessWrapper.lua'), 'return true\n');
+      await git(['init', '-q']);
+      await git(['config', 'user.name', 'Fixture Maintainer']);
+      await git(['config', 'user.email', 'fixture@example.test']);
+      await git(['add', 'src/main.lua', 'runtime/lua/HeadlessWrapper.lua']);
+      await git(['commit', '-m', 'Create synthetic pinned checkout']);
+      await git(['remote', 'add', 'origin', 'https://example.test/PathOfBuilding.git']);
+      const { stdout: commit } = await git(['rev-parse', 'HEAD']);
+
+      expect(await verifyPinnedCheckout(
+        tmpDir,
+        commit.trim(),
+        'fixture',
+        'https://example.test/PathOfBuilding.git',
+      )).toBe(commit.trim());
+
+      await fs.writeFile(path.join(tmpDir, 'runtime/lua/HeadlessWrapper.lua'), 'return false\n');
+      await expect(verifyPinnedCheckout(
+        tmpDir,
+        commit.trim(),
+        'fixture',
+        'https://example.test/PathOfBuilding.git',
+      )).rejects.toThrow('Pinned checkout is dirty for fixture.');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('rejects floating refs, abbreviated SHAs, missing runtime pins, and invalid data hashes', () => {
@@ -158,4 +198,38 @@ describe('Oracle Pin Lockfile & Provenance Verification (Offline)', () => {
     expect(driftRes.repeatable).toBe(false);
     expect(driftRes.diffs.some((d) => d.includes('oracle'))).toBe(true);
   });
+
+  it('retains marker-delimited native error output in smoke failure evidence', async () => {
+    const pins = await loadOraclePins(DEFAULT_PINS_PATH);
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'webpob-native-evidence-test-'));
+    const outPath = path.join(tmpDir, 'native-smoke.json');
+    const snapshot: OracleGoldenSnapshot = {
+      id: 'poe1_native_failure',
+      title: 'Native failure evidence',
+      game: 'poe1',
+      xml: '<PathOfBuilding/>',
+      pobCommit: pins.upstream.poe1.commit,
+      inputDigest: sha256Buffer('<PathOfBuilding/>'),
+      generatedAt: '2026-11-28T00:00:00.000Z',
+      schemaVersion: 2,
+      context: { luaVersion: pins.runtime.luajit.version, luaUtf8Version: pins.runtime.luajit.utf8Module.version },
+      provenance: { pobRepo: pins.upstream.poe1.repo, pobCommit: pins.upstream.poe1.commit },
+      presence: { presentCount: 1, missingCount: 0, presentFields: ['Life'], missingFields: [] },
+      nativeErrors: ['OnFrame failed'],
+      oracle: { Life: 1125 },
+    };
+
+    try {
+      await writeNativeSnapshots(outPath, pins, [], { benchmarkId: snapshot.id, runNumber: 1, snapshot });
+      const evidence = JSON.parse(await fs.readFile(outPath, 'utf-8')) as {
+        failedRun?: { benchmarkId: string; runNumber: number; snapshot: OracleGoldenSnapshot };
+      };
+      expect(evidence.failedRun?.benchmarkId).toBe(snapshot.id);
+      expect(evidence.failedRun?.snapshot.nativeErrors).toEqual(['OnFrame failed']);
+      expect(evidence.failedRun?.snapshot.oracle).toEqual({ Life: 1125 });
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
 });

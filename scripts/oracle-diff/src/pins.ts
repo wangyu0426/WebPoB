@@ -208,11 +208,11 @@ export async function verifyPinnedCheckout(
   }
   const { stdout: status } = await execFileAsync(
     'git',
-    ['status', '--porcelain', '--untracked-files=all', '--', 'src'],
+    ['status', '--porcelain', '--untracked-files=all'],
     { cwd: repoDir },
   );
   if (status.trim()) {
-    throw new Error('Pinned source tree is dirty for ' + label + '.');
+    throw new Error('Pinned checkout is dirty for ' + label + '.');
   }
   return actual;
 }

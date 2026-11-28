@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'scripts/oracle-diff/**'
+      - 'packages/core/**'
+      - 'packages/data/**'
+      - 'packages/codec/**'
       - 'packages/calc/**'
       - 'apps/web/public/data/**'
       - 'package.json'

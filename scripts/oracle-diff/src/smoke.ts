@@ -117,10 +117,11 @@ function parseArgs(argv: string[]) {
   return { ids, outPath, pinsPath, repeats };
 }
 
-async function writeNativeSnapshots(
+export async function writeNativeSnapshots(
   outPath: string | undefined,
   pins: OraclePinsFile,
   snapshots: OracleGoldenSnapshot[],
+  failedRun?: { benchmarkId: string; runNumber: number; snapshot: OracleGoldenSnapshot },
 ): Promise<void> {
   if (!outPath) return;
   await fs.mkdir(path.dirname(outPath), { recursive: true });
@@ -134,6 +135,7 @@ async function writeNativeSnapshots(
           poe2: pins.upstream.poe2.commit,
         },
         snapshots,
+        ...(failedRun ? { failedRun } : {}),
       },
       null,
       2,
@@ -192,11 +194,21 @@ async function main() {
         pins,
         runtime,
         runnerScriptDigest,
+        preserveNativeErrorEvidence: true,
       });
       runs.push(run);
-      if (r === 0) {
+      if (r === 0 && run.nativeErrors.length === 0) {
         nativeSnapshots.push(run);
         await writeNativeSnapshots(opts.outPath, pins, nativeSnapshots);
+      }
+      if (run.nativeErrors.length > 0) {
+        for (const nativeError of run.nativeErrors) console.error('  ✗ Native: ' + nativeError);
+        await writeNativeSnapshots(opts.outPath, pins, nativeSnapshots, {
+          benchmarkId: bench.id,
+          runNumber: r + 1,
+          snapshot: run,
+        });
+        throw new Error('Pinned Native Oracle reported errors for ' + bench.id + '.');
       }
     }
 

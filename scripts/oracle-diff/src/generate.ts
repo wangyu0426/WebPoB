@@ -137,16 +137,9 @@ export async function runUpstreamOracle(
       throw new Error(`Oracle metric presence metadata is missing or inconsistent for ${bench.id}`);
     }
 
-    const nativeErrors = parsed.nativeErrors;
-    if (nativeErrors.length > 0) {
-      throw new Error(
-        'Native PoB Oracle reported errors for ' + bench.id + ':\n' +
-          nativeErrors.join('\n') + '\nNative output: ' + JSON.stringify(parsed),
-      );
-    }
-    if (processFailure) {
-      const message = processFailure instanceof Error ? processFailure.message : String(processFailure);
-      throw new Error('Pinned LuaJIT process failed for ' + bench.id + ': ' + message + '\nSTDERR:\n' + stderr);
+    const nativeErrors = [...parsed.nativeErrors];
+    if (processFailure && nativeErrors.length === 0) {
+      nativeErrors.push('LuaJIT exited unsuccessfully after emitting Oracle JSON.');
     }
 
     return {
@@ -168,6 +161,7 @@ export async function executePinnedBenchmark(
     runtime: PinnedLuaRuntime;
     runnerScriptDigest: string;
     timeoutMs?: number;
+    preserveNativeErrorEvidence?: boolean;
   },
 ): Promise<OracleGoldenSnapshot> {
   const result = await runUpstreamOracle(bench, {
@@ -206,6 +200,7 @@ export async function executePinnedBenchmark(
   };
   const provenanceErrors = validateSnapshotProvenance(snapshot, ctx.pins, ctx.runnerScriptDigest);
   if (provenanceErrors.length > 0) {
+    if (ctx.preserveNativeErrorEvidence && snapshot.nativeErrors.length > 0) return snapshot;
     throw new Error('Generated native snapshot failed provenance validation:\n  - ' + provenanceErrors.join('\n  - '));
   }
   return snapshot;
