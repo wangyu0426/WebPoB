@@ -24,7 +24,7 @@ Every evaluated metric produces one of six explicit statuses:
 | `Int` | `Int` | `defence.int` | `core` | `int` | Exact integer | Always |
 | `Life` | `Life` | `defence.life` | `core` | `flat` | `<= 0.1%` or `<= 1` | Always |
 | `EnergyShield` | `EnergyShield` | `defence.energyShield` | `core` | `flat` | `<= 0.5%` or `<= 1` | Always |
-| `Ward` | `Ward` | `defence.ward ?? 0` | `core` | `flat` | `<= 0.5%` or `<= 1` | PoE 1 |
+| `Ward` | `Ward` | `defence.ward` | `core` | `flat` | `<= 0.5%` or `<= 1` | PoE 1 |
 | `Mana` | `Mana` | `defence.mana` | `core` | `flat` | `<= 0.1%` or `<= 1` | Always |
 | `ManaUnreserved` | `ManaUnreserved` | `defence.manaUnreserved` | `extended` | `flat` | `<= 0.5%` or `<= 2` | Always |
 | `SpiritReserved` | `SpiritReserved` | `defence.spiritReserved` | `core` | `int` | Exact integer | PoE 2 |
@@ -43,7 +43,7 @@ Every evaluated metric produces one of six explicit statuses:
 | `HitChance` | `HitChance` | `offence.hitChance` | `core` | `pct` | Exact integer | Always |
 | `AverageDamage` | `AverageDamage \|\| AverageHit` | `offence.averageHit * (hitChance / 100)` | `core` | `damage` | `<= 0.5%` or `<= 1` | Always |
 | `HitDPS` | `TotalDPS` | `offence.hitDps` | `core` | `dps` | `<= 0.5%` or `<= 1` | Always |
-| `ImpaleDPS` | `ImpaleDPS` | `offence.impaleDps ?? 0` | `core` | `dps` | `<= 0.5%` or `<= 1` | PoE 1 |
+| `ImpaleDPS` | `ImpaleDPS` | `offence.impaleDps` | `core` | `dps` | `<= 0.5%` or `<= 1` | PoE 1 |
 | `IgniteDPS` | `IgniteDPS` | `offence.igniteDps` | `extended` | `dps` | `<= 0.5%` or `<= 1` | Always |
 | `BleedDPS` | `BleedDPS` | `offence.bleedDps` | `extended` | `dps` | `<= 0.5%` or `<= 1` | Always |
 | `PoisonDPS` | `TotalPoisonDPS` | `offence.poisonDps` | `extended` | `dps` | `<= 0.5%` or `<= 1` | Always |

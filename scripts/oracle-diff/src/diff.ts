@@ -13,13 +13,18 @@ import {
   type CompactTreePayload,
 } from '@webpob/data';
 import { xmlToBuild } from '@webpob/codec';
-import { calculateBuild, evaluateOracleSuite, type OracleMetricStatus } from '@webpob/calc';
-import { ORACLE_BENCHMARKS } from './benchmarks.js';
+import {
+  calculateBuild,
+  CANONICAL_ORACLE_BENCHMARK_IDS,
+  evaluateOracleSuite,
+  validateSnapshotCorpus,
+  type OracleMetricStatus,
+} from '@webpob/calc';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '../../..');
 const DEFAULT_SNAP_PATH = path.join(ROOT_DIR, 'fixtures/oracle/snapshots.json');
-const DEFAULT_MIN_SNAPSHOT_COUNT = 130;
+const CANONICAL_MIN_SNAPSHOT_COUNT = CANONICAL_ORACLE_BENCHMARK_IDS.length;
 
 interface CliOptions {
   strict: boolean;
@@ -72,7 +77,6 @@ function parseCliArgs(argv: string[]): CliOptions {
     }
   }
 
-  const canonicalMinCount = Math.max(DEFAULT_MIN_SNAPSHOT_COUNT, ORACLE_BENCHMARKS.length);
   return {
     strict,
     certify,
@@ -81,8 +85,8 @@ function parseCliArgs(argv: string[]): CliOptions {
     snapshotsPath,
     customSnapshots,
     minCount: certify
-      ? Math.max(minCount ?? canonicalMinCount, canonicalMinCount)
-      : (minCount ?? (customSnapshots ? 1 : canonicalMinCount)),
+      ? Math.max(minCount ?? CANONICAL_MIN_SNAPSHOT_COUNT, CANONICAL_MIN_SNAPSHOT_COUNT)
+      : (minCount ?? (customSnapshots ? 1 : CANONICAL_MIN_SNAPSHOT_COUNT)),
   };
 }
 
@@ -142,9 +146,20 @@ async function main() {
     },
     {
       minCount: opts.minCount,
-      expectedIds: opts.certify || !opts.customSnapshots ? ORACLE_BENCHMARKS.map((b) => b.id) : undefined,
+      expectedIds: opts.certify || !opts.customSnapshots ? CANONICAL_ORACLE_BENCHMARK_IDS : undefined,
     },
   );
+
+  // Canonical benchmark certification always requires the full canonical benchmark corpus,
+  // even when running diagnostic or --strict mode against a custom --snapshots file.
+  const canonicalCorpus =
+    opts.certify || !opts.customSnapshots
+      ? suite.corpus
+      : validateSnapshotCorpus(rawPayload, {
+          minCount: CANONICAL_MIN_SNAPSHOT_COUNT,
+          expectedIds: CANONICAL_ORACLE_BENCHMARK_IDS,
+        });
+  const canonicalCertified = suite.certified && canonicalCorpus.valid;
 
   if (opts.json) {
     console.log(
@@ -157,7 +172,7 @@ async function main() {
           metricSummaries: suite.metricSummaries,
           corePassed: suite.corePassed,
           strictPassed: suite.strictPassed,
-          certified: suite.certified,
+          certified: canonicalCertified,
         },
         null,
         2,
@@ -203,7 +218,7 @@ async function main() {
     }
 
     console.log(
-      `\nGate Summary: corePassed=${suite.corePassed} | strictPassed=${suite.strictPassed} | certified=${suite.certified}`,
+      `\nGate Summary: corePassed=${suite.corePassed} | strictPassed=${suite.strictPassed} | certified=${canonicalCertified}`,
     );
   }
 
@@ -213,7 +228,7 @@ async function main() {
   if (opts.strict && !suite.strictPassed) {
     process.exit(1);
   }
-  if (opts.certify && !suite.certified) {
+  if (opts.certify && !canonicalCertified) {
     process.exit(1);
   }
 }

@@ -17,6 +17,7 @@ import {
 import { xmlToBuild } from '@webpob/codec';
 import {
   calculateBuild,
+  CANONICAL_ORACLE_BENCHMARK_IDS,
   evaluateOracleSuite,
   evaluateSnapshot,
   ORACLE_METRIC_SPECS,
@@ -26,9 +27,10 @@ import {
 
 const rootDir = process.cwd();
 const snapFile = path.join(rootDir, 'fixtures/oracle/snapshots.json');
-const firstRealSnapshot = (
+const allRealSnapshots = (
   JSON.parse(fs.readFileSync(snapFile, 'utf-8')) as { snapshots: OracleSnapshotRecord[] }
-).snapshots[0]!;
+).snapshots;
+const firstRealSnapshot = allRealSnapshots[0]!;
 
 describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () => {
   beforeAll(() => {
@@ -227,6 +229,19 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
     );
     expect(unsupportedVer.valid).toBe(false);
     expect(unsupportedVer.errors.some((e) => e.includes('schemaVersion'))).toBe(true);
+
+    // Same-count substitution of a canonical benchmark ID must fail the default canonical gate
+    const substitutedSnapshots = allRealSnapshots.map((s, idx) =>
+      idx === 0 ? { ...s, id: 'synthetic_replacement_id' } : s,
+    );
+    const subResult = validateSnapshotCorpus(
+      { snapshots: substitutedSnapshots },
+      { minCount: CANONICAL_ORACLE_BENCHMARK_IDS.length, expectedIds: CANONICAL_ORACLE_BENCHMARK_IDS },
+    );
+    expect(subResult.valid).toBe(false);
+    expect(subResult.count).toBe(CANONICAL_ORACLE_BENCHMARK_IDS.length);
+    expect(subResult.duplicateIds).toEqual([]);
+    expect(subResult.missingIds).toEqual([firstRealSnapshot.id]);
   });
 
   it('never certifies legacy v1 snapshots even when all metrics match, and certifies v2 when all metrics match', () => {
@@ -399,5 +414,55 @@ describe('Oracle Differential Contract — Fail-Closed & Adversarial Tests', () 
       unknownFlagExitCode = (err as { status?: number }).status ?? 1;
     }
     expect(unknownFlagExitCode).not.toBe(0);
+
+    // 5. Custom passing 1-record v2 corpus must report strictPassed=true but certified=false in diagnostic/--strict,
+    //    and MUST exit nonzero under --certify --min-count 1
+    const build = xmlToBuild(firstRealSnapshot.xml);
+    const out = calculateBuild(build);
+    const customV2File = path.join(os.tmpdir(), `webpob_custom_v2_${Date.now()}.json`);
+    const customV2Payload = {
+      schemaVersion: 2,
+      snapshots: [
+        {
+          ...firstRealSnapshot,
+          schemaVersion: 2,
+          context: { activeSkillName: out.offence.mainSkillName.en, mainSocketGroup: 1, outputSource: 'player' },
+          oracle: {
+            ...(firstRealSnapshot.oracle as Record<string, number>),
+            ChaosResist: out.defence.chaosResist,
+            TotalEHP: out.defence.effectiveHitPool,
+            IgniteDPS: out.offence.igniteDps,
+            BleedDPS: out.offence.bleedDps,
+            TotalPoisonDPS: out.offence.poisonDps,
+            CombinedDPS: out.offence.totalDps,
+            ManaUnreserved: out.defence.manaUnreserved,
+          },
+        },
+      ],
+    };
+    fs.writeFileSync(customV2File, JSON.stringify(customV2Payload), 'utf-8');
+    try {
+      const customStrictOut = execFileSync(tsxBin, [diffScript, '--strict', '--snapshots', customV2File, '--json'], {
+        cwd: rootDir,
+        encoding: 'utf-8',
+      });
+      const customStrictJson = JSON.parse(customStrictOut) as { strictPassed: boolean; certified: boolean };
+      expect(customStrictJson.strictPassed).toBe(true);
+      expect(customStrictJson.certified).toBe(false);
+
+      let customCertifyExit = 0;
+      try {
+        execFileSync(tsxBin, [diffScript, '--certify', '--min-count', '1', '--snapshots', customV2File, '--json'], {
+          cwd: rootDir,
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        });
+      } catch (err) {
+        customCertifyExit = (err as { status?: number }).status ?? 1;
+      }
+      expect(customCertifyExit).not.toBe(0);
+    } finally {
+      fs.unlinkSync(customV2File);
+    }
   });
 });

@@ -15,6 +15,7 @@ import {
 import { xmlToBuild } from '@webpob/codec';
 import {
   calculateBuild,
+  CANONICAL_ORACLE_BENCHMARK_IDS,
   evaluateSnapshot,
   validateSnapshotCorpus,
   type OracleSnapshotFile,
@@ -47,12 +48,16 @@ describe('Official PathOfBuilding Oracle Differential Regression Suite (PoE 1 3.
     registerClusterNotables(poe1Clusters);
   });
 
-  it('passes corpus schema, minimum count (130), and duplicate-ID checks', () => {
-    const corpus = validateSnapshotCorpus(rawPayload, { minCount: 130 });
+  it('passes corpus schema, canonical expected IDs (130), and duplicate-ID checks', () => {
+    const corpus = validateSnapshotCorpus(rawPayload, {
+      minCount: CANONICAL_ORACLE_BENCHMARK_IDS.length,
+      expectedIds: CANONICAL_ORACLE_BENCHMARK_IDS,
+    });
     expect(corpus.errors).toEqual([]);
     expect(corpus.valid).toBe(true);
-    expect(corpus.count).toBeGreaterThanOrEqual(130);
+    expect(corpus.count).toBeGreaterThanOrEqual(CANONICAL_ORACLE_BENCHMARK_IDS.length);
     expect(corpus.duplicateIds).toEqual([]);
+    expect(corpus.missingIds).toEqual([]);
     // Legacy v1 snapshots lack non-coerced null/NaN provenance and cannot be marked certified
     expect(corpus.legacyCount).toBe(corpus.count);
   });
