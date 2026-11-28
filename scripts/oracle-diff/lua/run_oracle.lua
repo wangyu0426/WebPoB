@@ -50,15 +50,44 @@ runCallback("OnFrame")
 
 local out = build and build.calcsTab and build.calcsTab.mainOutput or {}
 local offOut = out
+local outputSource = "player"
 if (out.TotalDPS == nil or out.TotalDPS == 0) and out.Minion and (out.Minion.TotalDPS or 0) > 0 then
   offOut = out.Minion
+  outputSource = "minion"
 end
 
-local function num(v)
-  if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
-    return 0
+local function jsonEscape(s)
+  return tostring(s):gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r')
+end
+
+-- Preserve missing (nil -> null) and non-finite numbers ("NaN"/"Infinity"/"-Infinity")
+-- instead of silently coercing them to 0.
+local function serializeValue(v)
+  if v == nil then
+    return "null"
   end
-  return v
+  if type(v) ~= "number" then
+    return '"' .. jsonEscape(type(v) .. ":" .. tostring(v)) .. '"'
+  end
+  if v ~= v then
+    return '"NaN"'
+  end
+  if v == math.huge then
+    return '"Infinity"'
+  end
+  if v == -math.huge then
+    return '"-Infinity"'
+  end
+  return string.format("%.6f", v)
+end
+
+local activeSkillName = nil
+local mainSocketGroup = build and build.mainSocketGroup or nil
+if build and build.calcsTab and build.calcsTab.mainEnv and build.calcsTab.mainEnv.player and build.calcsTab.mainEnv.player.mainSkill then
+  local ms = build.calcsTab.mainEnv.player.mainSkill
+  if ms.activeEffect and ms.activeEffect.grantedEffect and ms.activeEffect.grantedEffect.name then
+    activeSkillName = ms.activeEffect.grantedEffect.name
+  end
 end
 
 local offFields = {
@@ -147,10 +176,16 @@ local fields = {
 local pairsOut = {}
 for _, key in ipairs(fields) do
   local src = offFields[key] and offOut or out
-  pairsOut[#pairsOut + 1] = string.format('"%s": %.6f', key, num(src[key]))
+  pairsOut[#pairsOut + 1] = string.format('"%s": %s', key, serializeValue(src[key]))
 end
+
+local ctxParts = {
+  string.format('"activeSkillName": %s', activeSkillName and ('"' .. jsonEscape(activeSkillName) .. '"') or "null"),
+  string.format('"mainSocketGroup": %s', type(mainSocketGroup) == "number" and tostring(mainSocketGroup) or "null"),
+  string.format('"outputSource": "%s"', outputSource),
+}
 
 -- Emit clean JSON bounded by markers so TS runner parses cleanly even if Lua logged warnings
 origPrint("__ORACLE_JSON_START__")
-origPrint("{" .. table.concat(pairsOut, ", ") .. "}")
+origPrint('{"schemaVersion": 2, "context": {' .. table.concat(ctxParts, ", ") .. '}, "oracle": {' .. table.concat(pairsOut, ", ") .. '}}')
 origPrint("__ORACLE_JSON_END__")

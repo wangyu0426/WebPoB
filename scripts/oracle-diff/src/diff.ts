@@ -13,25 +13,81 @@ import {
   type CompactTreePayload,
 } from '@webpob/data';
 import { xmlToBuild } from '@webpob/codec';
-import { calculateBuild } from '@webpob/calc';
-import type { OracleGoldenSnapshot } from './generate.js';
+import {
+  calculateBuild,
+  CANONICAL_ORACLE_BENCHMARK_IDS,
+  evaluateOracleSuite,
+  validateSnapshotCorpus,
+  type OracleMetricStatus,
+} from '@webpob/calc';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '../../..');
+const DEFAULT_SNAP_PATH = path.join(ROOT_DIR, 'fixtures/oracle/snapshots.json');
+const CANONICAL_MIN_SNAPSHOT_COUNT = CANONICAL_ORACLE_BENCHMARK_IDS.length;
 
-interface MetricComparison {
-  metric: string;
-  oracle: number;
-  webpob: number;
-  absDiff: number;
-  relDiffPct: number;
+interface CliOptions {
+  strict: boolean;
+  certify: boolean;
+  json: boolean;
+  verbose: boolean;
+  snapshotsPath: string;
+  customSnapshots: boolean;
+  minCount: number;
 }
 
-function compareMetric(metric: string, oracle: number, webpob: number): MetricComparison {
-  const absDiff = webpob - oracle;
-  const denom = Math.max(1, Math.abs(oracle));
-  const relDiffPct = Math.round((Math.abs(absDiff) / denom) * 10000) / 100;
-  return { metric, oracle: Math.round(oracle * 100) / 100, webpob: Math.round(webpob * 100) / 100, absDiff: Math.round(absDiff * 100) / 100, relDiffPct };
+function parseCliArgs(argv: string[]): CliOptions {
+  let strict = false;
+  let certify = false;
+  let json = false;
+  let verbose = false;
+  let snapshotsPath = DEFAULT_SNAP_PATH;
+  let customSnapshots = false;
+  let minCount: number | undefined;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--strict') {
+      strict = true;
+    } else if (arg === '--certify') {
+      strict = true;
+      certify = true;
+    } else if (arg === '--json') {
+      json = true;
+    } else if (arg === '--verbose') {
+      verbose = true;
+    } else if (arg === '--snapshots') {
+      const value = argv[++i];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --snapshots');
+      }
+      snapshotsPath = path.resolve(process.cwd(), value);
+      customSnapshots = true;
+    } else if (arg === '--min-count') {
+      const value = argv[++i];
+      const parsed = value ? Number.parseInt(value, 10) : Number.NaN;
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        throw new Error(`Invalid --min-count value: ${String(value)}`);
+      }
+      minCount = parsed;
+    } else if (arg === '--') {
+      continue;
+    } else {
+      throw new Error(`Unknown CLI argument: ${arg}`);
+    }
+  }
+
+  return {
+    strict,
+    certify,
+    json,
+    verbose,
+    snapshotsPath,
+    customSnapshots,
+    minCount: certify
+      ? Math.max(minCount ?? CANONICAL_MIN_SNAPSHOT_COUNT, CANONICAL_MIN_SNAPSHOT_COUNT)
+      : (minCount ?? (customSnapshots ? 1 : CANONICAL_MIN_SNAPSHOT_COUNT)),
+  };
 }
 
 async function loadLocalDatasets() {
@@ -52,58 +108,128 @@ async function loadLocalDatasets() {
   registerClusterNotables(poe1Clusters);
 }
 
+function statusSymbol(status: OracleMetricStatus): string {
+  switch (status) {
+    case 'pass':
+      return '✓';
+    case 'mismatch':
+      return '✗';
+    case 'missing':
+      return '!';
+    case 'invalid':
+      return 'E';
+    case 'not_applicable':
+      return '-';
+    case 'unsupported':
+      return '?';
+  }
+}
+
 async function main() {
+  const opts = parseCliArgs(process.argv.slice(2));
   await loadLocalDatasets();
-  const snapPath = path.join(ROOT_DIR, 'fixtures/oracle/snapshots.json');
-  const data = JSON.parse(await fs.readFile(snapPath, 'utf-8')) as { snapshots: OracleGoldenSnapshot[] };
 
-  console.log('=== WebPoB vs Official PathOfBuilding Differential Report ===\n');
+  let rawPayload: unknown;
+  try {
+    rawPayload = JSON.parse(await fs.readFile(opts.snapshotsPath, 'utf-8'));
+  } catch (err) {
+    console.error(`FAIL: Unable to read or parse snapshots file "${opts.snapshotsPath}": ${(err as Error).message}`);
+    process.exit(1);
+  }
 
-  for (const snap of data.snapshots) {
-    const build = xmlToBuild(snap.xml);
-    const out = calculateBuild(build);
-    const o = snap.oracle;
+  const suite = evaluateOracleSuite(
+    rawPayload,
+    (xml) => {
+      const build = xmlToBuild(xml);
+      const out = calculateBuild(build);
+      return { build, out };
+    },
+    {
+      minCount: opts.minCount,
+      expectedIds: opts.certify || !opts.customSnapshots ? CANONICAL_ORACLE_BENCHMARK_IDS : undefined,
+    },
+  );
 
-    // PoB stores CritMultiplier as ratio (e.g. 1.5 = 150%)
-    const oracleCritMultiPct = o.CritMultiplier > 10 ? o.CritMultiplier : o.CritMultiplier * 100;
+  // Canonical benchmark certification always requires the full canonical benchmark corpus,
+  // even when running diagnostic or --strict mode against a custom --snapshots file.
+  const canonicalCorpus =
+    opts.certify || !opts.customSnapshots
+      ? suite.corpus
+      : validateSnapshotCorpus(rawPayload, {
+          minCount: CANONICAL_MIN_SNAPSHOT_COUNT,
+          expectedIds: CANONICAL_ORACLE_BENCHMARK_IDS,
+        });
+  const canonicalCertified = suite.certified && canonicalCorpus.valid;
 
-    const rows: MetricComparison[] = [
-      compareMetric('Str', o.Str, out.defence.str),
-      compareMetric('Dex', o.Dex, out.defence.dex),
-      compareMetric('Int', o.Int, out.defence.int),
-      compareMetric('Life', o.Life, out.defence.life),
-      compareMetric('EnergyShield', o.EnergyShield, out.defence.energyShield),
-      ...(o.Ward ? [compareMetric('Ward', o.Ward, out.defence.ward ?? 0)] : []),
-      compareMetric('Mana', o.Mana, out.defence.mana),
-      compareMetric('Armour', o.Armour, out.defence.armour),
-      compareMetric('Evasion', o.Evasion, out.defence.evasion),
-      compareMetric('FireResist', o.FireResist, out.defence.fireResist),
-      compareMetric('ColdResist', o.ColdResist, out.defence.coldResist),
-      compareMetric('LightningResist', o.LightningResist, out.defence.lightningResist),
-      compareMetric('ChaosResist', o.ChaosResist, out.defence.chaosResist),
-      compareMetric('Speed', o.Speed, out.offence.speed),
-      compareMetric('CritChance', o.CritChance, out.offence.critChance),
-      compareMetric('CritMulti%', oracleCritMultiPct, out.offence.critMultiplier),
-      compareMetric('HitChance', o.HitChance, out.offence.hitChance),
-      compareMetric(
-        'AverageDamage',
-        o.AverageDamage || o.AverageHit,
-        out.offence.averageHit * (out.offence.hitChance / 100),
+  if (opts.json) {
+    console.log(
+      JSON.stringify(
+        {
+          mode: opts.certify ? 'certify' : opts.strict ? 'strict' : 'diagnostic',
+          snapshotsPath: opts.snapshotsPath,
+          corpus: suite.corpus,
+          statusCounts: suite.statusCounts,
+          metricSummaries: suite.metricSummaries,
+          corePassed: suite.corePassed,
+          strictPassed: suite.strictPassed,
+          certified: canonicalCertified,
+        },
+        null,
+        2,
       ),
-      compareMetric('HitDPS', o.TotalDPS, out.offence.hitDps),
-      ...(o.ImpaleDPS ? [compareMetric('ImpaleDPS', o.ImpaleDPS, out.offence.impaleDps ?? 0)] : []),
-      compareMetric('CombinedDPS', o.CombinedDPS, out.offence.totalDps),
-    ];
+    );
+  } else {
+    const modeLabel = opts.certify ? 'CERTIFY (fail-closed)' : opts.strict ? 'STRICT (fail-closed)' : 'DIAGNOSTIC';
+    console.log(`=== WebPoB vs Official PathOfBuilding Differential Report [${modeLabel}] ===\n`);
+    console.log(
+      `Corpus: ${suite.corpus.count} snapshots | schemaValid=${suite.corpus.valid} | legacyCount=${suite.corpus.legacyCount}`,
+    );
+    if (suite.corpus.errors.length > 0) {
+      console.log('Corpus validation errors:');
+      for (const err of suite.corpus.errors) {
+        console.log(`  - ${err}`);
+      }
+    }
 
-    console.log(`\n[${snap.id}] ${snap.title} (PoB @ ${snap.pobCommit})`);
-    console.log('  Metric            |   Official PoB |        WebPoB |      Diff |   Err%');
-    console.log('  ------------------+----------------+---------------+-----------+--------');
-    for (const r of rows) {
-      const flag = r.relDiffPct <= 0.5 || Math.abs(r.absDiff) <= 1 ? '✓' : r.relDiffPct <= 5 ? '~' : '✗';
+    console.log('\nMetric Summary (Core + Extended):');
+    console.log('  Metric                 | Tier     | Pass | Mismatch | Missing | Invalid | N/A | Unsup');
+    console.log('  -----------------------+----------+------+----------+---------+---------+-----+------');
+    for (const s of suite.metricSummaries) {
       console.log(
-        `  ${flag} ${r.metric.padEnd(15)} | ${String(r.oracle).padStart(14)} | ${String(r.webpob).padStart(13)} | ${String(r.absDiff).padStart(9)} | ${String(r.relDiffPct).padStart(5)}%`,
+        `  ${s.metric.padEnd(22)} | ${s.tier.padEnd(8)} | ${String(s.pass).padStart(4)} | ${String(s.mismatch).padStart(8)} | ${String(s.missing).padStart(7)} | ${String(s.invalid).padStart(7)} | ${String(s.not_applicable).padStart(3)} | ${String(s.unsupported).padStart(5)}`,
       );
     }
+
+    if (opts.verbose) {
+      for (const snap of suite.snapshots) {
+        console.log(`\n[${snap.id}] ${snap.title} (PoB @ ${snap.pobCommit}, ${snap.context.provenance})`);
+        if (!snap.context.valid) {
+          for (const err of snap.context.errors) {
+            console.log(`  ! CONTEXT: ${err}`);
+          }
+        }
+        for (const m of snap.metrics) {
+          if (m.status === 'not_applicable') continue;
+          console.log(
+            `  ${statusSymbol(m.status)} ${m.metric.padEnd(22)} | oracle=${String(m.oracle ?? m.rawOracle ?? 'null').padStart(10)} | actual=${String(m.actual ?? m.rawActual ?? 'null').padStart(10)} | ${m.status}${m.reason ? ` (${m.reason})` : ''}`,
+          );
+        }
+      }
+    }
+
+    console.log(
+      `\nGate Summary: corePassed=${suite.corePassed} | strictPassed=${suite.strictPassed} | certified=${canonicalCertified}`,
+    );
+  }
+
+  if (!suite.corpus.valid || !suite.corePassed) {
+    process.exit(1);
+  }
+  if (opts.strict && !suite.strictPassed) {
+    process.exit(1);
+  }
+  if (opts.certify && !canonicalCertified) {
+    process.exit(1);
   }
 }
 
