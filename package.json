@@ -13,6 +13,8 @@
     "typecheck": "pnpm -r typecheck",
     "sync:data": "tsx scripts/sync-data/src/index.ts",
     "sync:lua": "tsx scripts/sync-data/src/exportFromLua.ts",
+    "oracle:setup": "tsx scripts/oracle-diff/src/setup.ts",
+    "oracle:smoke": "tsx scripts/oracle-diff/src/smoke.ts",
     "oracle:generate": "tsx scripts/oracle-diff/src/generate.ts",
     "oracle:diff": "tsx scripts/oracle-diff/src/diff.ts",
     "test:e2e:ninja": "node scripts/verify-ninja-e2e.mjs",

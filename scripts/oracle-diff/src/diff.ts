@@ -17,9 +17,17 @@ import {
   calculateBuild,
   CANONICAL_ORACLE_BENCHMARK_IDS,
   evaluateOracleSuite,
+  ORACLE_METRIC_SPECS,
   validateSnapshotCorpus,
   type OracleMetricStatus,
 } from '@webpob/calc';
+import {
+  DEFAULT_PINS_PATH,
+  loadOraclePins,
+  sha256Buffer,
+  validateSnapshotProvenance,
+  verifyPinnedDataFiles,
+} from './pins.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '../../..');
@@ -137,6 +145,19 @@ async function main() {
     process.exit(1);
   }
 
+  const pins = await loadOraclePins(DEFAULT_PINS_PATH);
+  const dataCheck = await verifyPinnedDataFiles(pins, ROOT_DIR);
+  const runnerScriptDigest = sha256Buffer(
+    await fs.readFile(path.join(ROOT_DIR, 'scripts/oracle-diff/lua/run_oracle.lua')),
+  );
+  const rawSnapshots =
+    rawPayload && typeof rawPayload === 'object' && Array.isArray((rawPayload as { snapshots?: unknown }).snapshots)
+      ? (rawPayload as { snapshots: unknown[] }).snapshots
+      : [];
+  const provenanceErrors = rawSnapshots.flatMap((snapshot) =>
+    validateSnapshotProvenance(snapshot, pins, runnerScriptDigest),
+  );
+
   const suite = evaluateOracleSuite(
     rawPayload,
     (xml) => {
@@ -147,6 +168,11 @@ async function main() {
     {
       minCount: opts.minCount,
       expectedIds: opts.certify || !opts.customSnapshots ? CANONICAL_ORACLE_BENCHMARK_IDS : undefined,
+    },
+    ORACLE_METRIC_SPECS,
+    {
+      poe1: pins.upstream.poe1.commit,
+      poe2: pins.upstream.poe2.commit,
     },
   );
 
@@ -159,7 +185,11 @@ async function main() {
           minCount: CANONICAL_MIN_SNAPSHOT_COUNT,
           expectedIds: CANONICAL_ORACLE_BENCHMARK_IDS,
         });
-  const canonicalCertified = suite.certified && canonicalCorpus.valid;
+  const canonicalCertified =
+    suite.certified &&
+    canonicalCorpus.valid &&
+    dataCheck.valid &&
+    provenanceErrors.length === 0;
 
   if (opts.json) {
     console.log(
@@ -173,6 +203,12 @@ async function main() {
           corePassed: suite.corePassed,
           strictPassed: suite.strictPassed,
           certified: canonicalCertified,
+          pinValidation: {
+            dataFilesValid: dataCheck.valid,
+            dataFileErrors: dataCheck.errors,
+            snapshotProvenanceErrorCount: provenanceErrors.length,
+            snapshotProvenanceErrors: provenanceErrors.slice(0, 10),
+          },
         },
         null,
         2,
@@ -220,6 +256,13 @@ async function main() {
     console.log(
       `\nGate Summary: corePassed=${suite.corePassed} | strictPassed=${suite.strictPassed} | certified=${canonicalCertified}`,
     );
+    console.log(
+      '\nPin validation: dataFilesValid=' + dataCheck.valid +
+        ' | provenanceErrors=' + provenanceErrors.length,
+    );
+    for (const error of [...dataCheck.errors, ...provenanceErrors].slice(0, 5)) {
+      console.log('  - ' + error);
+    }
   }
 
   if (!suite.corpus.valid || !suite.corePassed) {

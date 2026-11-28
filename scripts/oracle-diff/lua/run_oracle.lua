@@ -35,6 +35,11 @@ print = function(...)
   logs[#logs + 1] = table.concat(parts, "\t")
 end
 
+local utf8Module = require("lua-utf8")
+if type(utf8Module) ~= "table" or type(utf8Module.version) ~= "string" then
+  error("Pinned lua-utf8 module is missing its version metadata")
+end
+
 dofile("HeadlessWrapper.lua")
 
 local f, err = io.open(xmlPath, "r")
@@ -45,8 +50,25 @@ end
 local xmlText = f:read("*a")
 f:close()
 
-loadBuildFromXML(xmlText, "OracleBenchmark")
-runCallback("OnFrame")
+local nativeErrors = {}
+local function captureCall(label, fn)
+  local ok, callErr = xpcall(fn, function(e)
+    return debug and debug.traceback and debug.traceback(tostring(e), 2) or tostring(e)
+  end)
+  if not ok then
+    nativeErrors[#nativeErrors + 1] = label .. ": " .. tostring(callErr)
+  end
+  return ok
+end
+
+captureCall("loadBuildFromXML", function()
+  loadBuildFromXML(xmlText, "OracleBenchmark")
+end)
+if #nativeErrors == 0 then
+  captureCall("OnFrame", function()
+    runCallback("OnFrame")
+  end)
+end
 
 local out = build and build.calcsTab and build.calcsTab.mainOutput or {}
 local offOut = out
@@ -57,7 +79,17 @@ if (out.TotalDPS == nil or out.TotalDPS == 0) and out.Minion and (out.Minion.Tot
 end
 
 local function jsonEscape(s)
-  return tostring(s):gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r')
+  local replacements = {
+    ['\b'] = '\\b',
+    ['\f'] = '\\f',
+    ['\n'] = '\\n',
+    ['\r'] = '\\r',
+    ['\t'] = '\\t',
+  }
+  s = tostring(s):gsub('\\', '\\\\'):gsub('"', '\\"')
+  return s:gsub('[%z\1-\31]', function(char)
+    return replacements[char] or string.format('\\u%04x', string.byte(char))
+  end)
 end
 
 -- Preserve missing (nil -> null) and non-finite numbers ("NaN"/"Infinity"/"-Infinity")
@@ -174,18 +206,49 @@ local fields = {
 }
 
 local pairsOut = {}
+local presentFields = {}
+local missingFields = {}
 for _, key in ipairs(fields) do
   local src = offFields[key] and offOut or out
-  pairsOut[#pairsOut + 1] = string.format('"%s": %s', key, serializeValue(src[key]))
+  local val = src[key]
+  pairsOut[#pairsOut + 1] = string.format('"%s": %s', key, serializeValue(val))
+  if val ~= nil then
+    presentFields[#presentFields + 1] = '"' .. jsonEscape(key) .. '"'
+  else
+    missingFields[#missingFields + 1] = '"' .. jsonEscape(key) .. '"'
+  end
 end
+
+local errOut = {}
+for _, e in ipairs(nativeErrors) do
+  errOut[#errOut + 1] = '"' .. jsonEscape(e) .. '"'
+end
+
+local luaVersion = (jit and jit.version) or _VERSION or "unknown"
+local pobVersion = (launch and launch.versionNumber) or (build and build.targetVersion) or nil
 
 local ctxParts = {
   string.format('"activeSkillName": %s', activeSkillName and ('"' .. jsonEscape(activeSkillName) .. '"') or "null"),
   string.format('"mainSocketGroup": %s', type(mainSocketGroup) == "number" and tostring(mainSocketGroup) or "null"),
   string.format('"outputSource": "%s"', outputSource),
+  string.format('"luaVersion": "%s"', jsonEscape(luaVersion)),
+  string.format('"luaUtf8Version": "%s"', jsonEscape(utf8Module.version)),
+  string.format('"pobVersion": %s', pobVersion and ('"' .. jsonEscape(pobVersion) .. '"') or "null"),
 }
 
 -- Emit clean JSON bounded by markers so TS runner parses cleanly even if Lua logged warnings
 origPrint("__ORACLE_JSON_START__")
-origPrint('{"schemaVersion": 2, "context": {' .. table.concat(ctxParts, ", ") .. '}, "oracle": {' .. table.concat(pairsOut, ", ") .. '}}')
+origPrint(
+  '{"schemaVersion": 2, "context": {' .. table.concat(ctxParts, ", ") ..
+  '}, "nativeErrors": [' .. table.concat(errOut, ", ") ..
+  '], "presence": {"presentCount": ' .. tostring(#presentFields) ..
+  ', "missingCount": ' .. tostring(#missingFields) ..
+  ', "presentFields": [' .. table.concat(presentFields, ", ") ..
+  '], "missingFields": [' .. table.concat(missingFields, ", ") ..
+  ']}, "oracle": {' .. table.concat(pairsOut, ", ") .. '}}'
+)
 origPrint("__ORACLE_JSON_END__")
+if #nativeErrors > 0 then
+  io.stderr:write("Native PoB Oracle errors:\n" .. table.concat(nativeErrors, "\n") .. "\n")
+  os.exit(2)
+end
